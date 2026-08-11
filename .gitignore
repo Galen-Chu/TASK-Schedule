@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Generated output (PDFs, Obsidian notes)
+output/
+
+# Downloaded fonts (fetched via scripts/fetch_fonts.py or apt in CI)
+fonts/*.ttf
+fonts/*.otf
+fonts/*.ttc
+
+# Local config with secrets / personal data
+config/spark.yaml
+config/birth-profile.yaml
+.env
+
+# Original Word backups (kept locally after the .docx -> text recovery)
+_docx_backup/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude Code local settings (personal, not project)
+.claude/

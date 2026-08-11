@@ -1,0 +1,9 @@
+# Core dependencies (required for every report)
+reportlab>=4.0          # PDF generation (ReportLab)
+PyYAML>=6.0             # config/birth-profile parsing
+feedparser>=6.0         # Global Intelligence RSS (optional — absent => falls back to sample)
+
+# Optional / future (not required for the pipeline to run offline):
+#   google-api-python-client  # Drive upload + Gmail dispatch (core/dispatch stubs)
+#   google-auth               # service-account credentials
+#   pyswisseph                # Spiritual: real Swiss Ephemeris transit engines

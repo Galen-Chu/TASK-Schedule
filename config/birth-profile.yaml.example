@@ -1,0 +1,18 @@
+# Spiritual Intelligence 本命設定檔範本
+# 複製為 config/birth-profile.yaml 並填入個人資料（該檔已加入 .gitignore，切勿提交）。
+# 不提供此檔時，排程會使用 sanitized 預設值，仍可正常產出報告。
+
+user:
+  name: "你的名字"
+  timezone: Asia/Taipei
+  # email: your.name@example.com   # 收件用；留空則不寄 Gmail
+
+# 出生/所在地點（顯示於 PDF 表頭）
+location: "臺北市"
+
+# 以下為未來串接真實星曆引擎時使用的本命參數（目前為樣板）
+natal_profile:
+  hd_type: "Generator 5/1"          # 人類圖類型與人生角色
+  sun_sign: "Aries"                 # 太陽星座
+  birth_datetime: "YYYY-MM-DDTHH:MM:SS"
+  birth_place: "臺北市"

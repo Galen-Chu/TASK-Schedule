@@ -1,0 +1,28 @@
+# Spark Schedule 中央設定檔範本
+# 複製為 config/spark.yaml 後填入個人設定（spark.yaml 已加入 .gitignore）。
+# 不需要此檔也能執行——每份報告都有離線預設值。
+
+# 共用輸出目錄（預設 ./output）
+output_dir: ./output
+
+# Google Drive 上傳資料夾 ID（留空 = 不上傳；需另設 GOOGLE_APPLICATION_CREDENTIALS）
+# drive_folder_id: 0AbCDefGhIjKlMnOpQrStUvWxYz
+
+# ===== Financial =====
+financial:
+  # FRED API key（選用，目前未接；實作後讀取環境變數 FRED_API_KEY 較安全）
+  # fred_api_key_env: FRED_API_KEY
+
+# ===== Global =====
+global:
+  # RSS 來源（免 key；feedparser 未安裝時自動略過）
+  rss_feeds:
+    - https://feeds.bbci.co.uk/news/world/rss.xml
+    - https://www.reddit.com/r/worldnews/.rss
+
+# ===== Spiritual =====
+spiritual:
+  # 本命設定檔（含個資，請勿提交；範本見 birth-profile.yaml.example）
+  birth_profile_path: ./config/birth-profile.yaml
+  # 收件 email（留空 = 不寄信；Gmail 需另設 GOOGLE_APPLICATION_CREDENTIALS）
+  # notify_email: your.name@example.com
