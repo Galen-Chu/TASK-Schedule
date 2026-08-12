@@ -18,7 +18,9 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from core.scheduler_base import BaseReportScheduler
-from core.data.fetchers import fetch_twse_margin, fetch_market_snapshot, fetch_fred_series
+from core.data.fetchers import (
+    fetch_twse_margin, fetch_market_snapshot, fetch_treasury_yields, fetch_fear_greed,
+)
 from core.dispatch.drive_uploader import upload_to_drive
 
 # Imported lazily inside methods so the module imports cleanly even before
@@ -52,10 +54,11 @@ class FinancialReportScheduler(BaseReportScheduler):
     def fetch_data(self):
         """Best-effort real data, layered onto the sample baseline.
 
-        Order: Yahoo (keyless) -> TWSE margin (keyless) -> FRED (needs key).
-        Each layer only overwrites fields it actually resolved, so a partial
-        fetch still yields a coherent report; if absolutely nothing resolves
-        the method returns None and the base class falls back to sample.
+        All sources are keyless now: Yahoo Finance (VIX/DXY/Gold/BTC/WTI),
+        U.S. Treasury yield-curve CSV (2Y/10Y/spread), Fear & Greed index,
+        and TWSE margin maintenance ratio. Each layer only overwrites the
+        fields it actually resolved; if nothing resolves the method returns
+        None and the base class falls back to the full sample.
         """
         sources = []
         data = self.sample_data()
@@ -67,13 +70,26 @@ class FinancialReportScheduler(BaseReportScheduler):
             for k, dk in keymap.items():
                 if k in snap:
                     data[dk] = snap[k]
-            # fear_and_greed heuristic from VIX band (no keyless F&G API)
-            vix = data.get("vix")
-            if vix is not None:
-                data["fear_and_greed"] = max(5, min(95, int(50 - (vix - 20) * 2)))
             sources.append("Yahoo")
 
-        # 2) TWSE margin maintenance ratio (keyless)
+        # 2) U.S. Treasury daily yield curve — 2Y / 10Y / spread (keyless)
+        tyc = fetch_treasury_yields()
+        if tyc:
+            if "10y" in tyc:
+                data["treasury_10y"] = tyc["10y"]
+            if "2y" in tyc:
+                data["treasury_2y"] = tyc["2y"]
+            if "spread_10y2y" in tyc:
+                data["spread_10y2y"] = tyc["spread_10y2y"]
+            sources.append("Treasury")
+
+        # 3) Fear & Greed index (keyless) — replaces the old VIX heuristic
+        fg = fetch_fear_greed()
+        if fg is not None:
+            data["fear_and_greed"] = fg
+            sources.append("F&G")
+
+        # 4) TWSE margin maintenance ratio (keyless)
         twse = fetch_twse_margin(self.date_str)
         if twse:
             try:
@@ -85,20 +101,6 @@ class FinancialReportScheduler(BaseReportScheduler):
                         sources.append("TWSE")
             except (ValueError, TypeError, IndexError, KeyError):
                 self.logger.info("TWSE 回傳解析失敗，沿用 sample 維持率。")
-
-        # 3) FRED treasury yields (needs FRED_API_KEY; skipped if absent)
-        fred_key = os.environ.get("FRED_API_KEY") or self.config.get("fred_api_key")
-        if fred_key:
-            t10 = fetch_fred_series("DGS10", fred_key)
-            t2 = fetch_fred_series("DGS2", fred_key)
-            if t10 is not None:
-                data["treasury_10y"] = round(t10, 2)
-            if t2 is not None:
-                data["treasury_2y"] = round(t2, 2)
-            if t10 is not None and t2 is not None:
-                data["spread_10y2y"] = round(t10 - t2, 2)
-            if t10 is not None or t2 is not None:
-                sources.append("FRED")
 
         if not sources:
             return None  # triggers full sample fallback in base class

@@ -91,15 +91,69 @@ def fetch_market_snapshot():
     return out or None
 
 
-# ---- FRED (needs key) ------------------------------------------------------
-def fetch_fred_series(series_id, api_key):
-    """FRED observation (last value). Requires an API key. Returns float or None."""
-    if not api_key:
-        return None
-    url = (f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}"
-           f"&api_key={api_key}&file_type=json&sort_order=desc&limit=1")
-    data = _get_json(url)
+# ---- U.S. Treasury daily yield curve (keyless, official CSV) ---------------
+def _get_text(url):
     try:
-        return float(data["observations"][0]["value"])
+        req = urllib.request.Request(url, headers={"User-Agent": "SparkSchedule/2.0"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            return resp.read().decode("utf-8", errors="ignore")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+        log.info("GET %s failed: %s", url, exc)
+        return None
+
+
+def fetch_treasury_yields(year=None):
+    """Latest U.S. Treasury daily yield curve from treasury.gov (keyless).
+
+    Returns a dict like {"2y": 3.66, "10y": 4.19, "spread_10y2y": 0.53} for
+    whichever tenors resolved, or None on failure. ``year`` defaults to the
+    current year.
+    """
+    import csv as _csv
+    import io as _io
+    import datetime as _dt
+    year = year or _dt.date.today().year
+    url = (f"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
+           f"daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve"
+           f"&field_tdr_date_value={year}&_format=csv")
+    text = _get_text(url)
+    if not text:
+        return None
+    try:
+        rows = list(_csv.reader(_io.StringIO(text)))
+        if len(rows) < 2:
+            return None
+        hdr = [h.strip() for h in rows[0]]
+        last = rows[-1]
+
+        def col(name):
+            return hdr.index(name) if name in hdr else None
+
+        # Treasury CSV uses "2 Mo" (no 2 Yr), "10 Yr"
+        i2 = col("2 Yr") if "2 Yr" in hdr else col("2 Mo")
+        i10 = col("10 Yr")
+        out = {}
+        if i2 is not None and last[i2]:
+            out["2y"] = float(last[i2])
+        if i10 is not None and last[i10]:
+            out["10y"] = float(last[i10])
+        if "2y" in out and "10y" in out:
+            out["spread_10y2y"] = round(out["10y"] - out["2y"], 2)
+        out["_date"] = last[0] if last else None
+        return out or None
+    except (ValueError, IndexError, KeyError) as exc:
+        log.info("Treasury CSV parse failed: %s", exc)
+        return None
+
+
+# ---- Fear & Greed Index (keyless) -----------------------------------------
+def fetch_fear_greed():
+    """CNN-style Fear & Greed value (0-100) from alternative.me (keyless).
+
+    Returns an int, or None on failure.
+    """
+    data = _get_json("https://api.alternative.me/fng/?limit=1")
+    try:
+        return int(data["data"][0]["value"])
     except (KeyError, IndexError, TypeError, ValueError):
         return None

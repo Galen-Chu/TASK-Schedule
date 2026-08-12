@@ -127,14 +127,18 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 | 報告 | 真實來源 | 免 key？ | 缺來源時 |
 |---|---|---|---|
-| **Financial** | Yahoo Finance（VIX / DXY / 黃金 / BTC / 原油）、TWSE 融資維持率 | ✅ | 退回 sample |
-| **Financial** | FRED 公債殖利率（`DGS10`/`DGS2`） | ❌ 需 `FRED_API_KEY` | 跳過，用 sample 殖利率 |
+| **Financial** | Yahoo Finance（VIX / DXY / 黃金 / BTC / 原油） | ✅ | 退回 sample |
+| **Financial** | 美國財政部每日殖利率曲線 CSV（2Y / 10Y / 利差） | ✅ | 退回 sample |
+| **Financial** | Fear & Greed 指數（alternative.me） | ✅ | 退回 sample |
+| **Financial** | TWSE 大盤融資維持率 | ✅ | 退回 sample |
 | **Global** | RSS 即時快訊（BBC World 等）→ 寫進 Obsidian note | ✅（需 `feedparser`） | note 標示離線 |
 | **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 五術資料 |
 
-### 想接更多真實資料？
-- **FRED**：到 [stlouisfed.org](https://fred.stlouisfed.org/) 申請免費 API key，設環境變數 `FRED_API_KEY`。
-- **LLM 摘要/導引**（Global 三段式、Spiritual 五維度）：尚未接，屬路線圖 B。
+> 三份報告現在 **完全零 key**——沒有任何欄位需要 API key，CI 無 secret 即可跑真實資料。
+
+### 還沒接的（屬路線圖 B）
+- **LLM 摘要/導引**（Global 三段式 What/Why/So What、Spiritual 五維度）：需 `GEMINI_API_KEY`，目前用編輯樣板。
+- **總經日曆**（CPI / 非農 / Core PCE）：PDF 第 3 頁目前為編輯固定值，這類月頻總經數據接進去價值有限。
 
 ---
 
