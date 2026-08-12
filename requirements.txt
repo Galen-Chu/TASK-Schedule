@@ -3,6 +3,10 @@ reportlab>=4.0          # PDF generation (ReportLab)
 PyYAML>=6.0             # config/birth-profile parsing
 feedparser>=6.0         # Global Intelligence RSS (absent => falls back to sample)
 pyswisseph>=2.0         # Spiritual: real Swiss Ephemeris transits (absent => sample)
+lunar_python>=0.1       # Spiritual: Bazi/Ziwei Gan-Zhi + 農曆 (absent => sample)
+
+# Optional — LLM narrative enrichment (absent / no key => template fallback)
+google-genai>=1.0       # Gemini SDK; only used when GEMINI_API_KEY is set
 
 # Optional / future (not required for the pipeline to run offline):
 #   google-api-python-client  # Drive upload + Gmail dispatch (core/dispatch stubs)

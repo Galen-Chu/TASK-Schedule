@@ -44,6 +44,19 @@ class GlobalReportScheduler(BaseReportScheduler):
             return None
         return {"editorial": True, "rss_items": items[:6]}
 
+    def synthesize(self, data):
+        """When a Gemini key is configured, distill RSS items into a
+        What/Why/So-What digest; otherwise leave the editorial sample."""
+        items = (data or {}).get("rss_items") or []
+        if items:
+            from core import llm
+            if llm.is_available():
+                digest = llm.summarize_news_what_why_sowhat(items, domain_label="全球產業情報")
+                if digest:
+                    data["llm_digest"] = digest
+                    data["_source"] = (data.get("_source") or "") + "+Gemini"
+        return data
+
     def render_pdf(self, data):
         from Global_Intelligence.pdf_generator import build_global_pdf
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Global_Intelligence_每日產業局勢報告.pdf")

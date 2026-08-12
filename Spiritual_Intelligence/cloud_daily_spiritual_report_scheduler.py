@@ -4,10 +4,11 @@
 Triggered daily at **06:30 Asia/Taipei** (``30 6 * * *``). Built on
 :class:`core.scheduler_base.BaseReportScheduler`.
 
-No real ephemeris engine is wired yet, so :meth:`fetch_data` falls back to the
-static :mod:`Spiritual_Intelligence.systems_data` sample (the calculation
-engines described in the spec are future work). Personal data (name, email,
-Drive folder) is read from config / environment — never committed in source.
+All five occult systems are now computed live each day (Swiss Ephemeris for
+Western astrology + Human Design gates; lunar_python for Bazi/Ziwei; Mei Hua
+for I-Ching) via :mod:`core.data.divination`. Any system that fails to compute
+keeps its static sample entry. Personal data (name, email, Drive folder) is
+read from config / environment — never committed in source.
 """
 import os
 import sys
@@ -17,7 +18,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from core.scheduler_base import BaseReportScheduler
-from core.data import astro
+from core.data import divination
 from core.dispatch.drive_uploader import upload_to_drive
 from core.dispatch.gmail_dispatcher import send_digest
 
@@ -52,38 +53,36 @@ class SpiritualReportScheduler(BaseReportScheduler):
         return {"transit": spotlight_map()}
 
     def fetch_data(self):
-        """Compute real Western-astrology transits via Swiss Ephemeris.
+        """Compute live readings for all five occult systems.
 
-        Returns a dict with the resolved systems (a deep copy of the sample
-        with the SYS_AST spotlight/summary overwritten by today's actual
-        Sun/Moon/Mercury positions), or None to keep the static sample.
+        Returns a dict whose ``systems`` field maps system_id -> spotlight/
+        summary strings, or None if nothing could be computed (full sample
+        fallback).
         """
-        transits = astro.compute_transits(self.date_str)
+        transits = divination.all_transits(self.date_str)
         if not transits:
             return None
-        return {"_source": "SwissEphemeris", "transits": transits}
+        return {"_source": "divination", "systems": transits}
 
     def render_pdf(self, data):
         import copy
         from Spiritual_Intelligence.pdf_generator import generate_pdf_report
         from Spiritual_Intelligence.systems_data import SYSTEMS_CONFIG
-        from core.data.astro import astrology_spotlight
 
         profile = self._profile()
         location = profile.get("location") or "臺北市"
 
-        # If we computed real transits, overlay them onto the Astrology system
-        # so the PDF shows today's actual Sun/Moon/Mercury instead of the sample.
+        # Overlay today's computed spotlight/summary onto whichever systems
+        # resolved; the rest keep their static sample entry.
         systems = SYSTEMS_CONFIG
-        transits = (data or {}).get("transits")
-        spot = astrology_spotlight(transits) if transits else None
-        if spot:
-            spotlight_text, summary_text = spot
+        overlay = (data or {}).get("systems") or {}
+        if overlay:
             systems = copy.deepcopy(SYSTEMS_CONFIG)
             for cfg in systems:
-                if cfg["id"] == "SYS_AST":
-                    cfg["spotlight"] = spotlight_text
-                    cfg["system_data_summary"] = summary_text
+                hit = overlay.get(cfg["id"])
+                if hit:
+                    cfg["spotlight"] = hit["spotlight"]
+                    cfg["system_data_summary"] = hit["system_data_summary"]
 
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
         generate_pdf_report(pdf_path, date_str=self.date_str, location=location, systems=systems)

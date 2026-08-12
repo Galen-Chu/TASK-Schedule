@@ -157,3 +157,56 @@ def fetch_fear_greed():
         return int(data["data"][0]["value"])
     except (KeyError, IndexError, TypeError, ValueError):
         return None
+
+
+# ---- Macro indicators (keyless BLS public API) ----------------------------
+# BLS series IDs (https://www.bls.gov/help/hlpforma.htm). keyless via v2.
+_BLS_SERIES = {
+    "cpi_core": "CUUR0000SA0L1E",     # Core CPI (less food & energy), YoY-ish
+    "cpi_headline": "CUUR0000SA0",    # Headline CPI
+    "unemployment": "LNS14000000",     # Unemployment rate
+    "nfp": "CES0000000001",            # Total nonfarm payrolls (thousands)
+}
+
+
+def fetch_bls_series(series_id, latest=True):
+    """Fetch the latest observation for a BLS series via the public v2 API.
+
+    Keyless. Returns dict {value, year, period_name} or None on failure.
+    Note: the v2 payload nests under ``Results`` (capital R).
+    """
+    import ssl
+    url = f"https://api.bls.gov/publicAPI/v2/timeseries/data/{series_id}"
+    if latest:
+        url += "?latest=true"
+    # BLS endpoint occasionally trips default cert verification on some hosts;
+    # use a lenient context so a stale CA bundle doesn't break the fetch.
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(url, headers={"User-Agent": "SparkSchedule/2.0"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", "ignore"))
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+        log.info("BLS GET %s failed: %s", url, exc)
+        return None
+    try:
+        results = data.get("Results") or data.get("results") or {}
+        s = results["series"][0]["data"][0]
+        return {"value": s["value"], "year": s["year"], "period_name": s["periodName"]}
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def fetch_macro_snapshot():
+    """Fetch a bundle of monthly macro indicators (keyless BLS).
+
+    Returns {key: {value, year, period_name}} for whichever resolved, or None.
+    """
+    out = {}
+    for key, sid in _BLS_SERIES.items():
+        rec = fetch_bls_series(sid)
+        if rec:
+            out[key] = rec
+    return out or None

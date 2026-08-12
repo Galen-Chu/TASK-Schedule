@@ -149,6 +149,31 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ---
 
+## 進階資料層（已實作）
+
+### Spiritual — 五術真實計算
+`core/data/divination.py` 每日計算全部五術（皆免 key）：
+- **西洋占星**：Swiss Ephemeris（`pyswisseph`）算太陽/月亮/水星黃道位置與相位 orb。
+- **人類圖**：太陽黃經 → 64 閘門 Mandala 對應 + 動爻。
+- **紫微斗數**：`lunar_python` 日支定位流日命宮 + 干支輪轉四化。
+- **八字**：`lunar_python` 取當日干支（年/月/日柱）+ 五行動能。
+- **梅花易數**：太陽黃經取上下卦 + 日序取動爻，得當日卦象。
+任一術算不出就保留該頁靜態樣板。
+
+### LLM 敘事增強（Gemini，key 選用）
+`core/llm.py` 用官方 `google-genai` SDK。設 `GEMINI_API_KEY` 後：
+- **Global**：RSS 即時快訊 → Gemini 萃取 **What / Why / So What** 三段摘要，印成 PDF 第 1 頁「AI 智庫摘要」卡。
+- 缺 key / 套件未裝 / API 失敗 → 一律自動退回編輯樣板（CI 即走此路徑）。
+
+### Monthly Macro Digest（Financial，月度排程）
+與每日報告**不同節奏**的第二條 Financial 排程：
+- **每日** `30 7 * * *`：行情報價 + signal score（盤中/價格資料）。
+- **月度** `0 9 2 * *`（每月 2 號 09:00）：結構性總經指標（CPI / Core CPI / 失業率 / NFP / 殖利率曲線），來自免 key 的 BLS + 美國財政部。
+
+月度排程產出 `Monthly_Macro_Digest.pdf`（1 頁計分卡）。執行：`python main.py macro`。
+
+---
+
 ## 附註
 
 - 本專案進場時，多數 `.py` / `.md` 其實是被冠錯副檔名的 `.docx` 二進位檔，已全數還原為真實純文字（6 個 `.py` 通過 `py_compile`）。原始 Word 檔備份在本機 `_docx_backup/`（已 gitignore），確認無誤後可刪除。

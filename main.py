@@ -23,6 +23,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from Financial_Intelligence.cloud_daily_financial_report_scheduler import FinancialReportScheduler
+from Financial_Intelligence.monthly_macro_scheduler import MonthlyMacroScheduler
 from Global_Intelligence.cloud_daily_global_report_scheduler import GlobalReportScheduler
 from Spiritual_Intelligence.cloud_daily_spiritual_report_scheduler import SpiritualReportScheduler
 
@@ -30,6 +31,7 @@ REPORTS = {
     "financial": FinancialReportScheduler,
     "global": GlobalReportScheduler,
     "spiritual": SpiritualReportScheduler,
+    "macro": MonthlyMacroScheduler,           # monthly cadence, Financial-only
 }
 
 
@@ -87,7 +89,10 @@ def main(argv=None):
     if args.fonts:
         cmd_fonts(); return 0
 
-    chosen = list(REPORTS) if (not args.reports or "all" in args.reports) else args.reports
+    # "all" = the three daily reports only. "macro" is a separate monthly
+    # cadence — run it explicitly or via the monthly workflow job.
+    DAILY = ["financial", "global", "spiritual"]
+    chosen = DAILY if (not args.reports or "all" in args.reports) else args.reports
     unknown = [r for r in chosen if r not in REPORTS]
     if unknown:
         parser.error(f"未知的報告：{unknown}。可選：{list(REPORTS)}")

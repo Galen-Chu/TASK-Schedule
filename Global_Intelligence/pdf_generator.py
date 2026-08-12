@@ -14,7 +14,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from reportlab.lib import colors
-from reportlab.platypus import Paragraph, Table, TableStyle, PageBreak
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 
 from core import design_tokens as T
 from core.pdf_engine import en, standard_styles, make_title_row, footer_factory, new_doc
@@ -89,8 +89,31 @@ def build_global_pdf(filename, data=None, date_str=None):
     story = []
 
     title = "Global Intelligence 每日產業局勢報告"
+
+    # Optional AI digest card (only when GEMINI_API_KEY produced a summary)
+    digest = (data or {}).get("llm_digest")
+    if digest:
+        story.extend(make_title_row(title, "AI 智庫摘要 (Gemini 即時萃取)", date_str, T.GOLD, s))
+        digest_rows = [
+            [Paragraph(en("<b>WHAT（事實概要）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("what", ""), bold=True), s["body"])],
+            [Paragraph(en("<b>WHY（脈絡影響）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("why", "")), s["body"])],
+            [Paragraph(en("<b>SO WHAT（台灣啟示）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("so_what", "")), s["body"])],
+        ]
+        t_ai = Table(digest_rows, colWidths=[110, T.PRINTABLE_WIDTH - 110])
+        t_ai.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), T.NAVY),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, T.BORDER),
+            ('BACKGROUND', (1, 0), (1, -1), T.BG_CARD),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story += [t_ai, Spacer(1, 10)]
+
     for idx, (subtitle, accent, rows) in enumerate(PAGES):
-        if idx > 0:
+        if idx > 0 or digest:
             story.append(PageBreak())
         page_title = title if idx == 0 else subtitle.split(":")[-1].split("(")[0].strip()
         story.extend(make_title_row(page_title, subtitle, date_str, accent, s))
@@ -107,8 +130,8 @@ def build_global_pdf(filename, data=None, date_str=None):
         story.append(t)
 
     doc = new_doc(filename, title=title)
-    doc.build(story, onFirstPage=footer_factory(DISCLAIMER, _PAGE_TOTAL),
-              onLaterPages=footer_factory(DISCLAIMER, _PAGE_TOTAL))
+    doc.build(story, onFirstPage=footer_factory(DISCLAIMER),
+              onLaterPages=footer_factory(DISCLAIMER))
     print("PDF build complete:", filename)
     return filename
 
