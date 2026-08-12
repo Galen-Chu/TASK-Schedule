@@ -172,6 +172,43 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 月度排程產出 `Monthly_Macro_Digest.pdf`（1 頁計分卡）。執行：`python main.py macro`。
 
+### Google Drive 上傳（service account，選用）
+每份報告的 PDF 自動上傳到 Drive——一個根資料夾下，每份報告各自的子資料夾（Financial / Global / Spiritual / Macro）。缺憑證時安全略過（CI 即如此）。
+
+**設定步驟**（service account，最適合無人值守排程）：
+1. 到 [Google Cloud Console](https://console.cloud.google.com/) 建專案，啟用 **Google Drive API**。
+2. 「IAM 與管理 → 服務帳戶」建立一個 service account，下載 **JSON 金鑰**。
+3. 在 Google Drive 建一個資料夾，把 service account 的 email（如 `xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**。
+4. 設環境變數：
+   - `GOOGLE_APPLICATION_CREDENTIALS` = 金鑰 JSON 的路徑
+   - 在 `config/spark.yaml` 設 `drive_folder_id`（資料夾 URL 中 `folders/` 後面那段 ID）
+5. GitHub Actions：把金鑰 JSON 內容存成 Secret `GCP_SA_KEY`，workflow 寫成檔案再設環境變數（見 workflow 註解）。
+
+> 排程自動在根資料夾下建立/重用 `Financial`、`Global`、`Spiritual`、`Macro` 四個子資料夾。
+
+---
+
+## Docker
+
+提供 `Dockerfile`，可在本機或雲端容器內跑完整 pipeline：
+
+```bash
+docker build -t spark-schedule .
+docker run --rm -v "$PWD/output:/app/output" -v "$PWD/fonts:/app/fonts" spark-schedule all
+docker run --rm -e GEMINI_API_KEY=... -e GOOGLE_APPLICATION_CREDENTIALS=/key.json -v ... spark-schedule all
+```
+
+映像檔基於 `python:3.11-slim`，預裝字型（fonts-noto-cjk）與所有相依套件。
+
+## 測試
+
+```bash
+pip install pytest
+pytest -q          # 模組測試 + 煙霧測試（三份日報 + macro 產 PDF、頁數正確）
+```
+
+CI 會在 push / PR 時自動跑 pytest。
+
 ---
 
 ## 附註

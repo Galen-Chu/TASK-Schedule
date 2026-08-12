@@ -126,7 +126,7 @@ class FinancialReportScheduler(BaseReportScheduler):
         return write_obsidian_note(data, output_dir=vault)
 
     def dispatch(self, pdf_path, data, note_path=None):
-        upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"))
+        upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"), subfolder=self.report_id)
 
 
 def run_daily_pipeline(date_str=None, output_dir=None):

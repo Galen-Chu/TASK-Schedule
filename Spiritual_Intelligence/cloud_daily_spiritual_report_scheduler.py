@@ -95,7 +95,7 @@ class SpiritualReportScheduler(BaseReportScheduler):
         return writer.execute_writeback(self.date_str)
 
     def dispatch(self, pdf_path, data, note_path=None):
-        link = upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"))
+        link = upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"), subfolder=self.report_id)
         profile = self._profile()
         email = self.config.get("notify_email") or profile.get("user", {}).get("email")
         if email:

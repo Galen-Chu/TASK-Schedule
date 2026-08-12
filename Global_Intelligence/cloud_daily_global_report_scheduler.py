@@ -69,7 +69,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         return write_global_obsidian_note(self.date_str, output_dir=vault, data=data)
 
     def dispatch(self, pdf_path, data, note_path=None):
-        upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"))
+        upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"), subfolder=self.report_id)
 
 
 def run_global_daily_pipeline(date_str=None, output_dir=None):
