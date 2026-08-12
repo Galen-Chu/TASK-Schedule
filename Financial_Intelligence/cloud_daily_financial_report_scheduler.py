@@ -18,7 +18,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from core.scheduler_base import BaseReportScheduler
-from core.data.fetchers import fetch_twse_margin
+from core.data.fetchers import fetch_twse_margin, fetch_market_snapshot, fetch_fred_series
 from core.dispatch.drive_uploader import upload_to_drive
 
 # Imported lazily inside methods so the module imports cleanly even before
@@ -50,29 +50,59 @@ class FinancialReportScheduler(BaseReportScheduler):
         }
 
     def fetch_data(self):
-        """Best-effort: pull TWSE margin data and overlay onto sample.
+        """Best-effort real data, layered onto the sample baseline.
 
-        Returns ``None`` (-> sample fallback) if the network call or parsing
-        fails. FRED/Yahoo need API keys and are documented in the spec but not
-        wired here yet.
+        Order: Yahoo (keyless) -> TWSE margin (keyless) -> FRED (needs key).
+        Each layer only overwrites fields it actually resolved, so a partial
+        fetch still yields a coherent report; if absolutely nothing resolves
+        the method returns None and the base class falls back to sample.
         """
-        twse = fetch_twse_margin(self.date_str)
-        if not twse:
-            return None
+        sources = []
         data = self.sample_data()
-        try:
-            rows = twse["raw"].get("data", [])
-            fields = twse["raw"].get("fields", [])
-            # MI_MARGIN fields typically include 融資維持率(%) as the last col.
-            if rows and fields:
-                last = rows[0][-1]
-                ratio = float(str(last).replace(",", "").strip())
-                if 100 < ratio < 300:          # sanity range
-                    data["margin_maintenance_ratio"] = round(ratio, 2)
-        except (ValueError, TypeError, IndexError, KeyError):
-            self.logger.info("TWSE 回傳解析失敗，沿用 sample 維持率。")
-            return None
-        data["_source"] = "TWSE+sample"
+
+        # 1) Yahoo Finance headline quotes (keyless)
+        snap = fetch_market_snapshot()
+        if snap:
+            keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc", "wti": "wti"}
+            for k, dk in keymap.items():
+                if k in snap:
+                    data[dk] = snap[k]
+            # fear_and_greed heuristic from VIX band (no keyless F&G API)
+            vix = data.get("vix")
+            if vix is not None:
+                data["fear_and_greed"] = max(5, min(95, int(50 - (vix - 20) * 2)))
+            sources.append("Yahoo")
+
+        # 2) TWSE margin maintenance ratio (keyless)
+        twse = fetch_twse_margin(self.date_str)
+        if twse:
+            try:
+                rows = twse["raw"].get("data", [])
+                if rows:
+                    ratio = float(str(rows[0][-1]).replace(",", "").strip())
+                    if 100 < ratio < 300:
+                        data["margin_maintenance_ratio"] = round(ratio, 2)
+                        sources.append("TWSE")
+            except (ValueError, TypeError, IndexError, KeyError):
+                self.logger.info("TWSE 回傳解析失敗，沿用 sample 維持率。")
+
+        # 3) FRED treasury yields (needs FRED_API_KEY; skipped if absent)
+        fred_key = os.environ.get("FRED_API_KEY") or self.config.get("fred_api_key")
+        if fred_key:
+            t10 = fetch_fred_series("DGS10", fred_key)
+            t2 = fetch_fred_series("DGS2", fred_key)
+            if t10 is not None:
+                data["treasury_10y"] = round(t10, 2)
+            if t2 is not None:
+                data["treasury_2y"] = round(t2, 2)
+            if t10 is not None and t2 is not None:
+                data["spread_10y2y"] = round(t10 - t2, 2)
+            if t10 is not None or t2 is not None:
+                sources.append("FRED")
+
+        if not sources:
+            return None  # triggers full sample fallback in base class
+        data["_source"] = "+".join(sources)
         return data
 
     def synthesize(self, data):

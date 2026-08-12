@@ -17,6 +17,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from core.scheduler_base import BaseReportScheduler
+from core.data import astro
 from core.dispatch.drive_uploader import upload_to_drive
 from core.dispatch.gmail_dispatcher import send_digest
 
@@ -51,15 +52,41 @@ class SpiritualReportScheduler(BaseReportScheduler):
         return {"transit": spotlight_map()}
 
     def fetch_data(self):
-        """No live ephemeris yet — always falls back to the sample."""
-        return None
+        """Compute real Western-astrology transits via Swiss Ephemeris.
+
+        Returns a dict with the resolved systems (a deep copy of the sample
+        with the SYS_AST spotlight/summary overwritten by today's actual
+        Sun/Moon/Mercury positions), or None to keep the static sample.
+        """
+        transits = astro.compute_transits(self.date_str)
+        if not transits:
+            return None
+        return {"_source": "SwissEphemeris", "transits": transits}
 
     def render_pdf(self, data):
+        import copy
         from Spiritual_Intelligence.pdf_generator import generate_pdf_report
+        from Spiritual_Intelligence.systems_data import SYSTEMS_CONFIG
+        from core.data.astro import astrology_spotlight
+
         profile = self._profile()
         location = profile.get("location") or "臺北市"
+
+        # If we computed real transits, overlay them onto the Astrology system
+        # so the PDF shows today's actual Sun/Moon/Mercury instead of the sample.
+        systems = SYSTEMS_CONFIG
+        transits = (data or {}).get("transits")
+        spot = astrology_spotlight(transits) if transits else None
+        if spot:
+            spotlight_text, summary_text = spot
+            systems = copy.deepcopy(SYSTEMS_CONFIG)
+            for cfg in systems:
+                if cfg["id"] == "SYS_AST":
+                    cfg["spotlight"] = spotlight_text
+                    cfg["system_data_summary"] = summary_text
+
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
-        generate_pdf_report(pdf_path, date_str=self.date_str, location=location)
+        generate_pdf_report(pdf_path, date_str=self.date_str, location=location, systems=systems)
         return pdf_path
 
     def render_obsidian(self, data):

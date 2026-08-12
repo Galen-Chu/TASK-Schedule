@@ -121,15 +121,27 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ---
 
-## 路線圖（P2 — 真實資料層）
+## 資料來源
 
-目前三份報告在缺少 API key 時使用 sample data。規格書（各資料夾的 `*_Spec.md`）已寫好下列接點，待實作：
+每份報告都「能免 key 就接真實資料，缺 key / 失敗就優雅退回 sample」，所以 CI 無 secret 也能端到端跑。
 
-- **Financial**：TWSE（已接，免 key）、FRED（`DGS10/DGS2/T10Y2Y`，需 key）、Yahoo/FinMind 行情
-- **Global**：RSS 智庫摘要 + LLM（Gemini/Claude）三段式摘要（What/Why/So What）
-- **Spiritual**：Swiss Ephemeris（`pyswisseph`）真實流日引擎 + Gemini 五維度 persona 導引
+| 報告 | 真實來源 | 免 key？ | 缺來源時 |
+|---|---|---|---|
+| **Financial** | Yahoo Finance（VIX / DXY / 黃金 / BTC / 原油）、TWSE 融資維持率 | ✅ | 退回 sample |
+| **Financial** | FRED 公債殖利率（`DGS10`/`DGS2`） | ❌ 需 `FRED_API_KEY` | 跳過，用 sample 殖利率 |
+| **Global** | RSS 即時快訊（BBC World 等）→ 寫進 Obsidian note | ✅（需 `feedparser`） | note 標示離線 |
+| **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 五術資料 |
 
-接上時只要覆寫對應 scheduler 的 `fetch_data()`；pipeline 與排版無需改動。
+### 想接更多真實資料？
+- **FRED**：到 [stlouisfed.org](https://fred.stlouisfed.org/) 申請免費 API key，設環境變數 `FRED_API_KEY`。
+- **LLM 摘要/導引**（Global 三段式、Spiritual 五維度）：尚未接，屬路線圖 B。
+
+---
+
+## 路線圖
+
+- **B（未來）**：統一檢索層 —— 跨多來源搜尋/排序/刪重，再餵給各報告。對 Global（多智庫來源篩選）最有價值，接近 RAG 架構。
+- Drive 上傳 / Gmail 寄送：實作 `core/dispatch/`（接 `google-api-python-client` + `GOOGLE_APPLICATION_CREDENTIALS`）。
 
 ---
 

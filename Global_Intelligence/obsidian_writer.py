@@ -2,8 +2,8 @@
 """Global Intelligence — Obsidian markdown writer.
 
 Delegates file I/O to :mod:`core.obsidian_writer`; content is the daily
-5-domain think-tank digest (editorial sample, overlaid with RSS items when a
-feed fetcher is wired).
+5-domain think-tank digest, overlaid with a live RSS快訊 section when the
+scheduler fetched real feed items.
 """
 import os
 import sys
@@ -15,7 +15,25 @@ if _REPO_ROOT not in sys.path:
 from core.obsidian_writer import write_note
 
 
-def build_note_content(date_str):
+def _live_feed_block(rss_items, date_str):
+    """Render the live RSS快訊 section, or an offline note if no items."""
+    items = rss_items or []
+    if not items:
+        return (
+            f"\n## 即時快訊 (Live RSS, {date_str})\n"
+            f"> 本日即時來源未取得（離線/CI 或 feedparser 未安裝），以下為智庫固定焦點速讀。\n"
+        )
+    lines = [f"\n## 即時快訊 (Live RSS, {date_str}) — 共 {len(items)} 則", ""]
+    for e in items:
+        title = (e.get("title") or "").strip()
+        if not title:
+            continue
+        lines.append(f"- {title}")
+    return "\n".join(lines) + "\n"
+
+
+def build_note_content(date_str, rss_items=None):
+    live = _live_feed_block(rss_items, date_str)
     return f"""---
 title: "Global Intelligence 每日產業局勢報告 ({date_str})"
 date: {date_str}
@@ -32,13 +50,13 @@ tags:
 
 > [!abstract] 每日 5 大領域智庫焦點速讀
 > 涵蓋 CSIS, ECB, FDA, DOE, 台積電, 工研院, 中經院與台經院之最新研究與產業焦點。
-
+{live}
 ## 1. 地緣政治與國際關係
-- **CSIS**：中��關係重組與東北亞安全新格局研討會。
+- **CSIS**：中朝關係重組與東北亞安全新格局研討會。
 - **The Conference Board**：美國關稅新規常態化加速友岸外包 (Friendshoring)。
 
 ## 2. 巨觀經濟與金融市場
-- **歐洲央行 (ECB)**：最新經濟通報警告通膨受能源影響，Higher for Longer 為常態。
+- **歐洲央�� (ECB)**：最新經濟通報警告通膨受能源影響，Higher for Longer 為常態。
 - **Mohamed El-Erian**：成熟與新興市場貨幣政策出現顯著分化。
 
 ## 3. 資訊科技與人工智慧
@@ -50,7 +68,7 @@ tags:
 - **Eli Lilly**：胰臟癌新藥 Olomorasib 正式獲得 FDA 突破性療法認證。
 
 ## 5. 硬體工程、自動化與能源轉型
-- **U.S. DOE**：宣布 8 月 SMR 小型模組化核反應爐創新園區競逐名單。
+- **U.S. DOE**：宣布 8 月 SMR 小型模組���核反應爐創新園區競逐名單。
 - **固態電池高峰會**：聚焦人形機器人高能量密度與高放電倍率需求。
 
 *Generated automatically by Global Intelligence System on {date_str}*
@@ -59,10 +77,11 @@ tags:
 
 def write_global_obsidian_note(date_str=None, output_dir=None, data=None):
     """Write the daily Global markdown note. Returns the file path."""
-    date_str = date_str or (data or {}).get("date") or "2026-08-11"
+    data = data or {}
+    date_str = date_str or data.get("date") or "2026-08-11"
     output_dir = output_dir or os.path.join(_REPO_ROOT, "output", "obsidian_vault")
     filename = f"{date_str}_Global_Intelligence_每日產業局勢.md"
-    return write_note(output_dir, filename, build_note_content(date_str))
+    return write_note(output_dir, filename, build_note_content(date_str, data.get("rss_items")))
 
 
 if __name__ == "__main__":
