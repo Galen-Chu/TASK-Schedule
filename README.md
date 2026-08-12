@@ -10,8 +10,8 @@
 
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
-| **Financial Intelligence** | 每日投資趨勢：台股融資維持率、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 7 * * *`（07:30） | Bloomberg 風格量化儀表板（5 頁） |
-| **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源） | `0 7 * * *`（07:00） | 智庫級 4 欄表格速讀（5 頁） |
+| **Financial Intelligence** | 每日投資趨勢：台股融資維持率、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（5 頁） |
+| **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源） | `30 6 * * *`（06:30） | 智庫級 4 欄表格速讀（5 頁） |
 | **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數五術，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（5 頁，每頁一系統） |
 
 ---
@@ -167,7 +167,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ### Monthly Macro Digest（Financial，月度排程）
 與每日報告**不同節奏**的第二條 Financial 排程：
-- **每日** `30 7 * * *`：行情報價 + signal score（盤中/價格資料）。
+- **每日** `30 6 * * *`（06:30 台北）：行情報價 + signal score（盤中/價格資料）。
 - **月度** `0 9 2 * *`（每月 2 號 09:00）：結構性總經指標（CPI / Core CPI / 失業率 / NFP / 殖利率曲線），來自免 key 的 BLS + 美國財政部。
 
 月度排程產出 `Monthly_Macro_Digest.pdf`（1 頁計分卡）。執行：`python main.py macro`。

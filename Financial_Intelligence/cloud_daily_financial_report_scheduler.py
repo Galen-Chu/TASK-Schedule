@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Financial Intelligence — daily report scheduler.
 
-Triggered daily at **07:30 Asia/Taipei** (``30 7 * * *``). Built on
+Triggered daily at **06:30 Asia/Taipei** (``30 6 * * *``). Built on
 :class:`core.scheduler_base.BaseReportScheduler`:
 
   fetch_data    -> TWSE open API (best-effort, keyless) + overlay onto sample
@@ -30,7 +30,7 @@ from core.dispatch.drive_uploader import upload_to_drive
 class FinancialReportScheduler(BaseReportScheduler):
     report_id = "financial"
     report_title = "Financial Intelligence 每日投資趨勢報告"
-    default_cron = "30 7 * * *"          # 07:30 Asia/Taipei
+    default_cron = "30 6 * * *"          # 06:30 Asia/Taipei
     page_count = 5
 
     def sample_data(self):

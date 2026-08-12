@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Global Intelligence — daily report scheduler.
 
-Triggered daily at **07:00 Asia/Taipei** (``0 7 * * *``). Built on
+Triggered daily at **06:30 Asia/Taipei** (``30 6 * * *``). Built on
 :class:`core.scheduler_base.BaseReportScheduler`. This fixes the original
 ``from generate_global_pdf import build_global_pdf`` ModuleNotFoundError (the
 module was always named ``pdf_generator``).
@@ -29,7 +29,7 @@ SAMPLE_FEEDS = [
 class GlobalReportScheduler(BaseReportScheduler):
     report_id = "global"
     report_title = "Global Intelligence 每日產業局勢報告"
-    default_cron = "0 7 * * *"             # 07:00 Asia/Taipei
+    default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
     page_count = 5
 
     def sample_data(self):
