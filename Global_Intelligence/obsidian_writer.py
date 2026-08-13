@@ -56,7 +56,7 @@ tags:
 - **The Conference Board**：美國關稅新規常態化加速友岸外包 (Friendshoring)。
 
 ## 2. 巨觀經濟與金融市場
-- **歐洲央�� (ECB)**：最新經濟通報警告通膨受能源影響，Higher for Longer 為常態。
+- **歐洲央行 (ECB)**：最新經濟通報警告通膨受能源影響，Higher for Longer 為常態。
 - **Mohamed El-Erian**：成熟與新興市場貨幣政策出現顯著分化。
 
 ## 3. 資訊科技與人工智慧
@@ -68,7 +68,7 @@ tags:
 - **Eli Lilly**：胰臟癌新藥 Olomorasib 正式獲得 FDA 突破性療法認證。
 
 ## 5. 硬體工程、自動化與能源轉型
-- **U.S. DOE**：宣布 8 月 SMR 小型模組���核反應爐創新園區競逐名單。
+- **U.S. DOE**：宣布 8 月 SMR 小型模組化核反應爐創新園區競逐名單。
 - **固態電池高峰會**：聚焦人形機器人高能量密度與高放電倍率需求。
 
 *Generated automatically by Global Intelligence System on {date_str}*

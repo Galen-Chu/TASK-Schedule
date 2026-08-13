@@ -2,7 +2,7 @@
 
 雲端排程每日報告系統 —— 每天清晨自動產生三份 A4 PDF 戰情報表（搭配 Obsidian 筆記與雲端分派），以 ReportLab 排版、由共用核心驅動，可在本機或 GitHub Actions 雲端排程執行。
 
-> 三份報告共用一套設計系統（海軍藍 + 典雅金主色、A4 547pt 網格、雙字型中文/拉丁排版、燈號系統），各自擁有獨立的「分節色盤」與版面模板。
+> 三份報告共用一套設計系統（依《Daily Report Typography Guide》：墨藍黑 / 科技青 / 暖琥珀 / 活力橘紅 / 抹茶綠品牌色、A4 547pt 網格、雙字型中文/拉丁排版、燈號系統），各報告的分節色皆由同一組品牌色階衍生、部分保留身分。
 
 ---
 
@@ -11,7 +11,7 @@
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
 | **Financial Intelligence** | 每日投資趨勢：台股融資維持率、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（5 頁） |
-| **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源） | `30 6 * * *`（06:30） | 智庫級 4 欄表格速讀（5 頁） |
+| **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源）＋統一檢索層即時補充 | `30 6 * * *`（06:30） | 智庫級主題卡版面（每頁 1 領域 4 則，5 頁） |
 | **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數五術，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（5 頁，每頁一系統） |
 
 ---
@@ -21,17 +21,20 @@
 ```
 Gemini-Spark-Schedule/
 ├── core/                         # 共用核心（三份報告共同使用）
-│   ├── design_tokens.py          #   主色 / 字級 / A4 網格 / 燈號（���一真相來源）
+│   ├── design_tokens.py          #   主色 / 字級 / A4 網格 / 燈號（單一真相來源）
 │   ├── fonts.py                  #   可攜字型解析 + 註冊（Windows/Linux/CI 通用）
 │   ├── pdf_engine.py             #   雙字型 en()、標準樣式、表頭、頁尾、A4 文件工廠
 │   ├── scheduler_base.py         #   BaseReportScheduler：階段化 pipeline + 優雅退回
 │   ├── obsidian_writer.py        #   泛用 Markdown 寫檔
-│   ├── data/fetchers.py          #   免 key 真實資料抓取（TWSE / RSS），失敗自動退回 sample
+│   ├── data/                     #   fetchers（TWSE/RSS/Yahoo/財政部/BLS）＋ divination/astro（五術）
+│   ├── retrieval/                #   統一檢索層：ingest→dedup→rank→retrieve（Phase 1 已開發）
+│   ├── llm.py                    #   Gemini 敘事增強（缺 key 自動退回樣板）
 │   └── dispatch/                 #   Drive 上傳 / Gmail 寄送（介面已定義，待接憑證）
 ├── Financial_Intelligence/       # 各報告：scheduler + pdf_generator + obsidian_writer
 ├── Global_Intelligence/          #   （＋ Spiritual 的 systems_data.py 為五術單一資料源）
 ├── Spiritual_Intelligence/
 ├── config/                       # 設定（含範本；真實設定已 gitignore）
+├── data/retrieval/               # 檢索語料庫（JSONL，commit 進 repo 跨 CI run 累積）
 ├── scripts/fetch_fonts.py        # 下載開源 CJK 字型
 ├── main.py                       # 統一入口
 ├── requirements.txt
@@ -113,11 +116,11 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ## 設計系統
 
-- **主色**：海軍藍 `#0F172A` + 典雅金 `#C5A059` + Slate 灰階（單一真相來源：`core/design_tokens.py`）
-- **燈號**：🟢 進場 `#16A34A` / 🟡 觀望 `#CA8A04` / 🔴 減碼 `#DC2626`
+- **品牌色**（依《Daily Report Typography Guide》）：墨藍黑 `#1C2333` / 科技青 `#0E7C86` / 暖琥珀 `#E8A33D` / 活力橘紅 `#EF6F53` / 抹茶綠 `#6B8F71`，暖紙底 `#FAF9F6`，含完整色階 ramp 與狀態色（單一真相來源：`core/design_tokens.py`）。
+- **燈號**：🟢 進場 `#2E8B4F` / 🟡 觀望 `#B9791C` / 🔴 減碼 `#D64545`
 - **網格**：A4、左右邊距 24pt、可列印寬 **547pt**；標準 4 欄表格 `[65,125,100,257]`
 - **字型**：CJK（Noto Sans TC）為主，拉丁/數字可選用 Liberation Sans（`en()` 雙字型切換 + XML 跳脫）
-- 各報告的「分節色盤」（市場/領域/五術）定義在各自的 `pdf_generator.py`，刻意保持差異以區分主題。
+- 各報告的「分節色」（市場/領域/五術）皆由上述同一組品牌色階衍生，部分保留各報告身分（例：Spiritual 保留暖色卡片底、紫微用品牌 plum `#7A4B6B`）。
 
 ---
 
@@ -136,16 +139,24 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 > 三份報告現在 **完全零 key**——沒有任何欄位需要 API key，CI 無 secret 即可跑真實資料。
 
-### 還沒接的（屬路線圖 B）
-- **LLM 摘要/導引**（Global 三段式 What/Why/So What、Spiritual 五維度）：需 `GEMINI_API_KEY`，目前用編輯樣板。
-- **總經日曆**（CPI / 非農 / Core PCE）：PDF 第 3 頁目前為編輯固定值，這類月頻總經數據接進去價值有限。
+### 待啟用（程式碼已就緒，待你補 key / 憑證）
+- **LLM 敘事增強**：`core/llm.py` 已接 Gemini SDK——設 `GEMINI_API_KEY` 即啟用 Global 的 What/Why/So What（報告級 + 每則主題）與 Spiritual 導引；缺 key 自動退回編輯樣板。
+- **Google Drive 上傳 / Gmail**：`core/dispatch/` 已實作，待補 GCP service account 憑證（見下方「Google Drive 上傳」）。
+
+### 尚未開發（路線圖）
+- **向量 RAG（檢索層 Phase 2）**：embedding 語意檢索 + 擴充智庫來源 + store 換 remote backend（見下方「統一檢索層」）。
+- **總經日曆**（CPI / 非農 / Core PCE）：目前第 3 頁為編輯固定值。
 
 ---
 
 ## 路線圖
 
-- **B（未來）**：統一檢索層 —— 跨多來源搜尋/排序/刪重，再餵給各報告。對 Global（多智庫來源篩選）最有價值，接近 RAG 架構。
-- Drive 上傳 / Gmail 寄送：實作 `core/dispatch/`（接 `google-api-python-client` + `GOOGLE_APPLICATION_CREDENTIALS`）。
+| 項目 | 狀態 |
+|---|---|
+| 統一檢索層 Phase 1（ingest / dedup / BM25 / 持久化 / 補充編輯） | ✅ 已開發（`core/retrieval/`） |
+| 統一檢索層 Phase 2（embedding 向量檢索 + 擴充來源 + remote store） | ⏳ 未開發（待 GEMINI key + GCP） |
+| 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏳ 未開發 |
+| Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 
 ---
 
@@ -162,8 +173,22 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ### LLM 敘事增強（Gemini，key 選用）
 `core/llm.py` 用官方 `google-genai` SDK。設 `GEMINI_API_KEY` 後：
-- **Global**：RSS 即時快訊 → Gemini 萃取 **What / Why / So What** 三段摘要，印成 PDF 第 1 頁「AI 智庫摘要」卡。
+- **Global**：RSS 即時快訊 → Gemini 萃取 **What / Why / So What**（報告級摘要卡 ＋ 每則主題卡的三段拆解）；缺 key 則主題卡顯示原始分析。
 - 缺 key / 套件未裝 / API 失敗 → 一律自動退回編輯樣板（CI 即走此路徑）。
+
+### 統一檢索層（Retrieval Layer · Phase 1 已開發）
+`core/retrieval/` —— 跨來源 ingest → 去重 → 排序 → 檢索的共用層，Global 為首個消費者，架構上未來 Financial / Spiritual 也可共用（即專案路線圖的「統一檢索層」）。
+
+**✅ 已開發（Phase 1，免 key、免 infra）：**
+- `CorpusStore`：JSONL 語料庫存於 `data/retrieval/`，**commit 進 repo 以跨 CI run 累積**（runner 為拋棄式）；exact + overlap-coefficient 近似去重；30 天自動清理。介面設計成日後可換 GCP remote backend。
+- `ingest`：正規化 + 關鍵字 domain 分類（地緣 / 巨觀 / IT-AI / 生技 / 硬體能源）。
+- `retrieve`：BM25 評分 × 新近度衰減 × 來源權重；domain 過濾模式保留該領域項目排序。
+- Global：每次抓 RSS 即 ingest；`synthesize` 每領域 retrieve 近 7 日項目，在 PDF 每頁加「🔍 即時檢索補充」區塊（**補充、不取代**編輯骨架）。
+- Workflow：排程執行時把累積語料 commit 回 repo（`data/**` 不在 push paths-filter，不會重觸發）。
+
+**⏳ 未開發（Phase 2 / 3）：**
+- **Phase 2**：embedding 語意檢索 + vector store + 擴充智庫 RSS 來源 + store 換 remote backend（待 `GEMINI_API_KEY` + GCP）。
+- **Phase 3**：Financial / Spiritual 也消費同一檢索層 = 完整「統一」願景。
 
 ### Monthly Macro Digest（Financial，月度排程）
 與每日報告**不同節奏**的第二條 Financial 排程：

@@ -12,7 +12,7 @@ _DOMAIN_KEYWORDS = {
     "macro": ["通膨", "通脹", "利率", "央行", "降息", "殖利率", "就業", "非農",
               "景氣", "cpi", "pce", "gdp", "fed", "ecb", "macro", "inflation",
               "yield"],
-    "it_ai": ["ai", "半導體", "晶片", "晶圓", "台積電", "tsmc", "nvidia", "伺服��",
+    "it_ai": ["ai", "半導體", "晶片", "晶圓", "台積電", "tsmc", "nvidia", "伺服器",
               "算力", "gpu", "封裝", "cowos", "llm", "agent", "semiconductor", "chip"],
     "biotech": ["生技", "生醫", "醫藥", "新藥", "臨床", "疫苗", "基因", "adc",
                 "fda", "biotech", "drug", "clinical", "pharma"],
