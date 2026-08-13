@@ -24,11 +24,11 @@ SYSTEMS_CONFIG = [
         "id": "SYS_HD",
         "title": "人類圖 (Human Design)",
         "subtitle": "載具能量與當日流日閘門 (Vehicle Energy & Transit Gates)",
-        "color_primary": _hex("#B86B14"),      # Amber Gold
-        "color_secondary": _hex("#D9822B"),    # Soft Warm Gold
-        "color_bg": _hex("#FAF4EB"),           # Light Cream Gold
-        "color_highlight": _hex("#8C2F00"),    # Deep Crimson Red
-        "color_text_dark": _hex("#331E0A"),
+        "color_primary": _hex("#E8A33D"),      # Amber 暖琥珀
+        "color_secondary": _hex("#F3CC8B"),    # Amber light
+        "color_bg": _hex("#FCF0DC"),           # Amber tint
+        "color_highlight": _hex("#B97A22"),    # Amber dark
+        "color_text_dark": _hex("#5C4A22"),
         "motto": "「允許情緒如水流過，不急於為不安尋找答案；在對話中擁抱載具與限制，即是最好的修煉。」",
         "spotlight": "📍 流日太陽進入 4.2 閘門 (解迷) / 流日閘門 29 (承諾) 接通薦骨中心 / 閘門 57.1 點亮空白情緒中心",
         "system_data_summary": "類型：生產者 | 權威：薦骨權威 | 定義：三分人 | 人生角色：5/1 | 本命通道：61-24, 57-34, 7-31",
@@ -52,11 +52,11 @@ SYSTEMS_CONFIG = [
         "id": "SYS_AST",
         "title": "西洋占星 (Western Astrology)",
         "subtitle": "黃道天象與相位解析 (Cosmic Transits & Natal Aspects)",
-        "color_primary": _hex("#1E3A8A"),      # Deep Navy Blue
-        "color_secondary": _hex("#3B82F6"),    # Celestial Blue
-        "color_bg": _hex("#EFF6FF"),           # Ice Sky Blue
-        "color_highlight": _hex("#1D4ED8"),    # Bright Sapphire
-        "color_text_dark": _hex("#0F172A"),
+        "color_primary": _hex("#0E7C86"),      # Teal 科技青
+        "color_secondary": _hex("#8FCAD0"),    # Teal light
+        "color_bg": _hex("#E3F3F4"),           # Teal tint
+        "color_highlight": _hex("#0A5A62"),    # Teal dark
+        "color_text_dark": _hex("#063B40"),
         "motto": "「日月輝映於天地之間，理智與感性交織；在星體的秩序中，俯瞰生命的黃金平衡點。」",
         "spotlight": "📍 Transit 月亮合相本命月亮 (天秤座 17° / Orb 0.2°) / 水星六分火星 / 太陽合相本命水星",
         "system_data_summary": "太陽：白羊座 | 月亮：天秤座 | 上升：獅子座 | 核心相位：日水合相、火月方相、金木三分",
@@ -80,11 +80,11 @@ SYSTEMS_CONFIG = [
         "id": "SYS_ZW",
         "title": "紫微斗數 (Ziwei Doushu)",
         "subtitle": "流日宮位與四化飛星 (Daily Palace & Four Transformations)",
-        "color_primary": _hex("#581C87"),      # Deep Violet
-        "color_secondary": _hex("#8B5CF6"),    # Purple Amethyst
-        "color_bg": _hex("#FAF5FF"),           # Soft Violet Cream
-        "color_highlight": _hex("#7E22CE"),    # Royal Purple
-        "color_text_dark": _hex("#2E1065"),
+        "color_primary": _hex("#7A4B6B"),      # Plum 紫 (Guide pairing)
+        "color_secondary": _hex("#A07A92"),    # Plum light
+        "color_bg": _hex("#F1E9EE"),           # Plum tint
+        "color_highlight": _hex("#5C3850"),    # Plum dark
+        "color_text_dark": _hex("#321F2C"),
         "motto": "「飛星交錯皆有定數，化忌即是修煉之門；涵養福德之祿，自能駕馭命宮吉凶。」",
         "spotlight": "📍 流日命宮在未 / 天機化祿入官祿 / 太陽化忌入官祿提醒決策審慎 / 太陰化祿入福德",
         "system_data_summary": "流日命宮：未宮 | 流日四化：廉貞化祿、破軍化權、武曲化科、太陽化忌 | 福德宮太陰化祿",
@@ -108,11 +108,11 @@ SYSTEMS_CONFIG = [
         "id": "SYS_BAZI",
         "title": "八字干支 (Bazi & Four Pillars)",
         "subtitle": "流日干支與十神沖合 (Daily Pillar & Ten Gods)",
-        "color_primary": _hex("#065F46"),      # Deep Jade Emerald
-        "color_secondary": _hex("#10B981"),    # Emerald Green
-        "color_bg": _hex("#ECFDF5"),           # Light Jade Tint
-        "color_highlight": _hex("#047857"),    # Forest Emerald
-        "color_text_dark": _hex("#022C22"),
+        "color_primary": _hex("#6B8F71"),      # Sage 抹茶綠
+        "color_secondary": _hex("#B7CCB9"),    # Sage light
+        "color_bg": _hex("#E8F0E9"),           # Sage tint
+        "color_highlight": _hex("#47654B"),    # Sage dark
+        "color_text_dark": _hex("#2C3F2E"),
         "motto": "「丁未流日木火土相生，氣場順暢和諧；正財透干，腳踏實地必有厚報。」",
         "spotlight": "📍 丁未流日 (火土相生) / 正財透干 / 未土藏乙木食神滋養",
         "system_data_summary": "當日干支：丁未 | 十神：正財當權、食神生財 | 五行動能：火土和諧相生",
@@ -136,11 +136,11 @@ SYSTEMS_CONFIG = [
         "id": "SYS_ICHING",
         "title": "梅花易數 (I Ching & Mei Hua)",
         "subtitle": "當日卦象與體用生克 (Daily Hexagram & Trigram Dynamics)",
-        "color_primary": _hex("#78350F"),      # Charcoal Bronze
-        "color_secondary": _hex("#D97706"),    # Vermilion Amber
-        "color_bg": _hex("#FEF3C7"),           # Warm Paper Cream
-        "color_highlight": _hex("#991B1B"),    # Deep Crimson Vermilion
-        "color_text_dark": _hex("#451A03"),
+        "color_primary": _hex("#EF6F53"),      # Coral 活力橘紅
+        "color_secondary": _hex("#F6AD9B"),    # Coral light
+        "color_bg": _hex("#FDE7E1"),           # Coral tint
+        "color_highlight": _hex("#C24B32"),    # Coral dark
+        "color_text_dark": _hex("#832F1E"),
         "motto": "「澤山咸卦感應天地，虛中受人；君子以虛受人，體用和和共臻大和。」",
         "spotlight": "📍 當日得《澤山咸》卦，動爻在五，變卦為《水山蹇》",
         "system_data_summary": "主卦：澤山咸 (兌上艮下) | 互卦：澤風大過 | 變卦：水山蹇 | 體用關係：兌金與艮土相生 (感應和合)",

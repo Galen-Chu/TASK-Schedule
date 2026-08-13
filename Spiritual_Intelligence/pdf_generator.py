@@ -17,20 +17,13 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-from reportlab.lib.pagesizes import A4
+from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import ParagraphStyle
 
 from core import design_tokens as T
 from core.fonts import FONT_CJK, ensure_fonts
-from core.pdf_engine import en
+from core.pdf_engine import en, make_title_row, footer_factory, new_doc
 from Spiritual_Intelligence.systems_data import SYSTEMS_CONFIG
-
-# Master header palette (slate) — Spiritual's brand accent within the navy/gold system
-MASTER_HEADER_BG = T.BG_CARD
-MASTER_HEADER_TITLE = T.NAVY
-MASTER_HEADER_SUBTITLE = colors.HexColor("#334155")
-MASTER_HEADER_LINE = colors.HexColor("#1E293B")
 
 _DEFAULT_LOCATION = "臺北市"
 _WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
@@ -57,8 +50,6 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     """Build the 8-card story for one occult system."""
     ensure_fonts()
 
-    title_st   = _style("MasterTitle", 12.5, MASTER_HEADER_TITLE, 15)
-    sub_st     = _style("MasterSub", 8.5, MASTER_HEADER_SUBTITLE, 11.5)
     motto_st   = _style("Motto", 9.5, cfg["color_text_dark"], 14.0)
     spot_st    = _style("Spotlight", 9.0, cfg["color_highlight"], 13.0)
     param_st   = _style("SysParam", 8.5, cfg["color_primary"], 12.5)
@@ -66,25 +57,17 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     dim_h_st   = _style("DimH", 8.8, cfg["color_primary"], 12.0)
     dim_b_st   = _style("DimB", 8.2, cfg["color_text_dark"], 11.8)
     harmony_st = _style("Harmony", 8.5, cfg["color_text_dark"], 12.5)
-    footer_st  = _style("Footer", 7.5, colors.HexColor("#888888"), 9, wrap=False)
-    footer_st.alignment = 1
 
     story = []
 
-    # 1. Header card (master slate palette)
-    header = Table(
-        [[Paragraph(en(f"<b>Spiritual Intelligence 每日覺察運勢報告 ── {cfg['title']}</b>"), title_st)],
-         [Paragraph(en(f"<b>日期：</b> {_date_label(date_str)} | <b>地點：</b> {location} | <b>副標題：</b> {cfg['subtitle']}"), sub_st)]],
-        colWidths=[T.PRINTABLE_WIDTH],
+    # 1. Header — shared title row + accent rule in this system's primary color
+    story += make_title_row(
+        f"Spiritual Intelligence 每日覺察運勢報告 ── {cfg['title']}",
+        subtitle_text=f"地點：{location}　|　副標題：{cfg['subtitle']}",
+        date_str=_date_label(date_str),
+        accent_color=cfg["color_primary"],
     )
-    header.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), MASTER_HEADER_BG),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 7),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, -1), (-1, -1), 1.5, MASTER_HEADER_LINE),
-    ]))
-    story += [header, Spacer(1, 8)]
+    story.append(Spacer(1, 6))
 
     # 2. Motto card
     motto = Table([[Paragraph(en(f"<b>【意識定錨座右銘】</b> {cfg['motto']}"), motto_st)]], colWidths=[T.PRINTABLE_WIDTH])
@@ -160,11 +143,6 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     ]))
     story += [harmony, Spacer(1, 12)]
 
-    # 8. In-flow footer line
-    story.append(Paragraph(
-        en(f"<font color='#888888'>Spiritual Intelligence Pipeline 5 | Powered by Gemini Spark | Page {page_num} of {page_total}</font>"),
-        footer_st,
-    ))
     if page_num < page_total:
         story.append(PageBreak())
     return story
@@ -178,16 +156,18 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
     systems = systems or SYSTEMS_CONFIG
     page_total = len(systems)
 
-    doc = SimpleDocTemplate(
-        output_filename, pagesize=A4,
-        leftMargin=T.MARGIN, rightMargin=T.MARGIN,
-        topMargin=T.MARGIN, bottomMargin=T.MARGIN,
+    doc = new_doc(
+        output_filename,
         title="Spiritual Intelligence 每日覺察運勢報告",
+    )
+    footer = footer_factory(
+        "Spiritual Intelligence Pipeline 5 · Powered by Gemini Spark",
+        total_pages=page_total,
     )
     story = []
     for idx, cfg in enumerate(systems, start=1):
         story.extend(create_system_page(cfg, idx, page_total, date_str, location))
-    doc.build(story)
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
     print(f"PDF successfully generated: {output_filename}")
     return output_filename
 

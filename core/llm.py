@@ -60,6 +60,21 @@ def generate(prompt, max_tokens=600):
         return None
 
 
+def _item_bullet(it, max_summary=200):
+    """Format one news item as '- title — summary' (summary truncated).
+
+    The RSS ``summary`` blurb is the part that actually carries context; using
+    it (not just the headline) is what lets the model write a meaningful
+    What/Why/So-What instead of guessing from titles alone.
+    """
+    title = (it.get("title") or "").strip()
+    summary = (it.get("summary") or "").strip()
+    if summary:
+        summary = summary[:max_summary]
+        return f"- {title} — {summary}" if title else f"- {summary}"
+    return f"- {title}"
+
+
 def summarize_news_what_why_sowhat(items, domain_label=""):
     """Turn a list of {title, summary} dicts into a What/Why/So-What digest.
 
@@ -68,9 +83,38 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     """
     if not items or not _AVAILABLE:
         return None
-    bullets = "\n".join(f"- {it.get('title','')}" for it in items[:6])
+    bullets = "\n".join(_item_bullet(it) for it in items[:6])
     prompt = (
         f"你是智庫級情報分析師。以下為「{domain_label}」領域今日快訊：\n{bullets}\n\n"
+        "請用繁體中文，各以一到兩句產出三個欄位，嚴格用下列格式：\n"
+        "WHAT: ...（事實概要）\n"
+        "WHY: ...（脈絡與影響）\n"
+        "SO_WHAT: ...（對台灣產業的啟示）"
+    )
+    text = generate(prompt)
+    if not text:
+        return None
+    out = {"what": "", "why": "", "so_what": ""}
+    for line in text.splitlines():
+        low = line.strip()
+        for key in out:
+            if low.upper().startswith(key):
+                out[key] = low.split(":", 1)[-1].strip()
+    return out if out["what"] else None
+
+
+def summarize_topic_what_why_sowhat(org, focus, analysis, domain_label=""):
+    """Turn one think-tank topic into a What/Why/So-What breakdown.
+
+    Returns {what, why, so_what} of strings, or None to signal the caller to
+    fall back to rendering the raw ``analysis`` paragraph. Used by the Global
+    report to give each topic card a structured three-part body.
+    """
+    if not analysis or not _AVAILABLE:
+        return None
+    prompt = (
+        f"你是智庫級情報分析師。以下為「{domain_label}」領域的一則智庫報告：\n"
+        f"來源：{org}\n焦點：{focus}\n摘要：{analysis}\n\n"
         "請用繁體中文，各以一到兩句產出三個欄位，嚴格用下列格式：\n"
         "WHAT: ...（事實概要）\n"
         "WHY: ...（脈絡與影響）\n"

@@ -24,12 +24,12 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from core import design_tokens as T
 from core.pdf_engine import en, standard_styles, make_title_row, footer_factory, new_doc
 
-# ---- Financial section palette (report-specific) ---------------------------
-COLOR_TW_STOCK = colors.HexColor('#DC2626')   # 台股 — 熾緋紅
-COLOR_US_STOCK = colors.HexColor('#1E40AF')   # 美股 — 華爾街藍
-COLOR_BOND     = colors.HexColor('#D97706')   # 債券 — 避險琥珀金
-COLOR_FOREX    = colors.HexColor('#059669')   # 外匯 — 匯市翡翠綠
-COLOR_CRYPTO   = colors.HexColor('#7C3AED')   # 商品/加密 — 前沿紫羅蘭
+# ---- Financial section palette (Typography Guide brand family) -------------
+COLOR_TW_STOCK = T.CORAL    # 台股 — 活力橘紅
+COLOR_US_STOCK = T.TEAL     # 美股 — 科技青
+COLOR_BOND     = T.AMBER    # 債券 — 暖琥珀
+COLOR_FOREX    = T.SAGE     # 外匯 — 抹茶綠
+COLOR_CRYPTO   = T.INK      # 商品/加密 — 墨藍黑
 
 DISCLAIMER = "本報告為自動化數據監控測試版，僅供量化指標研究與策略測試參考，不構成任何投資建議。"
 
@@ -134,19 +134,19 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     cards = [
         (COLOR_TW_STOCK, kpi_card(
             "台股大盤融資維持率",
-            f"<font color='#DC2626' size=13><b>{mmr}%</b></font> <font color='#16A34A'><b>(接近臨界買點)</b></font>",
+            f"<font color='#EF6F53' size=13><b>{mmr}%</b></font> <font color='#2E8B4F'><b>(接近臨界買點)</b></font>",
             "警戒線: 160% | 超跌區: &lt; 150%<br/>融資大幅減碼，洗盤接近尾聲，具反彈動能。")),
         (COLOR_US_STOCK, kpi_card(
             "外資台指期淨未平倉",
-            f"<font color='#1E40AF' size=13><b>{oi:,} 口</b></font> <font color='#16A34A'><b>(空單大幅回補)</b></font>",
+            f"<font color='#0E7C86' size=13><b>{oi:,} 口</b></font> <font color='#2E8B4F'><b>(空單大幅回補)</b></font>",
             "警戒線: -30,000 口<br/>空單單週回補 8,000 口，顯示期貨避險賣壓衰竭。")),
         (COLOR_BOND, kpi_card(
             "美股 VIX &amp; 恐懼貪婪指數",
-            f"<font color='#D97706' size=13><b>VIX {vix} / F&amp;G {fg}</b></font> <font color='#16A34A'><b>(極度恐慌)</b></font>",
+            f"<font color='#E8A33D' size=13><b>VIX {vix} / F&amp;G {fg}</b></font> <font color='#2E8B4F'><b>(極度恐慌)</b></font>",
             "極度恐慌區間 (F&amp;G &lt; 25)，歷史數據顯示分批進場勝率 &gt; 82%。")),
         (COLOR_FOREX, kpi_card(
             "美債 10Y-2Y 殖利率利差",
-            f"<font color='#059669' size=13><b>{'+' if spread >= 0 else ''}{spread}%</b></font> <font color='#CA8A04'><b>(倒掛結束)</b></font>",
+            f"<font color='#6B8F71' size=13><b>{'+' if spread >= 0 else ''}{spread}%</b></font> <font color='#B9791C'><b>(倒掛結束)</b></font>",
             f"10 年期 {t10}% / 2 年期 {t2}%<br/>曲線陡峭化，市場預期 Fed 年底前啟動降息。")),
     ]
     grid = [[Table(cards[0][1], colWidths=[260]), Table(cards[1][1], colWidths=[260])],
@@ -171,19 +171,19 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en("<b>風險等級</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>進出場訊號燈號</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>短線趨勢說明</b>", color="#FFFFFF"), s["th"])],
-        [Paragraph(en("1. 台股市場"), s["body"]), Paragraph(en("熾緋紅", color="#FFFFFF"), s["th"]),
+        [Paragraph(en("1. 台股市場"), s["body"]), Paragraph(en("活力橘紅", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"22,150 (維持率 {mmr}%)"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
          Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("融資清洗完畢，台積電先進封裝支撐強健"), s["body"])],
-        [Paragraph(en("2. 美股市場"), s["body"]), Paragraph(en("華爾街藍", color="#FFFFFF"), s["th"]),
+        [Paragraph(en("2. 美股市場"), s["body"]), Paragraph(en("科技青", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"S&P 500: 5,420 (VIX {vix})"), s["body"]), Paragraph(en("中等"), s["body"]),
          Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("恐慌指數攀升至買點，科技巨頭區間築底"), s["body"])],
-        [Paragraph(en("3. 全球債券"), s["body"]), Paragraph(en("琥珀金", color="#FFFFFF"), s["th"]),
+        [Paragraph(en("3. 全球債券"), s["body"]), Paragraph(en("暖琥珀", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"美債 10Y: {t10}% (利差 {'+' if spread >= 0 else ''}{spread}%)"), s["body"]), Paragraph(en("低"), s["body"]),
          Paragraph(en("🟢 鎖利加碼"), s["body"]), Paragraph(en("倒掛結束，鎖定降息前高殖利率票息"), s["body"])],
-        [Paragraph(en("4. 外匯與美元"), s["body"]), Paragraph(en("翡翠綠", color="#FFFFFF"), s["th"]),
+        [Paragraph(en("4. 外匯與美元"), s["body"]), Paragraph(en("抹茶綠", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"DXY: {dxy} / TWD: {twd}"), s["body"]), Paragraph(en("中等"), s["body"]),
          Paragraph(en("🟡 觀望升值"), s["body"]), Paragraph(en("美元高位震盪，亞幣匯率止跌回升"), s["body"])],
-        [Paragraph(en("5. 商品與加密"), s["body"]), Paragraph(en("紫羅蘭", color="#FFFFFF"), s["th"]),
+        [Paragraph(en("5. 商品與加密"), s["body"]), Paragraph(en("墨藍黑", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"黃金 ${gold:,} / BTC ${btc:,}"), s["body"]), Paragraph(en("偏高"), s["body"]),
          Paragraph(en("🟡 觀望布局"), s["body"]), Paragraph(en("黃金避險高位震盪，BTC 槓桿清理完畢"), s["body"])],
     ]
@@ -209,7 +209,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
         "聚焦槓桿清洗、融資維持率、三大法人期現貨籌碼與美股市場廣度", date_str, COLOR_TW_STOCK, s))
 
-    story.append(Paragraph(en("<b>【台股市場專題】熾緋紅識別 (#DC2626) — 融資維持率與籌碼分析</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【台股市場專題】活力橘紅識別 (#EF6F53) — 融資維持率與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
@@ -220,12 +220,12 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["外資台指期未平倉", f"{oi:,} 口", "警戒線 -30,000 口", "🟢 空單較上週高點回補 8,000 口，避險賣壓大幅減輕"],
             ["大盤 MA20/60 乖離", "-2.8% / -4.1%", "負乖離 > -5% 為短線超賣", "🟢 短線正處於超賣區，具備急彈技術面條件"],
         ],
-        header_bg=COLOR_TW_STOCK, grid_color=colors.HexColor('#FECACA'), styles=s,
+        header_bg=COLOR_TW_STOCK, grid_color=colors.HexColor('#FDE7E1'), styles=s,
     )
     story.append(tw_rows)
     story.append(Spacer(1, 10))
 
-    story.append(Paragraph(en("<b>【美股市場專題】華爾街藍識別 (#1E40AF) — 恐慌指數與市場廣度</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【美股市場專題】科技青識別 (#0E7C86) — 恐慌指數與市場廣度</b>"), s["h1"]))
     us_rows = _detail_table(
         ["美股指數/指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
@@ -236,7 +236,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["Fear & Greed Index", f"{fg} (Extreme Fear)", "恐慌區 < 25", "🟢 進入極度恐慌區，符合巴菲特「別人恐慌我貪婪」條件"],
             ["MA200 成分股占比", "42.5%", "超賣區 < 30% / 超買區 > 80%", "🟡 市場廣度中性偏低，資金集中於七大巨頭 (Magnificent 7)"],
         ],
-        header_bg=COLOR_US_STOCK, grid_color=colors.HexColor('#BFDBFE'), styles=s,
+        header_bg=COLOR_US_STOCK, grid_color=colors.HexColor('#E3F3F4'), styles=s,
     )
     story.append(us_rows)
 
@@ -245,7 +245,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("全球債券、外匯與總經數據趨勢",
         "追蹤美債殖利率曲線、降息預期、美元指數與核心通膨就業數據", date_str, COLOR_BOND, s))
 
-    story.append(Paragraph(en("<b>【全球債券專題】避險琥珀金識別 (#D97706) — 利率與殖利率曲線</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【全球債券專題】暖琥珀識別 (#E8A33D) — 利率與殖利率曲線</b>"), s["h1"]))
     story.append(_detail_table(
         ["債券指標", "當前數據", "上月數據", "趨勢判讀與進出場建議"],
         [
@@ -254,11 +254,11 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["10Y-2Y 殖利率利差", f"{'+' if spread >= 0 else ''}{spread}%", "-0.15%", "🟢 殖利率倒掛結束並陡峭化，有利於金融機構利差改善"],
             ["美國高收益債信用利差", "340 bps", "320 bps", "🟡 信用利差微幅擴大但仍低於歷史均值 (450 bps)，無違約危機"],
         ],
-        header_bg=COLOR_BOND, grid_color=colors.HexColor('#FDE68A'), styles=s,
+        header_bg=COLOR_BOND, grid_color=colors.HexColor('#FCF0DC'), styles=s,
     ))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(en("<b>【外匯與美元專題】匯市翡翠綠識別 (#059669) — 匯率與資金流動性</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【外匯與美元專題】抹茶綠識別 (#6B8F71) — 匯率與資金流動性</b>"), s["h1"]))
     story.append(_detail_table(
         ["外匯指標", "當前數據", "關鍵水位", "資金流向與影響判讀"],
         [
@@ -266,7 +266,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["美元/新台幣 (USD/TWD)", f"{twd}", "阻力: 32.50 / 支撐: 31.80", "🟢 台幣升值預期升溫，有利外資回流台股現貨"],
             ["美元/日圓 (USD/JPY)", "145.2", "警戒: 155.0 (套利平倉)", "🟡 日圓套利交易平倉風險趨緩，金融市場流動性恢復"],
         ],
-        header_bg=COLOR_FOREX, grid_color=colors.HexColor('#A7F3D0'), styles=s,
+        header_bg=COLOR_FOREX, grid_color=colors.HexColor('#E8F0E9'), styles=s,
     ))
     story.append(Spacer(1, 8))
 
@@ -297,7 +297,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("大宗商品、數位資產與動態資產配置",
         "追蹤黃金、原油、比特幣鏈上數據與多資產動態配置矩陣", date_str, COLOR_CRYPTO, s))
 
-    story.append(Paragraph(en("<b>【大宗商品與數位資產】前沿紫羅蘭識別 (#7C3AED)</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑識別 (#1C2333)</b>"), s["h1"]))
     story.append(_detail_table(
         ["資產標的", "當前價格", "關鍵支撐/壓力", "鏈上/市場籌碼與觀點分析"],
         [
@@ -305,7 +305,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["紐約原油 (WTI)", "$76.5 / bbl", "支撐: $72.0 / 壓力: $82.0", "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
             ["比特幣 (BTC)", f"${btc:,}", "支撐: $55,000 / 壓力: $64,000", "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
         ],
-        header_bg=COLOR_CRYPTO, grid_color=colors.HexColor('#DDD6FE'), styles=s,
+        header_bg=COLOR_CRYPTO, grid_color=colors.HexColor('#EEF0F4'), styles=s,
     ))
     story.append(Spacer(1, 10))
 
@@ -344,7 +344,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["全球債券", "20年期以上美國公債 ETF<br/>(如 TLT, 00679B)", "單筆搭配定期定額", f"10Y-2Y 倒掛結束，鎖定 {t10}%~{t10 + 0.15:.2f}% 高殖利率，降息啟動享資本利得。"],
             ["數位資產", "比特幣現貨 ETF / BTC", "分批佈局", "永續合約資費歸零、交易所槓桿多單清理完畢，鏈上算力持續創新高。"],
         ],
-        header_bg=T.SIGNAL_BUY, grid_color=colors.HexColor('#BBF7D0'), styles=s,
+        header_bg=T.SIGNAL_BUY, grid_color=colors.HexColor('#E8F0E9'), styles=s,
     ))
     story.append(Spacer(1, 10))
 
@@ -357,7 +357,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["美股市場", "高債務與零獲利高估值科技股", "分批逢高出清離場", "高利率維持更久 (Higher for Longer) 壓抑無獔利公司估值，融資利息負擔過高。"],
             ["外匯與商品", "高槓桿槓桿型 ETF<br/>(如 2X/3X 槓桿商品)", "即時停損減碼離場", "市場波動率 VIX 大幅跳升，高波動期間槓桿 ETF 損耗風險極高，不宜長期持有。"],
         ],
-        header_bg=T.SIGNAL_SELL, grid_color=colors.HexColor('#FECACA'), styles=s,
+        header_bg=T.SIGNAL_SELL, grid_color=colors.HexColor('#FDE7E1'), styles=s,
     ))
 
     doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告")

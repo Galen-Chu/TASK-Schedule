@@ -26,7 +26,10 @@ except ImportError:
     log.info("pyswisseph 未安裝，astro 計算將退回 sample。")
 
 
-def _jd(date_str, hour_utc=6.5):
+def _jd(date_str, hour_utc=4.0):
+    # noon Asia/Taipei (UTC+8) = 04:00 UTC on the same calendar day as the
+    # Taipei date_str. A fixed noon instant keeps the chart reproducible
+    # regardless of exactly when the daily schedule fires.
     try:
         y, m, d = (int(x) for x in str(date_str).split("-"))
         return swe.julday(y, m, d, hour_utc)

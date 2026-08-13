@@ -17,8 +17,20 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 
+try:
+    from zoneinfo import ZoneInfo
+    _TAIPEI = ZoneInfo("Asia/Taipei")
+except Exception:  # noqa: BLE001 — Py<3.9 or missing TZDB -> fixed +08:00
+    _TAIPEI = datetime.timezone(datetime.timedelta(hours=8))
+
+
 def today_str():
-    return datetime.date.today().strftime("%Y-%m-%d")
+    """Today's date in Asia/Taipei (the report audience's timezone).
+
+    The CI runner clock is UTC, so without rebasing, a 22:30 UTC schedule
+    (= 06:30 next-day Taipei) would be stamped with the prior calendar day.
+    """
+    return datetime.datetime.now(_TAIPEI).date().strftime("%Y-%m-%d")
 
 
 def default_output_dir():
