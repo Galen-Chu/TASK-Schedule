@@ -16,6 +16,8 @@ if _REPO_ROOT not in sys.path:
 from core.scheduler_base import BaseReportScheduler
 from core.data.fetchers import fetch_rss_items
 from core.dispatch.drive_uploader import upload_to_drive
+from core.retrieval import CorpusStore, ingest_items, retrieve
+from core.retrieval.ingest import DOMAIN_KEYWORDS
 
 # A few public, keyless RSS feeds to demonstrate the live-source path. Parsed
 # with feedparser (optional); on any failure the scheduler falls back to the
@@ -24,6 +26,10 @@ SAMPLE_FEEDS = [
     "https://feeds.bbci.co.uk/news/world/rss.xml",
     "https://www.reddit.com/r/worldnews/.rss",
 ]
+
+# Persistent retrieval corpus — committed to the repo so it accumulates across
+# ephemeral CI runs. Swap to a remote backend (GCP) in a later phase.
+CORPUS_PATH = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl")
 
 
 class GlobalReportScheduler(BaseReportScheduler):
@@ -35,18 +41,36 @@ class GlobalReportScheduler(BaseReportScheduler):
     def sample_data(self):
         return {"editorial": True}
 
+    def _store(self):
+        """The persistent retrieval corpus (None if unavailable)."""
+        try:
+            return CorpusStore(CORPUS_PATH)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("corpus store unavailable (%s)", exc)
+            return None
+
     def fetch_data(self):
-        """Best-effort RSS pull. Returns the sample if nothing is reachable."""
+        """Best-effort RSS pull. Ingests items into the persistent retrieval
+        corpus so it accumulates across runs. Returns the sample if nothing is
+        reachable."""
         items = []
+        store = self._store()
         for url in self.config.get("rss_feeds", SAMPLE_FEEDS):
-            items.extend(fetch_rss_items(url, limit=3))
+            feed_items = fetch_rss_items(url, limit=3)
+            items.extend(feed_items)
+            if store is not None and feed_items:
+                ingest_items(store, feed_items, source=url)
+        if store is not None:
+            store.compact(keep_days=30)
         if not items:
             return None
         return {"editorial": True, "rss_items": items[:6]}
 
     def synthesize(self, data):
-        """When a Gemini key is configured, distill RSS items into a
-        What/Why/So-What digest; otherwise leave the editorial sample."""
+        """Gemini digest of today's RSS (when keyed), then pull recent real
+        items per domain from the retrieval corpus to supplement the editorial
+        content. Retrieval works even if today's fetch failed, because the
+        corpus persists across runs."""
         items = (data or {}).get("rss_items") or []
         if items:
             from core import llm
@@ -55,6 +79,13 @@ class GlobalReportScheduler(BaseReportScheduler):
                 if digest:
                     data["llm_digest"] = digest
                     data["_source"] = (data.get("_source") or "") + "+Gemini"
+        store = self._store()
+        if store is not None:
+            data.setdefault("retrieval", {})
+            for dom, kws in DOMAIN_KEYWORDS.items():
+                got = retrieve(store, query=" ".join(kws[:6]), domain=dom, k=3, days=7)
+                if got:
+                    data["retrieval"][dom] = got
         return data
 
     def render_pdf(self, data):

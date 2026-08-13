@@ -26,7 +26,7 @@ on:
     branches: [main, master]
 
 permissions:
-  contents: read
+  contents: write   # schedule run commits the accumulated retrieval corpus back
 
 concurrency:
   group: daily-reports-${{ github.ref }}
@@ -105,3 +105,21 @@ jobs:
           path: output/*.pdf
           retention-days: 14
           if-no-files-found: warn
+
+      # The retrieval corpus (data/retrieval/*.jsonl) must persist across the
+      # ephemeral runner, so the scheduled run commits it back to the repo.
+      # data/** is NOT in the push paths-filter, so this commit won't re-trigger.
+      - name: Accumulate retrieval corpus
+        if: github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/retrieval/*.jsonl
+          if git diff --cached --quiet; then
+            echo "no corpus changes"
+          else
+            git commit -m "chore(retrieval): accumulate corpus [skip ci]"
+            git push
+          fi
