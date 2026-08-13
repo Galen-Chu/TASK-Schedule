@@ -103,6 +103,11 @@ def upload_to_drive(file_path, folder_id=None, subfolder=None, report_id=None):
         log.info("Drive 上傳未設定（缺少 GOOGLE_APPLICATION_CREDENTIALS），略過。")
         return None
 
+    # Fall back to the DRIVE_FOLDER_ID env var when no explicit folder_id is
+    # passed, so the CI workflow only needs a secret (not a spark.yaml).
+    if folder_id is None:
+        folder_id = os.environ.get("DRIVE_FOLDER_ID")
+
     name = subfolder or report_id
     parent = folder_id
     if name:

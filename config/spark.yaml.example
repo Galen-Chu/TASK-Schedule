@@ -5,8 +5,14 @@
 # 共用輸出目錄（預設 ./output）
 output_dir: ./output
 
-# Google Drive 上傳資料夾 ID（留空 = 不上傳；需另設 GOOGLE_APPLICATION_CREDENTIALS）
+# Google Drive 上傳資料夾 ID（留空 = 不上傳；需另設 GOOGLE_APPLICATION_CREDENTIALS 環境變數）
+# CI 也可改設 GitHub Secret DRIVE_FOLDER_ID（見 README「Secrets」一節）
 # drive_folder_id: 0AbCDefGhIjKlMnOpQrStUvWxYz
+
+# ===== 選用金鑰（皆為環境變數 / GitHub Secret，勿寫入本檔）=====
+# GEMINI_API_KEY      → 啟用 Global/Spiritual 的 LLM 摘要與導引（缺則退回編輯樣板）
+# GOOGLE_APPLICATION_CREDENTIALS → 指向 GCP service-account JSON，啟用 Drive 上傳
+# DRIVE_FOLDER_ID     → Drive 目標資料夾 ID（等同 drive_folder_id）
 
 # ===== Financial =====
 financial:

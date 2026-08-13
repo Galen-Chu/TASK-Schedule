@@ -65,9 +65,26 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q
 
+      - name: Provision GCP service-account key (optional)
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          # Writes the service-account JSON only when the GCP_SA_KEY secret is
+          # set; otherwise Drive upload stays a safe no-op.
+          if [ -n "$GCP_SA_KEY" ]; then
+            echo "$GCP_SA_KEY" > "$RUNNER_TEMP/sa-key.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa-key.json" >> "$GITHUB_ENV"
+            echo "GCP service-account key provisioned."
+          else
+            echo "GCP_SA_KEY not set — Drive upload will be skipped."
+          fi
+
       - name: Build all reports
         env:
           DATE: ${{ github.event.inputs.date }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
         run: |
           ARGS="all"
           if [ -n "$DATE" ]; then ARGS="all --date $DATE"; fi

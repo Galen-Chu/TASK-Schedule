@@ -105,12 +105,35 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 | 想啟用的功能 | 設定方式 |
 |---|---|
-| Google Drive 上傳 / Gmail 寄送 | 設環境變數 `GOOGLE_APPLICATION_CREDENTIALS` 指向 service-account JSON，並實作 `core/dispatch/`（目前為 stub） |
-| Spiritual 收件 email | `config/spark.yaml` → `spiritual.notify_email` |
+| LLM 摘要/導引（Global 三段式、Spiritual 導引） | 環境變數 `GEMINI_API_KEY`（CI 用同名 Secret） |
+| Google Drive 上傳 | 環境變數 `GOOGLE_APPLICATION_CREDENTIALS`（指向 service-account JSON）＋ `DRIVE_FOLDER_ID`（或 config 的 `drive_folder_id`） |
+| Gmail 寄送 | 同上憑證 ＋ `config/spark.yaml` → `spiritual.notify_email` |
 | Spiritual 本命資料 | `config/birth-profile.yaml`（已 gitignore） |
 | Global RSS 來源 | `config/spark.yaml` → `global.rss_feeds` |
 
-> 🔒 個人資料（本命設定、email、Drive ID）一律走 config / 環境變數，**不寫在原始碼裡**。
+> 🔒 個人資料（本命設定、email、Drive ID、API key）一律走環境變數 / GitHub Secret / config，**不寫在原始碼裡**。
+
+### GitHub Actions Secrets（CI 雲端排程用）
+推上 GitHub 後，到 **Settings → Secrets and variables → Actions → New repository secret** 加入：
+
+| Secret 名稱 | 用途 | 何時需要 |
+|---|---|---|
+| `GEMINI_API_KEY` | 啟用 LLM 摘要與導引 | 想啟用 Global/Spiritual 的 AI 內容時 |
+| `GCP_SA_KEY` | GCP service-account JSON **整份內容** | 啟用 Drive 上傳時 |
+| `DRIVE_FOLDER_ID` | Drive 目標資料夾 ID | 啟用 Drive 上傳時 |
+
+設好後每日排程自動啟用對應功能；沒設的維持安全略過。詳見 workflow 的 `Provision GCP service-account key` 步驟。
+
+### 如何取得金鑰
+**1. Gemini API Key（LLM 用）**
+- 到 [Google AI Studio](https://aistudio.google.com/apikey) →「Get API key」→「Create API key」。
+- 免費額度足夠每日報告使用；複製 key → 存成 GitHub Secret `GEMINI_API_KEY`（或本機環境變數）。
+
+**2. GCP service account（Drive 上傳用）**
+- [Google Cloud Console](https://console.cloud.google.com/) 建專案 → 啟用 **Google Drive API**。
+- 「IAM 與管理 → 服務帳戶」建立 service account → 下載 **JSON 金鑰**。
+- 在 Google Drive 建資料夾，把 service account email（`xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**；資料夾 URL 中 `folders/` 後面那段即 `DRIVE_FOLDER_ID`。
+- JSON 金鑰**整份內容**存成 Secret `GCP_SA_KEY`；資料夾 ID 存成 `DRIVE_FOLDER_ID`。
 
 ---
 
