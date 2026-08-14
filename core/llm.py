@@ -18,6 +18,64 @@ import logging
 
 log = logging.getLogger("llm")
 
+
+# ---- free-tier budget guard (keep daily usage well under the quota) --------
+# Counts every Gemini API call (probes + generations) in data/llm_usage.json,
+# persisted across CI runs. When the day's count reaches GEMINI_DAILY_LIMIT the
+# LLM path degrades to the template instead of burning the remaining quota.
+_DAILY_LIMIT = int(os.environ.get("GEMINI_DAILY_LIMIT", "60"))
+_USAGE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "llm_usage.json")
+
+
+def _usage_state():
+    import datetime as _dt
+    import json as _json
+    today = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=8))).strftime("%Y-%m-%d")
+    try:
+        state = {}
+        if os.path.isfile(_USAGE_FILE):
+            with open(_USAGE_FILE, encoding="utf-8") as f:
+                state = _json.load(f) or {}
+        if state.get("date") != today:
+            state = {"date": today}
+        return state
+    except Exception:  # noqa: BLE001 — bookkeeping must never block the pipeline
+        return {"date": today}
+
+
+def _write_state(state):
+    import json as _json
+    try:
+        os.makedirs(os.path.dirname(_USAGE_FILE), exist_ok=True)
+        with open(_USAGE_FILE, "w", encoding="utf-8") as f:
+            _json.dump(state, f)
+    except Exception as exc:  # noqa: BLE001
+        log.info("llm usage bookkeeping failed (%s)", exc)
+
+
+def _allow_call(tick=False):
+    """True while under the daily budget; ``tick`` also increments the count."""
+    state = _usage_state()
+    ok = state.get("count", 0) < _DAILY_LIMIT
+    if ok and tick:
+        state["count"] = state.get("count", 0) + 1
+        _write_state(state)
+    elif not ok:
+        log.info("Gemini daily budget reached (%d calls); using template.", _DAILY_LIMIT)
+    return ok
+
+
+def _load_model_cache():
+    return _usage_state().get("model")
+
+
+def _save_model_cache(name):
+    state = _usage_state()
+    state["model"] = name
+    _write_state(state)
+
+
 _API_KEY = os.environ.get("GEMINI_API_KEY")
 _DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 _CLIENT = None
@@ -49,7 +107,12 @@ def _pick_model(client, preferred, user_set):
     order = sorted(set(names), reverse=True)
     if user_set and preferred in order:
         order = [preferred] + [n for n in order if n != preferred]
+    cached = _load_model_cache()
+    if cached and cached in order:
+        order = [cached] + [n for n in order if n != cached]
     for name in order:
+        if not _allow_call(tick=True):
+            break
         try:
             client.models.generate_content(
                 model=name, contents=".",
@@ -57,6 +120,7 @@ def _pick_model(client, preferred, user_set):
             if name != preferred:
                 log.info("Gemini model: %s (default %s unavailable, auto-selected)",
                          name, preferred)
+            _save_model_cache(name)
             return name
         except Exception:  # noqa: BLE001 — try the next candidate
             continue
@@ -92,6 +156,8 @@ def generate(prompt, max_tokens=600):
     Retries once on a 429 (free-tier rate limit) after a short backoff.
     """
     if not _AVAILABLE:
+        return None
+    if not _allow_call(tick=True):
         return None
     from google.genai import types
     for attempt in range(2):

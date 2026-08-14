@@ -15,7 +15,7 @@ from reportlab.lib.styles import ParagraphStyle
 from core.fonts import FONT_CJK, FONT_EN, FONT_EN_BOLD, ensure_fonts
 from core import design_tokens as T
 
-_TAG_RE = r'(</?(?:b|i|br|font)\b[^>]*>)'
+_TAG_RE = r'(</?(?:b|i|br|font|a|u)\b[^>]*>)'
 _LATIN_RUN_RE = r'([A-Za-z0-9%.,+\-\$/:_&><]+(?:\s+[A-Za-z0-9%.,+\-\$/:_&><]+)*)'
 
 

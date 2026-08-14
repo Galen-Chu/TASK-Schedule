@@ -29,6 +29,30 @@ from core.fonts import FONT_CJK
 
 DISCLAIMER = "本報告由 Global Intelligence 自動化情報系統產生，涵蓋全球與國內權威智庫報告速讀。"
 
+# Editorial source homepages — used for the clickable source badge on each card.
+_ORG_URLS = {
+    "CSIS": "https://www.csis.org",
+    "The Conference Board": "https://www.conference-board.org",
+    "國防院 (INDSR)": "https://www.indsr.org.tw",
+    "中經院 (CIER)": "https://www.cier.edu.tw",
+    "歐洲央行 (ECB)": "https://www.ecb.europa.eu",
+    "Mohamed El-Erian": "https://www.project-syndicate.org",
+    "台經院 (TIER)": "https://www.tier.org.tw",
+    "中央銀行 (CBC)": "https://www.cbc.gov.tw",
+    "TSMC / Motley Fool": "https://www.fool.com",
+    "NVIDIA / Design&Reuse": "https://www.designreuse.com",
+    "工研院 (ITRI ISTI)": "https://www.itri.org.tw",
+    "資策會 (MIC)": "https://mic.iii.org.tw",
+    "U.S. FDA / Endpoints": "https://endpts.com",
+    "Eli Lilly / PR Newswire": "https://www.prnewswire.com",
+    "國衛院 (NHRI)": "https://www.nhri.org.tw",
+    "生技中心 (DCB)": "https://www.dcb.org.tw",
+    "U.S. DOE / NCSL": "https://www.energy.gov",
+    "Cambridge EnerTech": "https://www.informaconnect.com",
+    "國研院 (NARLabs)": "https://www.narlabs.org.tw",
+    "工研院綠能所 (GEL)": "https://www.itri.org.tw",
+}
+
 # ---- Editorial content: (domain_tag, domain_zh, domain_en, category, ramp, rows)
 # domain_tag links each page to the retrieval layer's classify_domain tags.
 # ramp = [tint, light, base, dark, darkest]; base is the domain accent.
@@ -67,8 +91,8 @@ PAGES = [
 ]
 
 
-def _topic_card(org, focus, when, body_flowables, ramp, styles):
-    """One think-tank topic as a card: source badge + metadata, focus title, body."""
+def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
+    """One think-tank topic as a card: linked source badge + metadata, focus title, body."""
     base = colors.HexColor(ramp[2])    # domain accent
     tint = colors.HexColor(ramp[0])    # light card fill
     dark = colors.HexColor(ramp[3])    # emphasis
@@ -80,9 +104,11 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles):
     body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.3, leading=11.8,
                              textColor=T.TEXT_BODY)
 
-    # Header row: org badge (accent fill, white) + publish time (right-aligned)
+    # Header row: linked org badge (accent fill, white) + publish time (right-aligned)
+    org_html = (f'<a href="{url}" color="#FFFFFF"><u><b>{org}</b></u></a>'
+                if url else f"<b>{org}</b>")
     badge = Table(
-        [[Paragraph(en(f"<b>{org}</b>", color="#FFFFFF"),
+        [[Paragraph(en(org_html, color="#FFFFFF"),
                     ParagraphStyle("gbadge", fontName=FONT_CJK, fontSize=8.2,
                                    leading=10, textColor=T.WHITE))]],
         colWidths=[T.PRINTABLE_WIDTH - 150],
@@ -186,24 +212,39 @@ def build_global_pdf(filename, data=None, date_str=None):
         for i, (org, focus, when, analysis) in enumerate(rows):
             tp = page_tp[i] if page_tp else None
             body = _three_part_paras(tp) if tp else [analysis]
-            story.append(_topic_card(org, focus, when, body, ramp, s))
+            story.append(_topic_card(org, focus, when, body, ramp, s,
+                                     url=_ORG_URLS.get(org)))
             story.append(Spacer(1, 7))
 
         # Supplement: live items from the retrieval layer (persistent corpus)
         live = (data or {}).get("retrieval", {}).get(domain_tag, [])
         if live:
+            from urllib.parse import urlparse as _up
             story.append(Spacer(1, 6))
             story.append(Paragraph(en("<b>🔍 即時檢索補充 (Live Retrieval · 近 7 日累積)</b>"), s["h1"]))
-            live_st = ParagraphStyle("glive", fontName=FONT_CJK, fontSize=8.3,
-                                     leading=12, textColor=T.TEXT_BODY)
+            base = colors.HexColor(ramp[2])
+            rows = [[Paragraph(en("<b>日期</b>", color="#FFFFFF"), s["th"]),
+                     Paragraph(en("<b>來源</b>", color="#FFFFFF"), s["th"]),
+                     Paragraph(en("<b>標題</b>", color="#FFFFFF"), s["th"])]]
             for it in live:
-                src = it.get("source", "")
+                day = (it.get("fetched_at") or "")[5:10] or "—"
+                src = _up(it.get("source", "")).netloc or "RSS"
                 title = it.get("title", "")
                 link = it.get("link", "")
-                txt = f"<b>{src}</b> · {title}" if src else title
-                if link:
-                    txt = f'<a href="{link}" color="#0E7C86">{txt}</a>'
-                story.append(Paragraph(en("• " + txt), live_st))
+                txt = (f'<a href="{link}" color="#0E7C86"><u>{title}</u></a>'
+                       if link else title)
+                rows.append([Paragraph(en(day), s["body"]),
+                             Paragraph(en(src), s["body"]),
+                             Paragraph(en(txt), s["body"])])
+            t_live = Table(rows, colWidths=[42, 150, T.PRINTABLE_WIDTH - 192])
+            t_live.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), base),
+                ('GRID', (0, 0), (-1, -1), 0.4, T.BORDER),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BACKGROUND', (0, 1), (-1, -1), T.BG_CARD),
+                ('PADDING', (0, 0), (-1, -1), 4),
+            ]))
+            story.append(t_live)
 
     doc = new_doc(filename, title=title)
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER),
