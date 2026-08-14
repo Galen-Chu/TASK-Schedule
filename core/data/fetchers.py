@@ -25,13 +25,15 @@ def _get_json(url):
 
 
 def fetch_twse_margin(date_str):
-    """TWSE 大盤融資融券維持率（公開、免 key）。回傳 dict 或 None。"""
-    d = str(date_str).replace("-", "")
-    url = f"https://www.twse.com.tw/exchangeReport/MI_MARGIN?response=json&date={d}"
-    data = _get_json(url)
-    if not data or "data" not in data:
-        return None
-    return {"source": "TWSE MI_MARGIN", "date": date_str, "raw": data}
+    """TWSE 集中市場融資維持率（公開、免 key）。目前回傳 None。
+
+    TWSE openapi 只提供「個股」融資融券餘額（MI_MARGN），並未直接公開
+    「全市場融資維持率」這個彙總值；要取該比率需另找資料源。在此之前報告
+    使用內建 sample 維持率，signal 模型維持不變。
+    （備註：舊程式用的 www.twse.com.tw/exchangeReport/MI_MARGIN 已 404；
+    正確代碼為 MI_MARGN，位於 openapi.twse.com.tw 。）
+    """
+    return None
 
 
 def fetch_rss_items(url, limit=6):
@@ -124,10 +126,26 @@ def fetch_treasury_yields(year=None):
         if len(rows) < 2:
             return None
         hdr = [h.strip() for h in rows[0]]
-        last = rows[-1]
 
         def col(name):
             return hdr.index(name) if name in hdr else None
+
+        # The Treasury CSV is newest-first; pick the most recent date row so we
+        # never report stale yields (the old rows[-1] grabbed the OLDEST row and
+        # the report had been showing ~January figures for months).
+        idate = col("Date")
+        last = None
+        latest_d = _dt.date.min
+        for r in rows[1:]:
+            if idate is not None and len(r) > idate:
+                try:
+                    d = _dt.datetime.strptime(r[idate].strip(), "%m/%d/%Y").date()
+                except ValueError:
+                    continue
+                if d > latest_d:
+                    latest_d, last = d, r
+        if last is None:
+            last = rows[-1]
 
         # Treasury CSV uses "2 Mo" (no 2 Yr), "10 Yr"
         i2 = col("2 Yr") if "2 Yr" in hdr else col("2 Mo")
