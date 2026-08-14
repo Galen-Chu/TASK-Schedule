@@ -21,7 +21,7 @@ def _g(data, key, default):
 
 
 def build_note_content(data, date_str):
-    mmr = _g(data, "margin_maintenance_ratio", 151.8)
+    twm = _g(data, "tw_margin_balance", 8970000)
     vix = _g(data, "vix", 28.4)
     score = _g(data, "signal_score", 72)
     rating = _g(data, "signal_rating", "🟢 偏多進場 / 尋找超跌加碼點")
@@ -34,7 +34,7 @@ tags:
   - market-trends
   - quant-indicators
   - asset-allocation
-margin_maintenance_ratio: {mmr}%
+tw_margin_balance_lots: {twm}
 vix: {vix}
 signal_rating: "{rating}"
 ---
@@ -44,7 +44,7 @@ signal_rating: "{rating}"
 > [!abstract] 核心決策與資產評級
 > **本日綜合評級**：`{rating}` (Signal Score: {score}/100)
 >
-> 台股大盤融資維持率 **{mmr}%**（接近臨界超跌區 150%），美股 VIX **{vix}**。量化模型綜合評估多數市場進入中長線高勝率分批佈局點。
+> 台股全市場融資餘額 **{twm/10000:.1f} 萬張**（TWSE MI_MARGN 即時加總），美股 VIX **{vix}**。量化模型綜合評估多數市場進入中長線高勝率分批佈局點。
 
 ---
 
@@ -52,7 +52,7 @@ signal_rating: "{rating}"
 
 | 市場類別 | 當前關鍵指標 | 風險評級 | 進出場訊號 | 短線趨勢與籌碼觀察 |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. 台股市場** | 維持率 {mmr}% | 中等偏低 | 🟢 分批進場 | 融資洗盤完畢，台積電先進封裝支撐強 |
+| **1. 台股市場** | 融資餘額 {twm/10000:.1f} 萬張 | 中等偏低 | 🟢 分批進場 | 融資洗盤完畢，台積電先進封裝支撐強 |
 | **2. 美股市場** | VIX {vix} | 中等 | 🟢 分批進場 | 恐慌指數攀升至買點，科技巨頭區間築底 |
 | **3. 全球債券** | 10Y {_g(data, "treasury_10y", 3.85)}% (利差 +{_g(data, "spread_10y2y", 0.12)}%) | 低 | 🟢 鎖利加碼 | 倒掛結束，鎖定降息前高殖利率票息 |
 | **4. 外匯與美元** | DXY {_g(data, "dxy", 102.4)} / TWD {_g(data, "usdtwd", 32.15)} | 中等 | 🟡 觀望升值 | 美元高位震盪，亞幣匯率止跌回升 |
@@ -88,5 +88,5 @@ def write_obsidian_note(data, output_dir=None):
 
 
 if __name__ == "__main__":
-    path = write_obsidian_note({"date": "2026-08-11", "vix": 28.4, "margin_maintenance_ratio": 151.8})
+    path = write_obsidian_note({"date": "2026-08-11", "vix": 28.4, "tw_margin_balance": 8969841})
     print("Obsidian note created:", path)

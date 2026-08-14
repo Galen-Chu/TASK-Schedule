@@ -39,12 +39,15 @@ _PAGE_TOTAL = 5
 def calculate_signal_score(data):
     """Quantitative signal score (0-100) per the documented model.
 
-    Base 50; +15 if TW margin maintenance < 160%; +10 if VIX > 25; +10 if the
-    10Y-2Y spread is positive (curve un-inverted); foreign-futures OI band.
+    Base 50; +15 if the TW market-wide margin balance (lots) is under the
+    ceiling (default 9,000,000 — mid-market calibration, overridable via the
+    ``tw_margin_ceiling`` data key); +10 if VIX > 25; +10 if the 10Y-2Y spread
+    is positive (curve un-inverted); foreign-futures OI band.
     Replaces the old hardcoded ``72`` so the headline always matches the model.
     """
     score = 50
-    if data.get("margin_maintenance_ratio", 160) < 160:
+    ceiling = data.get("tw_margin_ceiling", 9_000_000)
+    if data.get("tw_margin_balance", ceiling) < ceiling:
         score += 15
     if data.get("vix", 0) > 25:
         score += 10
@@ -77,7 +80,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     score = calculate_signal_score(data)
     rating = rating_from_score(score)
 
-    mmr   = _g(data, "margin_maintenance_ratio", 151.8)
+    twm   = _g(data, "tw_margin_balance", 8970000)
+    tws   = _g(data, "tw_short_balance", 214000)
     oi    = _g(data, "futures_net_oi", -18500)
     vix   = _g(data, "vix", 28.4)
     fg    = _g(data, "fear_and_greed", 24)
@@ -105,7 +109,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en(f"<b>{rating} (Signal Score: {score}/100)</b>", bold=True, color="#86EFAC"),
                    ParagraphStyle_local("RBody", 10.5, colors.HexColor('#86EFAC'), align=2))],
         [Paragraph(en(
-            f"<b>核心決策摘要：</b>台股融資維持率 {mmr}%，美股 VIX {vix}，"
+            f"<b>核心決策摘要：</b>台股融資餘額 {twm/10000:.1f} 萬張，美股 VIX {vix}，"
             f"美債 10Y-2Y 利差 {'+' if spread >= 0 else ''}{spread}%。"
             "量化模型綜合評估當前資產配置之風險報酬比。", color="#FFFFFF"),
             ParagraphStyle_local("RDesc", 9, T.WHITE, leading=13))],
@@ -133,9 +137,9 @@ def generate_daily_pdf(filename, data=None, date_str=None):
 
     cards = [
         (COLOR_TW_STOCK, kpi_card(
-            "台股大盤融資維持率",
-            f"<font color='#EF6F53' size=13><b>{mmr}%</b></font> <font color='#2E8B4F'><b>(接近臨界買點)</b></font>",
-            "警戒線: 160% | 超跌區: &lt; 150%<br/>融資大幅減碼，洗盤接近尾聲，具反彈動能。")),
+            "全市場融資餘額（TWSE 即時）",
+            f"<font color='#EF6F53' size=13><b>{twm/10000:.1f} 萬張</b></font> <font color='#2E8B4F'><b>(低於門檻 900 萬張)</b></font>",
+            f"融券餘額: {tws/10000:.1f} 萬張 | 來源: MI_MARGN 加總<br/>數值每日即時重抓，門檻可日後校準。")),
         (COLOR_US_STOCK, kpi_card(
             "外資台指期淨未平倉",
             f"<font color='#0E7C86' size=13><b>{oi:,} 口</b></font> <font color='#2E8B4F'><b>(空單大幅回補)</b></font>",
@@ -172,7 +176,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en("<b>進出場訊號燈號</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>短線趨勢說明</b>", color="#FFFFFF"), s["th"])],
         [Paragraph(en("1. 台股市場"), s["body"]), Paragraph(en("活力橘紅", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"22,150 (維持率 {mmr}%)"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
+         Paragraph(en(f"融資餘額 {twm/10000:.1f} 萬張"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
          Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("融資清洗完畢，台積電先進封裝支撐強健"), s["body"])],
         [Paragraph(en("2. 美股市場"), s["body"]), Paragraph(en("科技青", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"S&P 500: 5,420 (VIX {vix})"), s["body"]), Paragraph(en("中等"), s["body"]),
@@ -213,8 +217,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
-            ["大盤融資維持率", f"{mmr}%", "斷頭線 130%-140% / 超跌區 < 150%", "🟢 融資減碼 32 億，散戶追繳多殺多接近尾聲，勝率顯著提升"],
-            ["大盤融資餘額", "2,850 億", "高位警戒 > 3,100 億", "🟢 較高點減少約 280 億，籌碼漸趨沉澱"],
+            ["全市場融資餘額", f"{twm/10000:.1f} 萬張", "門檻 900 萬張（可校準）", "🟢 低於門檻，槓桿未過熱，洗盤接近尾聲，具反彈動能"],
+            ["全市場融券餘額", f"{tws/10000:.1f} 萬張", "歷史區間 15–40 萬張", "🟢 融券水位中性，無軋空亦無悲觀過度"],
             ["外資現貨買賣超", "+125 億", "單日 > +100 億為轉多", "🟢 外資連續 3 日現貨轉買，資金回流權值股"],
             ["投信現貨買賣超", "+42 億", "持續買超支撐", "🟢 投信連續 15 日買超，內資法人底氣充足"],
             ["外資台指期未平倉", f"{oi:,} 口", "警戒線 -30,000 口", "🟢 空單較上週高點回補 8,000 口，避險賣壓大幅減輕"],
@@ -337,7 +341,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(_detail_table(
         ["投資領域", "標的名稱 / 代碼", "建議進場策略", "核心選股/選債量化理由"],
         [
-            ["台股市場", "市值型 / 半導體 ETF<br/>(如 0050, 0052)", "分批逢低建立核心部位", f"融資維持率降至 {mmr}% 接近臨界超跌區；先進封裝與 CoWoS 產能滿載，評價具吸引力。"],
+            ["台股市場", "市值型 / 半導體 ETF<br/>(如 0050, 0052)", "分批逢低建立核心部位", f"全市場融資餘額 {twm/10000:.1f} 萬張、低於門檻，槓桿未過熱；先進封裝與 CoWoS 產能滿載，評價具吸引力。"],
             ["台股市場", "AI 伺服器水冷與散熱龍頭", "拉回重心支撐線加碼", "AI 伺服器單機功耗暴增，營收月增率持強，法人與投信連續 15 日買超護盤。"],
             ["美股市場", "標普 500 / 納指 ETF<br/>(如 VOO, QQQ)", "分 3 批定期定額扣款", f"VIX 升至 {vix} + F&amp;G 降至 {fg} 極度恐慌區，歷史回測分批進場勝率 > 82%。"],
             ["美股市場", "雲端 Hyperscaler &amp; AI 巨頭", "分批進場", "科技巨頭 2026 年 Capex 資本支出持續上修，自由現金流非常強健。"],

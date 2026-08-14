@@ -38,7 +38,8 @@ class FinancialReportScheduler(BaseReportScheduler):
         return {
             "signal_score": 72,
             "signal_rating": "🟢 偏多進場 / 尋找超跌加碼點",
-            "margin_maintenance_ratio": 151.8,
+            "tw_margin_balance": 8970000,
+            "tw_short_balance": 214000,
             "futures_net_oi": -18500,
             "vix": 28.4,
             "fear_and_greed": 24,
@@ -89,18 +90,13 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["fear_and_greed"] = fg
             sources.append("F&G")
 
-        # 4) TWSE margin maintenance ratio (keyless)
+        # 4) TWSE market-wide margin / short balances (keyless, MI_MARGN sum)
         twse = fetch_twse_margin(self.date_str)
-        if twse:
-            try:
-                rows = twse["raw"].get("data", [])
-                if rows:
-                    ratio = float(str(rows[0][-1]).replace(",", "").strip())
-                    if 100 < ratio < 300:
-                        data["margin_maintenance_ratio"] = round(ratio, 2)
-                        sources.append("TWSE")
-            except (ValueError, TypeError, IndexError, KeyError):
-                self.logger.info("TWSE 回傳解析失敗，沿用 sample 維持率。")
+        if twse and twse.get("total_margin_balance"):
+            data["tw_margin_balance"] = twse["total_margin_balance"]
+            if twse.get("total_short_balance"):
+                data["tw_short_balance"] = twse["total_short_balance"]
+            sources.append("TWSE")
 
         if not sources:
             return None  # triggers full sample fallback in base class

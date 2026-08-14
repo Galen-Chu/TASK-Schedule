@@ -25,15 +25,41 @@ def _get_json(url):
 
 
 def fetch_twse_margin(date_str):
-    """TWSE 集中市場融資維持率（公開、免 key）。目前回傳 None。
+    """TWSE 集中市場融資/融券餘額加總（公開、免 key）。
 
-    TWSE openapi 只提供「個股」融資融券餘額（MI_MARGN），並未直接公開
-    「全市場融資維持率」這個彙總值；要取該比率需另找資料源。在此之前報告
-    使用內建 sample 維持率，signal 模型維持不變。
-    （備註：舊程式用的 www.twse.com.tw/exchangeReport/MI_MARGIN 已 404；
-    正確代碼為 MI_MARGN，位於 openapi.twse.com.tw 。）
+    MI_MARGN 是「個股」明細（openapi.twse.com.tw）；全市場維持率並非
+    公開資料集，因此改彙總全市場融資/融券今日餘額（單位：張）。
+    回傳 {"total_margin_balance": int, "total_short_balance": int} 或 None。
     """
-    return None
+    import ssl
+    url = "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN"
+    try:
+        # TWSE endpoint occasionally trips default cert verification on some
+        # hosts; use a lenient context (same as the BLS fetcher).
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", "ignore"))
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+        log.info("TWSE MI_MARGN GET failed: %s", exc)
+        return None
+    if not isinstance(data, list) or not data:
+        return None
+    margin = short = 0
+    for r in data:
+        mv = str(r.get("融資今日餘額", "")).replace(",", "")
+        sv = str(r.get("融券今日餘額", "")).replace(",", "")
+        if mv.isdigit():
+            margin += int(mv)
+        if sv.isdigit():
+            short += int(sv)
+    if not margin:
+        return None
+    return {"source": "TWSE MI_MARGN", "date": date_str,
+            "total_margin_balance": margin, "total_short_balance": short}
 
 
 def fetch_rss_items(url, limit=6):
