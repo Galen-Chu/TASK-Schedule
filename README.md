@@ -10,7 +10,7 @@
 
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
-| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（5 頁） |
+| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（6 頁，含總經儀表板） |
 | **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源）＋統一檢索層即時補充 | `30 6 * * *`（06:30） | 智庫級主題卡版面（每頁 1 領域 4 則，5 頁） |
 | **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數五術，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（5 頁，每頁一系統） |
 
@@ -34,7 +34,7 @@ Gemini-Spark-Schedule/
 ├── Global_Intelligence/          #   （＋ Spiritual 的 systems_data.py 為五術單一資料源）
 ├── Spiritual_Intelligence/
 ├── config/                       # 設定（含範本；真實設定已 gitignore）
-├── data/retrieval/               # 檢索語料庫（JSONL，commit 進 repo 跨 CI run 累積）
+├── data/                         # 檢索語料庫＋LLM 用量＋macro 快取（commit 進 repo 跨 CI run 持久）
 ├── scripts/fetch_fonts.py        # 下載開源 CJK 字型
 ├── main.py                       # 統一入口
 ├── requirements.txt
@@ -132,7 +132,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 **2. GCP service account（Drive 上傳用）**
 - [Google Cloud Console](https://console.cloud.google.com/) 建專案 → 啟用 **Google Drive API**。
 - 「IAM 與管理 → 服務帳戶」建立 service account → 下載 **JSON 金鑰**。
-- 在 Google Drive 建資料夾，把 service account email（`xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**；資料夾 URL 中 `folders/` 後面那段即 `DRIVE_FOLDER_ID`。
+- 在 Google Drive 建資料夾，把 service account email（`xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**；資料夾 URL 中 `folders/` 後面那段即 `DRIVE_FOLDER_ID`。⚠️ service account 沒有儲存配額，一般「我的雲端硬碟」資料夾會被 403 拒絕——請在**共用雲端硬碟（Shared Drive）內**建資料夾（Workspace 帳號；uploader 已帶 `supportsAllDrives`）。
 - JSON 金鑰**整份內容**存成 Secret `GCP_SA_KEY`；資料夾 ID 存成 `DRIVE_FOLDER_ID`。
 
 ---
@@ -168,7 +168,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ### 尚未開發（路線圖）
 - **向量 RAG（檢索層 Phase 2）**：embedding 語意檢索 + 擴充智庫來源 + store 換 remote backend（見下方「統一檢索層」）。
-- **總經日曆**（CPI / 非農 / Core PCE）：目前第 3 頁為編輯固定值。
+- **非農就業（NFP）**：尚未接入（CPI / Core CPI / 失業率 / 殖利率曲線已上線，見第 3 頁 live 表與第 6 頁 Macro Dashboard）。
 
 ---
 
@@ -213,12 +213,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 - **Phase 2**：embedding 語意檢索 + vector store + 擴充智庫 RSS 來源 + store 換 remote backend（待 `GEMINI_API_KEY` + GCP）。
 - **Phase 3**：Financial / Spiritual 也消費同一檢索層 = 完整「統一」願景。
 
-### Monthly Macro Digest（Financial，月度排程）
-與每日報告**不同節奏**的第二條 Financial 排程：
-- **每日** `30 6 * * *`（06:30 台北）：行情報價 + signal score（盤中/價格資料）。
-- **月度** `0 9 2 * *`（每月 2 號 09:00）：結構性總經指標（CPI / Core CPI / 失業率 / NFP / 殖利率曲線），來自免 key 的 BLS + 美國財政部。
-
-月度排程產出 `Monthly_Macro_Digest.pdf`（1 頁計分卡）。執行：`python main.py macro`。
+### Macro Dashboard（已併入每日 Financial 第 6 頁）
+原獨立的月度 Macro Digest 已退役，改為**每日 Financial 的第 6 頁**：美債殖利率曲線圖 + 近 12 個月 CPI / Core CPI 年增率趨勢圖；第 3 頁的總經表也改為即時值。月頻資料（BLS）走 **TTL 快取**（`data/macro_cache.json`：BLS 7 天、殖利率 1 天），由 CI commit 回 repo 跨 run 持久——每日 run 不重抓月度資料。獨立版仍可手動產出：`python main.py macro`。
 
 ### Google Drive 上傳（service account，選用）
 每份報告的 PDF 自動上傳到 Drive——一個根資料夾下，每份報告各自的子資料夾（Financial / Global / Spiritual / Macro）。缺憑證時安全略過（CI 即如此）。
@@ -226,7 +222,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 **設定步驟**（service account，最適合無人值守排程）：
 1. 到 [Google Cloud Console](https://console.cloud.google.com/) 建專案，啟用 **Google Drive API**。
 2. 「IAM 與管理 → 服務帳戶」建立一個 service account，下載 **JSON 金鑰**。
-3. 在 Google Drive 建一個資料夾，把 service account 的 email（如 `xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**。
+3. 在 Google Drive 的**共用雲端硬碟（Shared Drive）內**建一個資料夾，把 service account 的 email（如 `xxx@yyy.iam.gserviceaccount.com`）加為**編輯者**。（SA 無儲存配額，上傳到一般「我的雲端硬碟」會 403；共用雲端硬碟不受此限。）
 4. 設環境變數：
    - `GOOGLE_APPLICATION_CREDENTIALS` = 金鑰 JSON 的路徑
    - 在 `config/spark.yaml` 設 `drive_folder_id`（資料夾 URL 中 `folders/` 後面那段 ID）

@@ -2,7 +2,7 @@
 
 These build real PDFs into a temp output dir. They require the CJK font to
 resolve (the CI workflow and Dockerfile install it). Page counts:
-financial/global/spiritual = 5, macro = 1.
+financial = 6 (macro dashboard merged as page 6), global/spiritual = 5, macro = 1.
 """
 import os
 import re
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import fonts  # noqa: F401  (ensures import path works)
 
 EXPECTED_PAGES = {
-    "financial": 5,
+    "financial": 6,
     "global": 5,
     "spiritual": 5,
     "macro": 1,

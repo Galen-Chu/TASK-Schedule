@@ -22,6 +22,7 @@ from reportlab.lib import colors
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 
 from core import design_tokens as T
+from core.fonts import FONT_CJK
 from core.pdf_engine import en, standard_styles, make_title_row, footer_factory, new_doc
 
 # ---- Financial section palette (Typography Guide brand family) -------------
@@ -71,6 +72,46 @@ def rating_from_score(score):
 
 def _g(data, key, default):
     return (data or {}).get(key, default)
+
+
+def _yoy_series(history):
+    """YoY % series (oldest→newest) from index levels, input newest-first.
+
+    25 monthly index levels yield 13 YoY points; returns None on bad input."""
+    try:
+        vals = [float(x["value"]) for x in reversed(list(history))]
+        return [round((vals[i] / vals[i - 12] - 1) * 100, 2)
+                for i in range(12, len(vals))]
+    except (KeyError, ValueError, TypeError, ZeroDivisionError, IndexError):
+        return None
+
+
+def _line_chart(labels, series, height=175):
+    """Brand-styled ReportLab line chart flowable (no extra dependencies)."""
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.charts.linecharts import VerticalLineChart
+    width = T.PRINTABLE_WIDTH
+    d = Drawing(width, height)
+    ch = VerticalLineChart()
+    ch.x, ch.y = 38, 30
+    ch.width, ch.height = width - 60, height - 58
+    ch.data = series
+    ch.categoryAxis.categoryNames = labels
+    ch.categoryAxis.labels.fontName = FONT_CJK
+    ch.categoryAxis.labels.fontSize = 6.5
+    ch.valueAxis.labels.fontName = FONT_CJK
+    ch.valueAxis.labels.fontSize = 6.5
+    allv = [v for s in series for v in s]
+    pad = max(0.15, (max(allv) - min(allv)) * 0.15)
+    ch.valueAxis.valueMin = round(min(allv) - pad, 2)
+    ch.valueAxis.valueMax = round(max(allv) + pad, 2)
+    ch.joinedLines = 1
+    for i, c in enumerate([T.TEAL, T.AMBER]):
+        if i < len(ch.lines):
+            ch.lines[i].strokeColor = c
+            ch.lines[i].strokeWidth = 1.4
+    d.add(ch)
+    return d
 
 
 def generate_daily_pdf(filename, data=None, date_str=None):
@@ -274,25 +315,51 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     ))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(en("<b>【核心總體經濟數據檢視】(Macro Indicators Calendar)</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【核心總體經濟數據檢視】(Macro Indicators — Live)</b>"), s["h1"]))
+    md = data.get("macro") or {}
+    cpi_y = _yoy_series(md.get("cpi_hist"))
+    core_y = _yoy_series(md.get("core_cpi_hist"))
+    un = md.get("unemployment") or {}
+    un_v = un.get("value")
+
+    def _infl(v):
+        return ("🟢 通膨降溫（低於 2.5%）" if v < 2.5 else
+                "🟡 溫和（2.5%–3%）" if v < 3.0 else "🔴 偏高（高於 3%）")
+
     macro = [
         [Paragraph(en("<b>指標項目</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>最新公布值</b>", color="#FFFFFF"), s["th"]),
-         Paragraph(en("<b>市場預期值</b>", color="#FFFFFF"), s["th"]),
-         Paragraph(en("<b>前值</b>", color="#FFFFFF"), s["th"]),
+         Paragraph(en("<b>參考基準</b>", color="#FFFFFF"), s["th"]),
+         Paragraph(en("<b>期間</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>總結評價</b>", color="#FFFFFF"), s["th"])],
-        [Paragraph(en("美國 CPI (年增率)"), s["body"]), Paragraph(en("2.9%", bold=True), s["body"]),
-         Paragraph(en("3.0%"), s["body"]), Paragraph(en("3.0%"), s["body"]), Paragraph(en("🟢 通膨持續降溫，低於 3.0% 關卡"), s["body"])],
-        [Paragraph(en("美國 Core PCE (年增率)"), s["body"]), Paragraph(en("2.6%", bold=True), s["body"]),
-         Paragraph(en("2.7%"), s["body"]), Paragraph(en("2.7%"), s["body"]), Paragraph(en("🟢 核心通膨符合 Fed 降息路徑"), s["body"])],
-        [Paragraph(en("ISM 製造業 PMI"), s["body"]), Paragraph(en("48.5", bold=True), s["body"]),
-         Paragraph(en("49.0"), s["body"]), Paragraph(en("47.8"), s["body"]), Paragraph(en("🟡 築底回升中，雖低於 50 榮枯線但動能改善"), s["body"])],
-        [Paragraph(en("非農就業人口 (NFP)"), s["body"]), Paragraph(en("16.5 萬", bold=True), s["body"]),
-         Paragraph(en("17.5 萬"), s["body"]), Paragraph(en("20.6 萬"), s["body"]), Paragraph(en("🟢 勞動市場溫和軟著陸，無衰退風險"), s["body"])],
-        [Paragraph(en("台灣景氣對策燈號"), s["body"]), Paragraph(en("黃紅燈 (34分)", bold=True), s["body"]),
-         Paragraph(en("黃紅燈"), s["body"]), Paragraph(en("紅燈 (38分)"), s["body"]), Paragraph(en("🟢 景氣保持強勁，成長動能充沛"), s["body"])],
     ]
-    t_macro = Table(macro, colWidths=[110, 70, 70, 60, 237])
+    if cpi_y:
+        macro.append([Paragraph(en("美國 CPI 年增率"), s["body"]),
+                      Paragraph(en(f"{cpi_y[-1]}%", bold=True), s["body"]),
+                      Paragraph(en("Fed 目標 2%"), s["body"]),
+                      Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
+                      Paragraph(en(_infl(cpi_y[-1])), s["body"])])
+    if core_y:
+        macro.append([Paragraph(en("美國 Core CPI 年增率"), s["body"]),
+                      Paragraph(en(f"{core_y[-1]}%", bold=True), s["body"]),
+                      Paragraph(en("Fed 目標 2%"), s["body"]),
+                      Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
+                      Paragraph(en(_infl(core_y[-1])), s["body"])])
+    if un_v:
+        un_f = float(un_v)
+        un_j = ("🟢 勞動偏緊" if un_f < 4.0 else
+                "🟢 溫和均衡（4%–4.5%）" if un_f <= 4.5 else "🟡 走弱留意")
+        macro.append([Paragraph(en("美國失業率"), s["body"]),
+                      Paragraph(en(f"{un_v}%", bold=True), s["body"]),
+                      Paragraph(en("充分就業 4%–4.5%"), s["body"]),
+                      Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
+                      Paragraph(en(un_j), s["body"])])
+    macro.append([Paragraph(en("美債 10Y 殖利率"), s["body"]),
+                  Paragraph(en(f"{t10}%", bold=True), s["body"]),
+                  Paragraph(en("2Y 殖利率 " + f"{t2}%"), s["body"]),
+                  Paragraph(en("當日"), s["body"]),
+                  Paragraph(en("🟢 曲線正常化（未倒掛）" if spread >= 0 else "🔴 曲線倒掛"), s["body"])])
+    t_macro = Table(macro, colWidths=[110, 70, 95, 65, 207])
     t_macro.setStyle(_detail_style(T.NAVY, T.BORDER, s))
     story.append(t_macro)
 
@@ -363,6 +430,37 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         ],
         header_bg=T.SIGNAL_SELL, grid_color=colors.HexColor('#FDE7E1'), styles=s,
     ))
+
+    # ======================= PAGE 6 — Macro Dashboard =========================
+    story.append(PageBreak())
+    story.extend(make_title_row(
+        "總體經濟儀表板（Macro Dashboard）",
+        "美債殖利率曲線 × 通膨趨勢 — 資料：美國財政部 / BLS（TTL 快取，月頻資料 7 天、殖利率 1 天）",
+        date_str, T.SAGE, s))
+    md = data.get("macro") or {}
+    ycd = md.get("yield_curve") or {}
+    curve = ycd.get("curve") or {}
+    if curve:
+        story.append(Paragraph(en(f"<b>美債殖利率曲線（{ycd.get('date', '')}）</b>"), s["h1"]))
+        story.append(_line_chart(list(curve.keys()), [list(curve.values())]))
+        story.append(Spacer(1, 12))
+    cpi_y2 = _yoy_series(md.get("cpi_hist"))
+    core_y2 = _yoy_series(md.get("core_cpi_hist"))
+    if cpi_y2 or core_y2:
+        hist = list(reversed(md.get("cpi_hist") or md.get("core_cpi_hist")))
+        labels = [x["period_name"][:3] for x in hist[12:]]
+        series = [srs for srs in (cpi_y2, core_y2) if srs]
+        story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（近 12 個月）</b>"), s["h1"]))
+        story.append(_line_chart(labels, series))
+        story.append(Spacer(1, 6))
+        if cpi_y2 and core_y2:
+            story.append(Paragraph(
+                en(f"最新讀值：CPI 年增 {cpi_y2[-1]}%｜Core CPI 年增 {core_y2[-1]}%"
+                   "（青線 = CPI，琥珀線 = Core CPI；資料月更，7 天快取）"), s["body"]))
+        elif cpi_y2:
+            story.append(Paragraph(en(f"最新讀值：CPI 年增 {cpi_y2[-1]}%"), s["body"]))
+    if not curve and not (cpi_y2 or core_y2):
+        story.append(Paragraph(en("（總經資料來源暫時無法取得，快取亦為空——本頁略過圖表）"), s["body"]))
 
     doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告")
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER, _PAGE_TOTAL),

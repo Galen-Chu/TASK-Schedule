@@ -74,7 +74,9 @@ def _ensure_subfolder(parent_id, name):
     if parent_id:
         q += f" and '{parent_id}' in parents"
     try:
-        res = svc.files().list(q=q, spaces="drive", fields="files(id,name)").execute()
+        res = svc.files().list(q=q, spaces="drive", fields="files(id,name)",
+                               supportsAllDrives=True,
+                               includeItemsFromAllDrives=True).execute()
         files = res.get("files", [])
         if files:
             folder_id = files[0]["id"]
@@ -119,7 +121,8 @@ def upload_to_drive(file_path, folder_id=None, subfolder=None, report_id=None):
         body = {"name": os.path.basename(file_path)}
         if parent:
             body["parents"] = [parent]
-        meta = svc.files().create(body=body, media_body=media, fields="id,webViewLink").execute()
+        meta = svc.files().create(body=body, media_body=media, fields="id,webViewLink",
+                                  supportsAllDrives=True).execute()
         link = meta.get("webViewLink")
         log.info("Drive 上傳成功：%s -> %s", os.path.basename(file_path), link)
         return link

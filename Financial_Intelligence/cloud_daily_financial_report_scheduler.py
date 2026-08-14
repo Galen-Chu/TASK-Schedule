@@ -31,7 +31,7 @@ class FinancialReportScheduler(BaseReportScheduler):
     report_id = "financial"
     report_title = "Financial Intelligence 每日投資趨勢報告"
     default_cron = "30 6 * * *"          # 06:30 Asia/Taipei
-    page_count = 5
+    page_count = 6
 
     def sample_data(self):
         """Bundled offline dataset (used when the live source is unavailable)."""
@@ -50,6 +50,29 @@ class FinancialReportScheduler(BaseReportScheduler):
             "usdtwd": 32.15,
             "gold": 2450,
             "btc": 58500,
+            "macro": {
+                "yield_curve": {
+                    "date": "08/13/2026",
+                    "curve": {"1M": 3.79, "3M": 3.81, "6M": 3.84, "1Y": 3.92,
+                              "2Y": 4.15, "3Y": 4.24, "5Y": 4.35, "7Y": 4.48,
+                              "10Y": 4.63, "20Y": 4.90, "30Y": 4.82},
+                },
+                "cpi_hist": [{"year": y, "period_name": m,
+                              "value": str(round(318.0 + 1.05 * i, 1))}
+                             for i, (y, m) in enumerate(zip(
+                                 (["2024"] * 4 + ["2025"] * 12 + ["2026"] * 12)[:25],
+                                 (["Sep", "Oct", "Nov", "Dec"] +
+                                  ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] * 2)[:25]))],
+                "core_cpi_hist": [{"year": y, "period_name": m,
+                                   "value": str(round(322.0 + 0.75 * i, 1))}
+                                  for i, (y, m) in enumerate(zip(
+                                      (["2024"] * 4 + ["2025"] * 12 + ["2026"] * 12)[:25],
+                                      (["Sep", "Oct", "Nov", "Dec"] +
+                                       ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] * 2)[:25]))],
+                "unemployment": {"value": "4.2", "year": "2026", "period_name": "July"},
+            },
         }
 
     def fetch_data(self):
@@ -97,6 +120,31 @@ class FinancialReportScheduler(BaseReportScheduler):
             if twse.get("total_short_balance"):
                 data["tw_short_balance"] = twse["total_short_balance"]
             sources.append("TWSE")
+
+        # 5) Slow macro series behind a TTL cache (BLS monthly / Treasury daily);
+        #    the cache file is committed back by CI so it persists across runs.
+        from core.data.macro_cache import cached
+        from core.data.fetchers import (fetch_treasury_curve, fetch_bls_history,
+                                        _BLS_SERIES)
+        macro = {}
+        curve = cached("yield_curve", 1, fetch_treasury_curve)
+        if curve:
+            macro["yield_curve"] = curve
+        cpi = cached("cpi_hist", 7,
+                     lambda: fetch_bls_history(_BLS_SERIES["cpi_headline"], 25))
+        if cpi:
+            macro["cpi_hist"] = cpi
+        core_cpi = cached("core_cpi_hist", 7,
+                          lambda: fetch_bls_history(_BLS_SERIES["cpi_core"], 25))
+        if core_cpi:
+            macro["core_cpi_hist"] = core_cpi
+        unemp = cached("unemployment", 7,
+                       lambda: fetch_bls_history(_BLS_SERIES["unemployment"], 1))
+        if unemp:
+            macro["unemployment"] = unemp[0]
+        if macro:
+            data["macro"] = macro
+            sources.append("Macro")
 
         if not sources:
             return None  # triggers full sample fallback in base class

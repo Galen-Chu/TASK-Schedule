@@ -254,3 +254,87 @@ def fetch_macro_snapshot():
         if rec:
             out[key] = rec
     return out or None
+
+
+# ---- Macro chart data (keyless) --------------------------------------------
+_TENORS = [("1 Mo", "1M"), ("3 Mo", "3M"), ("6 Mo", "6M"), ("1 Yr", "1Y"),
+           ("2 Yr", "2Y"), ("3 Yr", "3Y"), ("5 Yr", "5Y"), ("7 Yr", "7Y"),
+           ("10 Yr", "10Y"), ("20 Yr", "20Y"), ("30 Yr", "30Y")]
+
+
+def fetch_treasury_curve():
+    """Latest full US Treasury yield curve (keyless CSV, newest row by date).
+
+    Returns {"date": "MM/DD/YYYY", "curve": {"1M": float, ..., "30Y": float}}
+    or None."""
+    import csv as _csv
+    import io as _io
+    import datetime as _dt
+    year = _dt.date.today().year
+    url = (f"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
+           f"daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve"
+           f"&field_tdr_date_value={year}&_format=csv")
+    text = _get_text(url)
+    if not text:
+        return None
+    try:
+        rows = list(_csv.reader(_io.StringIO(text)))
+        hdr = [h.strip() for h in rows[0]]
+        idate = hdr.index("Date")
+        latest = None
+        latest_d = _dt.date.min
+        for r in rows[1:]:
+            if len(r) > idate:
+                try:
+                    d = _dt.datetime.strptime(r[idate].strip(), "%m/%d/%Y").date()
+                except ValueError:
+                    continue
+                if d > latest_d:
+                    latest_d, latest = d, r
+        if latest is None:
+            return None
+        curve = {}
+        for col, label in _TENORS:
+            if col in hdr:
+                i = hdr.index(col)
+                if len(latest) > i and latest[i]:
+                    try:
+                        curve[label] = float(latest[i])
+                    except ValueError:
+                        pass
+        if not curve:
+            return None
+        return {"date": latest[0], "curve": curve}
+    except (ValueError, IndexError) as exc:
+        log.info("Treasury curve parse failed: %s", exc)
+        return None
+
+
+def fetch_bls_history(series_id, months=13):
+    """Last ~N observations of a BLS series (keyless v2 POST, range-limited).
+
+    Returns a newest-first list of {"year", "period_name", "value"} or None."""
+    import ssl
+    import datetime as _dt
+    y2 = _dt.date.today().year
+    body = json.dumps({"seriesid": [series_id],
+                       "startyear": str(y2 - 2), "endyear": str(y2)}).encode()
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(
+            "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+            data=body, method="POST",
+            headers={"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", "ignore"))
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+        log.info("BLS history POST failed: %s", exc)
+        return None
+    try:
+        arr = (data.get("Results") or data.get("results") or {})["series"][0]["data"]
+        return [{"year": x["year"], "period_name": x["periodName"], "value": x["value"]}
+                for x in arr[:months]]
+    except (KeyError, IndexError, TypeError):
+        return None

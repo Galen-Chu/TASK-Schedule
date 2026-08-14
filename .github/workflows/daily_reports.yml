@@ -3,9 +3,9 @@ name: Daily Reports
 on:
   schedule:
     # 22:30 UTC = 06:30 Asia/Taipei (next day) — covers the earliest daily slot.
+    # (The old separate monthly macro cron was retired: the macro dashboard is
+    # now page 6 of the daily Financial report, served from a TTL cache.)
     - cron: '30 22 * * *'
-    # 01:00 UTC on the 2nd = 09:00 Asia/Taipei — monthly macro digest (Financial only).
-    - cron: '0 1 2 * *'
   workflow_dispatch:        # manual run from the Actions tab
     inputs:
       date:
@@ -90,16 +90,12 @@ jobs:
           if [ -n "$DATE" ]; then ARGS="all --date $DATE"; fi
           python main.py $ARGS --output-dir output
 
-      - name: Build monthly macro digest
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: python main.py macro --output-dir output
-
       - name: Show generated files
         run: |
           echo "::group::Output tree"
           find output -type f | sort
           echo "::endgroup::"
-          # Verify each PDF exists and report page counts (daily=5, macro=1)
+          # Verify each PDF exists and report page counts (daily=6, macro=1)
           python - <<'PY'
           import glob, re, os, sys
           pdfs = sorted(glob.glob("output/*.pdf"))
@@ -108,7 +104,7 @@ jobs:
               raw = open(p, "rb").read()
               pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
               is_macro = "Macro_Digest" in p
-              expect = 1 if is_macro else 5
+              expect = 1 if is_macro else 6
               print(f"{pages} pages  {os.path.getsize(p):>8} bytes  {os.path.basename(p)}")
               assert pages == expect, f"{p} expected {expect} pages, got {pages}"
           print(f"\nOK: {len(pdfs)} PDF(s), page counts verified.")
