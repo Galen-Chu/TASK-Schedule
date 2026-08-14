@@ -127,7 +127,7 @@ jobs:
       # ephemeral runner, so the scheduled run commits it back to the repo.
       # data/** is NOT in the push paths-filter, so this commit won't re-trigger.
       - name: Accumulate retrieval corpus
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
