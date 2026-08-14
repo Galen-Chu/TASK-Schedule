@@ -19,14 +19,45 @@ import logging
 log = logging.getLogger("llm")
 
 _API_KEY = os.environ.get("GEMINI_API_KEY")
-_MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+_DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 _CLIENT = None
 _AVAILABLE = False
+_MODEL_NAME = _DEFAULT_MODEL
+
+
+def _pick_model(client, preferred):
+    """Auto-select an available text 'flash' model via models.list().
+
+    Gemini deprecates/renames models over time (gemini-2.5-flash is no longer
+    available to new keys), so a hard-coded name goes stale. Listing current
+    models and picking the newest flash variant keeps this working without code
+    changes. Falls back to ``preferred`` if listing fails.
+    """
+    try:
+        cands = []
+        for m in client.models.list():
+            short = (getattr(m, "name", "") or "").split("/")[-1]
+            if ("flash" in short and "gemini" in short
+                    and not any(x in short for x in
+                                ("image", "tts", "embedding", "vision", "preview", "exp"))):
+                cands.append(short)
+        if preferred in cands:
+            return preferred
+        if cands:
+            return sorted(cands, reverse=True)[0]
+    except Exception as exc:  # noqa: BLE001
+        log.info("Gemini model list failed (%s); using %s", exc, preferred)
+    return preferred
+
 
 try:
     from google import genai
     if _API_KEY:
         _CLIENT = genai.Client(api_key=_API_KEY)
+        _MODEL_NAME = _pick_model(_CLIENT, _DEFAULT_MODEL)
+        if _MODEL_NAME != _DEFAULT_MODEL:
+            log.info("Gemini model: %s (default %s unavailable, auto-selected)",
+                     _MODEL_NAME, _DEFAULT_MODEL)
         _AVAILABLE = True
     else:
         log.info("GEMINI_API_KEY 未設定，LLM 摘要停用（使用樣板）。")
