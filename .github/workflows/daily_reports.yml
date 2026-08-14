@@ -68,6 +68,7 @@ jobs:
       - name: Provision GCP service-account key (optional)
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
         run: |
           # Writes the service-account JSON only when the GCP_SA_KEY secret is
           # set; otherwise Drive upload stays a safe no-op.
@@ -75,6 +76,25 @@ jobs:
             echo "$GCP_SA_KEY" > "$RUNNER_TEMP/sa-key.json"
             echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa-key.json" >> "$GITHUB_ENV"
             echo "GCP service-account key provisioned."
+            # Diagnostic: show whether the target folder lives in a Shared
+            # Drive (driveId set) — SAs can only own files there.
+            DRIVE_FOLDER_ID="$DRIVE_FOLDER_ID" python - <<'PY'
+          import json, os
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          creds = service_account.Credentials.from_service_account_file(
+              os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+              scopes=["https://www.googleapis.com/auth/drive.file"])
+          svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+          fid = os.environ.get("DRIVE_FOLDER_ID", "")
+          try:
+              meta = svc.files().get(fileId=fid, supportsAllDrives=True,
+                                     fields="id,name,driveId,mimeType").execute()
+              where = "SHARED DRIVE" if meta.get("driveId") else "MY DRIVE (SA cannot own files here!)"
+              print(f"FOLDER_META: {json.dumps(meta, ensure_ascii=False)} -> {where}")
+          except Exception as e:
+              print(f"FOLDER_META_ERR: {e}")
+          PY
           else
             echo "GCP_SA_KEY not set — Drive upload will be skipped."
           fi
