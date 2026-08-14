@@ -104,7 +104,8 @@ jobs:
               raw = open(p, "rb").read()
               pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
               is_macro = "Macro_Digest" in p
-              expect = 1 if is_macro else 6
+              is_fin = ("Financial" in p) and not is_macro
+              expect = 1 if is_macro else (6 if is_fin else 5)
               print(f"{pages} pages  {os.path.getsize(p):>8} bytes  {os.path.basename(p)}")
               assert pages == expect, f"{p} expected {expect} pages, got {pages}"
           print(f"\nOK: {len(pdfs)} PDF(s), page counts verified.")
