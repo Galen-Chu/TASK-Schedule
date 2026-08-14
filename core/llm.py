@@ -87,22 +87,32 @@ def is_available():
 
 
 def generate(prompt, max_tokens=600):
-    """Run a single completion. Returns the text, or None on any failure."""
+    """Run a single completion. Returns the text, or None on any failure.
+
+    Retries once on a 429 (free-tier rate limit) after a short backoff.
+    """
     if not _AVAILABLE:
         return None
-    try:
-        from google.genai import types
-        resp = _CLIENT.models.generate_content(
-            model=_MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                max_output_tokens=max_tokens, temperature=0.4,
-            ),
-        )
-        return (resp.text or "").strip() or None
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Gemini 生成失敗 (%s)；退回樣板。", exc)
-        return None
+    from google.genai import types
+    for attempt in range(2):
+        try:
+            resp = _CLIENT.models.generate_content(
+                model=_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=max_tokens, temperature=0.4,
+                ),
+            )
+            return (resp.text or "").strip() or None
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and "429" in str(exc):
+                import time as _t
+                log.info("Gemini 429 限流，20 秒後重試一次。")
+                _t.sleep(20)
+                continue
+            log.warning("Gemini 生成失敗 (%s)；退回樣板。", exc)
+            return None
+    return None
 
 
 def _item_bullet(it, max_summary=200):
@@ -148,30 +158,42 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     return out if out["what"] else None
 
 
-def summarize_topic_what_why_sowhat(org, focus, analysis, domain_label=""):
-    """Turn one think-tank topic into a What/Why/So-What breakdown.
+def summarize_topics_what_why_sowhat(topics, domain_label=""):
+    """Batch N topics into N {what,why,so_what} dicts in a SINGLE Gemini call.
 
-    Returns {what, why, so_what} of strings, or None to signal the caller to
-    fall back to rendering the raw ``analysis`` paragraph. Used by the Global
-    report to give each topic card a structured three-part body.
+    ``topics`` = list of (org, focus, analysis). Returns a list aligned to the
+    input (None where a block didn't parse). One call instead of N keeps the
+    daily report within free-tier rate limits.
     """
-    if not analysis or not _AVAILABLE:
+    import re as _re
+    if not topics or not _AVAILABLE:
         return None
+    lines = [f"[{i}] 來源：{org} / 焦點：{focus} / 摘要：{(analysis or '')[:200]}"
+             for i, (org, focus, analysis) in enumerate(topics, 1)]
     prompt = (
-        f"你是智庫級情報分析師。以下為「{domain_label}」領域的一則智庫報告：\n"
-        f"來源：{org}\n焦點：{focus}\n摘要：{analysis}\n\n"
-        "請用繁體中文，各以一到兩句產出三個欄位，嚴格用下列格式：\n"
-        "WHAT: ...（事實概要）\n"
-        "WHY: ...（脈絡與影響）\n"
-        "SO_WHAT: ...（對台灣產業的啟示）"
+        f"你是智庫級情報分析師。以下為「{domain_label}」領域的數則報告：\n"
+        + "\n".join(lines) + "\n\n"
+        "請用繁體中文，為「每一則」各產出 WHAT / WHY / SO_WHAT 三欄（各一到兩句），"
+        "嚴格依下列格式，[N] 對應輸入編號：\n"
+        "[1]\nWHAT: ...（事實概要）\nWHY: ...（脈絡與影響）\nSO_WHAT: ...（對台灣產業的啟示）\n"
+        "[2]\nWHAT: ...\nWHY: ...\nSO_WHAT: ...\n"
     )
-    text = generate(prompt)
+    text = generate(prompt, max_tokens=200 + 250 * len(topics))
     if not text:
         return None
-    out = {"what": "", "why": "", "so_what": ""}
-    for line in text.splitlines():
-        low = line.strip()
-        for key in out:
-            if low.upper().startswith(key):
-                out[key] = low.split(":", 1)[-1].strip()
-    return out if out["what"] else None
+    out = [None] * len(topics)
+    parts = _re.split(r"\n*\[(\d+)\]", text)
+    for j in range(1, len(parts) - 1, 2):
+        try:
+            idx = int(parts[j]) - 1
+        except ValueError:
+            continue
+        d = {"what": "", "why": "", "so_what": ""}
+        for line in parts[j + 1].splitlines():
+            low = line.strip()
+            for key in d:
+                if low.upper().startswith(key):
+                    d[key] = low.split(":", 1)[-1].strip()
+        if d["what"] and 0 <= idx < len(out):
+            out[idx] = d
+    return out if any(x for x in out) else None

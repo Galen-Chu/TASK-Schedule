@@ -117,17 +117,13 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles):
     return card
 
 
-def _topic_body(org, focus, analysis, domain_label, use_llm):
-    """Three-part body when Gemini is available, else the raw analysis paragraph."""
-    if use_llm:
-        tp = llm.summarize_topic_what_why_sowhat(org, focus, analysis, domain_label=domain_label)
-        if tp:
-            return [
-                f"<b><font color='#0E7C86'>What</font>（事實概要）</b> {tp['what']}",
-                f"<b><font color='#0E7C86'>Why</font>（脈絡影響）</b> {tp['why']}",
-                f"<b><font color='#0E7C86'>So What</font>（台灣啟示）</b> {tp['so_what']}",
-            ]
-    return [analysis]
+def _three_part_paras(tp):
+    """Format a {what,why,so_what} dict as three labeled paragraphs."""
+    return [
+        f"<b><font color='#0E7C86'>What</font>（事實概要）</b> {tp['what']}",
+        f"<b><font color='#0E7C86'>Why</font>（脈絡影響）</b> {tp['why']}",
+        f"<b><font color='#0E7C86'>So What</font>（台灣啟示）</b> {tp['so_what']}",
+    ]
 
 
 def build_global_pdf(filename, data=None, date_str=None):
@@ -183,8 +179,13 @@ def build_global_pdf(filename, data=None, date_str=None):
         story += [band, Spacer(1, 8)]
 
         domain_label = domain_zh
-        for org, focus, when, analysis in rows:
-            body = _topic_body(org, focus, analysis, domain_label, use_llm)
+        # One batched Gemini call per page (not per topic) to respect free-tier limits
+        page_tp = (llm.summarize_topics_what_why_sowhat(
+            [(o, f, a) for (o, f, _w, a) in rows], domain_label=domain_label)
+            if use_llm else None)
+        for i, (org, focus, when, analysis) in enumerate(rows):
+            tp = page_tp[i] if page_tp else None
+            body = _three_part_paras(tp) if tp else [analysis]
             story.append(_topic_card(org, focus, when, body, ramp, s))
             story.append(Spacer(1, 7))
 
