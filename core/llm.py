@@ -23,30 +23,44 @@ _DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 _CLIENT = None
 _AVAILABLE = False
 _MODEL_NAME = _DEFAULT_MODEL
+_USER_SET = bool(os.environ.get("GEMINI_MODEL"))
 
 
-def _pick_model(client, preferred):
-    """Auto-select an available text 'flash' model via models.list().
+def _pick_model(client, preferred, user_set):
+    """Find a Gemini flash model that actually generates.
 
-    Gemini deprecates/renames models over time (gemini-2.5-flash is no longer
-    available to new keys), so a hard-coded name goes stale. Listing current
-    models and picking the newest flash variant keeps this working without code
-    changes. Falls back to ``preferred`` if listing fails.
+    Models get deprecated/renamed (gemini-2.5-flash is unavailable to new keys),
+    so we list flash variants and probe each with a 1-token call, returning the
+    first that works. ``preferred`` is tried first only when the user explicitly
+    set GEMINI_MODEL. Falls back to ``preferred`` if nothing probes successfully.
     """
+    from google.genai import types as _gtypes
+    names = []
     try:
-        cands = []
         for m in client.models.list():
             short = (getattr(m, "name", "") or "").split("/")[-1]
             if ("flash" in short and "gemini" in short
                     and not any(x in short for x in
                                 ("image", "tts", "embedding", "vision", "preview", "exp"))):
-                cands.append(short)
-        if preferred in cands:
-            return preferred
-        if cands:
-            return sorted(cands, reverse=True)[0]
+                names.append(short)
     except Exception as exc:  # noqa: BLE001
         log.info("Gemini model list failed (%s); using %s", exc, preferred)
+        return preferred
+    order = sorted(set(names), reverse=True)
+    if user_set and preferred in order:
+        order = [preferred] + [n for n in order if n != preferred]
+    for name in order:
+        try:
+            client.models.generate_content(
+                model=name, contents=".",
+                config=_gtypes.GenerateContentConfig(max_output_tokens=1))
+            if name != preferred:
+                log.info("Gemini model: %s (default %s unavailable, auto-selected)",
+                         name, preferred)
+            return name
+        except Exception:  # noqa: BLE001 — try the next candidate
+            continue
+    log.info("no working Gemini flash model found; using %s", preferred)
     return preferred
 
 
@@ -54,7 +68,7 @@ try:
     from google import genai
     if _API_KEY:
         _CLIENT = genai.Client(api_key=_API_KEY)
-        _MODEL_NAME = _pick_model(_CLIENT, _DEFAULT_MODEL)
+        _MODEL_NAME = _pick_model(_CLIENT, _DEFAULT_MODEL, _USER_SET)
         if _MODEL_NAME != _DEFAULT_MODEL:
             log.info("Gemini model: %s (default %s unavailable, auto-selected)",
                      _MODEL_NAME, _DEFAULT_MODEL)
