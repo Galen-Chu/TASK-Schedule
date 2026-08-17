@@ -99,9 +99,9 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
 
     meta_st = ParagraphStyle("gmeta", fontName=FONT_CJK, fontSize=7.8, leading=10,
                              textColor=T.TEXT_MUTED, alignment=2)
-    title_st = ParagraphStyle("gtitle", fontName=FONT_CJK, fontSize=9.8, leading=13,
-                              textColor=dark, spaceBefore=2, spaceAfter=3)
-    body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.3, leading=11.8,
+    title_st = ParagraphStyle("gtitle", fontName=FONT_CJK, fontSize=9.4, leading=12.2,
+                              textColor=dark, spaceBefore=2, spaceAfter=2)
+    body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.0, leading=10.4,
                              textColor=T.TEXT_BODY)
 
     # Header row: linked org badge (accent fill, white) + publish time (right-aligned)
@@ -138,7 +138,7 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
         ('BOX', (0, 0), (-1, -1), 0.5, T.BORDER),
         ('LINEBEFORE', (0, 0), (0, -1), 3, base),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
     ]))
     return card
 
@@ -178,9 +178,9 @@ def build_global_pdf(filename, data=None, date_str=None):
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 0.5, T.BORDER),
             ('BACKGROUND', (1, 0), (1, -1), T.BG_CARD),
-            ('PADDING', (0, 0), (-1, -1), 6),
+            ('PADDING', (0, 0), (-1, -1), 4),
         ]))
-        story += [t_ai, Spacer(1, 10)]
+        story += [t_ai, Spacer(1, 8)]
 
     for idx, (domain_tag, domain_zh, domain_en, category, ramp, rows) in enumerate(PAGES):
         if idx > 0 or digest:
@@ -214,15 +214,19 @@ def build_global_pdf(filename, data=None, date_str=None):
             body = _three_part_paras(tp) if tp else [analysis]
             story.append(_topic_card(org, focus, when, body, ramp, s,
                                      url=_ORG_URLS.get(org)))
-            story.append(Spacer(1, 7))
+            story.append(Spacer(1, 4))
 
-        # Supplement: live items from the retrieval layer (persistent corpus)
+        # Supplement: live items from the retrieval layer (persistent corpus).
+        # Page 1 already carries the AI digest card, so the supplement table
+        # would overflow it — show it on pages 2+ only.
         live = (data or {}).get("retrieval", {}).get(domain_tag, [])
-        if live:
+        if live and not (idx == 0 and digest):
             from urllib.parse import urlparse as _up
             story.append(Spacer(1, 6))
             story.append(Paragraph(en("<b>🔍 即時檢索補充 (Live Retrieval · 近 7 日累積)</b>"), s["h1"]))
             base = colors.HexColor(ramp[2])
+            live_st = ParagraphStyle("glive", fontName=FONT_CJK, fontSize=8.0,
+                                     leading=10.5, textColor=T.TEXT_BODY)
             rows = [[Paragraph(en("<b>日期</b>", color="#FFFFFF"), s["th"]),
                      Paragraph(en("<b>來源</b>", color="#FFFFFF"), s["th"]),
                      Paragraph(en("<b>標題</b>", color="#FFFFFF"), s["th"])]]
@@ -233,16 +237,16 @@ def build_global_pdf(filename, data=None, date_str=None):
                 link = it.get("link", "")
                 txt = (f'<a href="{link}" color="#0E7C86"><u>{title}</u></a>'
                        if link else title)
-                rows.append([Paragraph(en(day), s["body"]),
-                             Paragraph(en(src), s["body"]),
-                             Paragraph(en(txt), s["body"])])
+                rows.append([Paragraph(en(day), live_st),
+                             Paragraph(en(src), live_st),
+                             Paragraph(en(txt), live_st)])
             t_live = Table(rows, colWidths=[42, 150, T.PRINTABLE_WIDTH - 192])
             t_live.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), base),
                 ('GRID', (0, 0), (-1, -1), 0.4, T.BORDER),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('BACKGROUND', (0, 1), (-1, -1), T.BG_CARD),
-                ('PADDING', (0, 0), (-1, -1), 4),
+                ('PADDING', (0, 0), (-1, -1), 3),
             ]))
             story.append(t_live)
 

@@ -83,7 +83,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if store is not None:
             data.setdefault("retrieval", {})
             for dom, kws in DOMAIN_KEYWORDS.items():
-                got = retrieve(store, query=" ".join(kws[:6]), domain=dom, k=3, days=7)
+                got = retrieve(store, query=" ".join(kws[:6]), domain=dom, k=2, days=7)
                 if got:
                     data["retrieval"][dom] = got
         return data

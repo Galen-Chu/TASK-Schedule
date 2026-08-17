@@ -256,12 +256,16 @@ def parse_topic_blocks(text, n):
         if cur is None:
             continue
         key = up.replace(" ", "_")
+
+        def _val(ln):
+            v = ln.split(":", 1)[-1].strip().strip(strip)
+            return v[:110] + "…" if len(v) > 110 else v
         if key.startswith("WHAT"):
-            cur["what"] = line.split(":", 1)[-1].strip().strip(strip)
+            cur["what"] = _val(line)
         elif key.startswith("WHY"):
-            cur["why"] = line.split(":", 1)[-1].strip().strip(strip)
+            cur["why"] = _val(line)
         elif key.startswith("SO"):
-            cur["so_what"] = line.split(":", 1)[-1].strip().strip(strip)
+            cur["so_what"] = _val(line)
     flush()
     return out if any(out) else None
 
@@ -281,7 +285,7 @@ def summarize_topics_what_why_sowhat(topics, domain_label=""):
         f"你是智庫級情報分析師。以下為「{domain_label}」領域的數則報告：\n"
         + "\n".join(lines) + "\n\n"
         "請用繁體中文，為「每一則」各產出 WHAT / WHY / SO_WHAT 三欄。"
-        "每欄務必寫滿兩句、引用具體數字或機構名，總結該則的情報內容。\n"
+        "每欄一到兩句、合計 60 字以內，需引用具體數字或機構名。\n"
         "嚴格依下列純文字格式（不要使用任何 Markdown 符號，不要 **、#、`）：\n"
         "[1]\nWHAT: ...（事實概要）\nWHY: ...（脈絡與影響）\nSO_WHAT: ...（對台灣產業的啟示）\n"
         "[2]\nWHAT: ...\nWHY: ...\nSO_WHAT: ...\n"
