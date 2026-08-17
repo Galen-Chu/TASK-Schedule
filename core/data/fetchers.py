@@ -310,6 +310,39 @@ def fetch_treasury_curve():
         return None
 
 
+def fetch_treasury_10y_series():
+    """Daily US 10Y yields for the current year (keyless CSV), oldest→newest.
+
+    Returns [{"date": "MM/DD/YYYY", "v": float}, ...] or None."""
+    import csv as _csv
+    import io as _io
+    import datetime as _dt
+    year = _dt.date.today().year
+    url = (f"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
+           f"daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve"
+           f"&field_tdr_date_value={year}&_format=csv")
+    text = _get_text(url)
+    if not text:
+        return None
+    try:
+        rows = list(_csv.reader(_io.StringIO(text)))
+        hdr = [h.strip() for h in rows[0]]
+        idate, i10 = hdr.index("Date"), hdr.index("10 Yr")
+        pts = []
+        for r in rows[1:]:
+            if len(r) > i10 and r[i10]:
+                try:
+                    pts.append((_dt.datetime.strptime(r[idate].strip(), "%m/%d/%Y").date(),
+                                float(r[i10])))
+                except ValueError:
+                    continue
+        pts.sort()
+        return [{"date": d.strftime("%m/%d/%Y"), "v": v} for d, v in pts] or None
+    except (ValueError, IndexError) as exc:
+        log.info("Treasury 10Y series parse failed: %s", exc)
+        return None
+
+
 def fetch_bls_history(series_id, months=13):
     """Last ~N observations of a BLS series (keyless v2 POST, range-limited).
 

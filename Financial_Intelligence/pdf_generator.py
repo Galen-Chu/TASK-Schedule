@@ -74,15 +74,36 @@ def _g(data, key, default):
     return (data or {}).get(key, default)
 
 
-def _yoy_series(history):
-    """YoY % series (oldest→newest) from index levels, input newest-first.
+_MON = {m: i + 1 for i, m in enumerate(
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
 
-    25 monthly index levels yield 13 YoY points; returns None on bad input."""
+
+def _yoy_series(history):
+    """YoY % series from index levels; input is BLS newest-first order.
+
+    Skips non-numeric entries (BLS uses '-' for missing months) and matches
+    each point against the same calendar month a year earlier, so gaps don't
+    shift the comparison. Returns (values, labels) oldest→newest with labels
+    like "26/08", or None when fewer than 6 points resolve.
+    """
     try:
-        vals = [float(x["value"]) for x in reversed(list(history))]
-        return [round((vals[i] / vals[i - 12] - 1) * 100, 2)
-                for i in range(12, len(vals))]
-    except (KeyError, ValueError, TypeError, ZeroDivisionError, IndexError):
+        pts = {}
+        for x in history or []:
+            v = str(x.get("value", ""))
+            if not v.replace(".", "").isdigit():
+                continue
+            m = _MON.get(str(x.get("period_name", ""))[:3])
+            y = int(x.get("year"))
+            if m:
+                pts[(y, m)] = float(v)
+        vals, labels = [], []
+        for (y, m) in sorted(pts):
+            prev = pts.get((y - 1, m))
+            if prev:
+                vals.append(round((pts[(y, m)] / prev - 1) * 100, 2))
+                labels.append(f"{y % 100:02d}/{m:02d}")
+        return (vals, labels) if len(vals) >= 6 else None
+    except (ValueError, TypeError):
         return None
 
 
@@ -317,8 +338,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
 
     story.append(Paragraph(en("<b>【核心總體經濟數據檢視】(Macro Indicators — Live)</b>"), s["h1"]))
     md = data.get("macro") or {}
-    cpi_y = _yoy_series(md.get("cpi_hist"))
-    core_y = _yoy_series(md.get("core_cpi_hist"))
+    cpi_r = _yoy_series(md.get("cpi_hist"))
+    core_r = _yoy_series(md.get("core_cpi_hist"))
+    cpi_y = cpi_r[0][-1] if cpi_r else None
+    core_y = core_r[0][-1] if core_r else None
     un = md.get("unemployment") or {}
     un_v = un.get("value")
 
@@ -333,18 +356,18 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en("<b>期間</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>總結評價</b>", color="#FFFFFF"), s["th"])],
     ]
-    if cpi_y:
+    if cpi_y is not None:
         macro.append([Paragraph(en("美國 CPI 年增率"), s["body"]),
-                      Paragraph(en(f"{cpi_y[-1]}%", bold=True), s["body"]),
+                      Paragraph(en(f"{cpi_y}%", bold=True), s["body"]),
                       Paragraph(en("Fed 目標 2%"), s["body"]),
                       Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
-                      Paragraph(en(_infl(cpi_y[-1])), s["body"])])
-    if core_y:
+                      Paragraph(en(_infl(cpi_y)), s["body"])])
+    if core_y is not None:
         macro.append([Paragraph(en("美國 Core CPI 年增率"), s["body"]),
-                      Paragraph(en(f"{core_y[-1]}%", bold=True), s["body"]),
+                      Paragraph(en(f"{core_y}%", bold=True), s["body"]),
                       Paragraph(en("Fed 目標 2%"), s["body"]),
                       Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
-                      Paragraph(en(_infl(core_y[-1])), s["body"])])
+                      Paragraph(en(_infl(core_y)), s["body"])])
     if un_v:
         un_f = float(un_v)
         un_j = ("🟢 勞動偏緊" if un_f < 4.0 else
@@ -435,31 +458,73 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(PageBreak())
     story.extend(make_title_row(
         "總體經濟儀表板（Macro Dashboard）",
-        "美債殖利率曲線 × 通膨趨勢 — 資料：美國財政部 / BLS（TTL 快取，月頻資料 7 天、殖利率 1 天）",
+        "殖利率曲線 × 10Y 走勢 × 通膨趨勢 — 資料：美國財政部 / BLS（TTL 快取：月頻 7 天、殖利率 1 天）",
         date_str, T.SAGE, s))
     md = data.get("macro") or {}
     ycd = md.get("yield_curve") or {}
     curve = ycd.get("curve") or {}
+    have_any = False
     if curve:
+        have_any = True
         story.append(Paragraph(en(f"<b>美債殖利率曲線（{ycd.get('date', '')}）</b>"), s["h1"]))
-        story.append(_line_chart(list(curve.keys()), [list(curve.values())]))
-        story.append(Spacer(1, 12))
-    cpi_y2 = _yoy_series(md.get("cpi_hist"))
-    core_y2 = _yoy_series(md.get("core_cpi_hist"))
-    if cpi_y2 or core_y2:
-        hist = list(reversed(md.get("cpi_hist") or md.get("core_cpi_hist")))
-        labels = [x["period_name"][:3] for x in hist[12:]]
-        series = [srs for srs in (cpi_y2, core_y2) if srs]
-        story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（近 12 個月）</b>"), s["h1"]))
-        story.append(_line_chart(labels, series))
+        story.append(_line_chart(list(curve.keys()), [list(curve.values())], height=138))
         story.append(Spacer(1, 6))
-        if cpi_y2 and core_y2:
-            story.append(Paragraph(
-                en(f"最新讀值：CPI 年增 {cpi_y2[-1]}%｜Core CPI 年增 {core_y2[-1]}%"
-                   "（青線 = CPI，琥珀線 = Core CPI；資料月更，7 天快取）"), s["body"]))
-        elif cpi_y2:
-            story.append(Paragraph(en(f"最新讀值：CPI 年增 {cpi_y2[-1]}%"), s["body"]))
-    if not curve and not (cpi_y2 or core_y2):
+    ten10y = md.get("us10y_hist") or []
+    if len(ten10y) >= 20:
+        have_any = True
+        step = max(1, len(ten10y) // 8)
+        labels = [p["date"][:5] if i % step == 0 else ""
+                  for i, p in enumerate(ten10y)]
+        vals = [p["v"] for p in ten10y]
+        first, last = ten10y[0], ten10y[-1]
+        story.append(Paragraph(
+            en(f"<b>美債 10Y 殖利率走勢（{first['date']} → {last['date']}，年內 {len(ten10y)} 個交易日）</b>"),
+            s["h1"]))
+        story.append(_line_chart(labels, [vals], height=138))
+        story.append(Spacer(1, 6))
+    cpi_r2 = _yoy_series(md.get("cpi_hist"))
+    core_r2 = _yoy_series(md.get("core_cpi_hist"))
+    if cpi_r2 or core_r2:
+        have_any = True
+        series = [r[0] for r in (cpi_r2, core_r2) if r]
+        labels = (cpi_r2 or core_r2)[1]
+        story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（青線 = CPI，琥珀線 = Core CPI）</b>"), s["h1"]))
+        story.append(_line_chart(labels, series, height=138))
+        story.append(Spacer(1, 6))
+    if curve and len(ten10y) >= 20:
+        def _cv(t):
+            return curve.get(t)
+        rows = [[Paragraph(en("<b>計算指標</b>", color="#FFFFFF"), s["th"]),
+                 Paragraph(en("<b>最新值</b>", color="#FFFFFF"), s["th"]),
+                 Paragraph(en("<b>參考判準</b>", color="#FFFFFF"), s["th"]),
+                 Paragraph(en("<b>判讀</b>", color="#FFFFFF"), s["th"])]]
+
+        def _spread_row(name, lo, hi, ref, judge):
+            a, b = _cv(lo), _cv(hi)
+            if a is None or b is None:
+                return
+            v = round(b - a, 2)
+            rows.append([Paragraph(en(name), s["body"]),
+                         Paragraph(en(f"{v:+.2f}%", bold=True), s["body"]),
+                         Paragraph(en(ref), s["body"]),
+                         Paragraph(en(judge(v)), s["body"])])
+        _spread_row("2Y–10Y 利差", "2Y", "10Y", "0% = 曲線正常",
+                    lambda v: "🟢 正常化" if v > 0 else "🔴 倒掛")
+        _spread_row("3M–10Y 利差", "3M", "10Y", "聯準會觀察重點",
+                    lambda v: "🟢 正斜率" if v > 0 else "🟡 仍倒掛")
+        _spread_row("5Y–30Y 利差", "5Y", "30Y", "長端期限貼水",
+                    lambda v: "🟢 正常" if v > 0 else "🟡 貼水反轉")
+        m_ago = ten10y[max(0, len(ten10y) - 22)]
+        chg = round(ten10y[-1]["v"] - m_ago["v"], 2)
+        rows.append([Paragraph(en("10Y 月變化"), s["body"]),
+                     Paragraph(en(f"{chg:+.2f}%", bold=True), s["body"]),
+                     Paragraph(en(f"vs {m_ago['date']}"), s["body"]),
+                     Paragraph(en("🟢 降息預期升溫" if chg < -0.1 else ("🟡 溫和波動" if chg < 0.25 else "🔴 明顯上行")), s["body"])])
+        t_spread = Table(rows, colWidths=[110, 80, 130, 227])
+        t_spread.setStyle(_detail_style(T.NAVY, T.BORDER, s))
+        story.append(Paragraph(en("<b>利差與動能計算表</b>"), s["h1"]))
+        story.append(t_spread)
+    if not have_any:
         story.append(Paragraph(en("（總經資料來源暫時無法取得，快取亦為空——本頁略過圖表）"), s["body"]))
 
     doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告")

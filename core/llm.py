@@ -224,6 +224,48 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     return out if out["what"] else None
 
 
+def parse_topic_blocks(text, n):
+    """Parse "[N] WHAT:/WHY:/SO_WHAT:" blocks out of an LLM reply.
+
+    Tolerates markdown decoration (asterisks, backticks, headers, `>` quotes)
+    and SO WHAT / SO_WHAT variants — flash-class models often add `**` bold
+    even when told not to, which broke the earlier strict parser. Returns a
+    list of length n (None where a block failed to parse), or None when
+    nothing parsed at all.
+    """
+    import re as _re
+    strip = "*_#`>~ \t"
+    out = [None] * n
+    idx, cur = None, None
+
+    def flush():
+        if cur is not None and cur["what"] and idx is not None and 0 <= idx < n:
+            out[idx] = cur
+
+    for raw in (text or "").splitlines():
+        line = raw.strip().strip(strip).strip()
+        if not line:
+            continue
+        up = line.upper()
+        header = _re.match(r"^[\[(]?(\d{1,2})[\]\).:\-]*$", up)
+        if header and not up.startswith(("WHAT", "WHY", "SO")):
+            flush()
+            i = int(header.group(1)) - 1
+            idx, cur = (i, {"what": "", "why": "", "so_what": ""}) if 0 <= i < n else (None, None)
+            continue
+        if cur is None:
+            continue
+        key = up.replace(" ", "_")
+        if key.startswith("WHAT"):
+            cur["what"] = line.split(":", 1)[-1].strip().strip(strip)
+        elif key.startswith("WHY"):
+            cur["why"] = line.split(":", 1)[-1].strip().strip(strip)
+        elif key.startswith("SO"):
+            cur["so_what"] = line.split(":", 1)[-1].strip().strip(strip)
+    flush()
+    return out if any(out) else None
+
+
 def summarize_topics_what_why_sowhat(topics, domain_label=""):
     """Batch N topics into N {what,why,so_what} dicts in a SINGLE Gemini call.
 
@@ -231,7 +273,6 @@ def summarize_topics_what_why_sowhat(topics, domain_label=""):
     input (None where a block didn't parse). One call instead of N keeps the
     daily report within free-tier rate limits.
     """
-    import re as _re
     if not topics or not _AVAILABLE:
         return None
     lines = [f"[{i}] 來源：{org} / 焦點：{focus} / 摘要：{(analysis or '')[:200]}"
@@ -239,27 +280,13 @@ def summarize_topics_what_why_sowhat(topics, domain_label=""):
     prompt = (
         f"你是智庫級情報分析師。以下為「{domain_label}」領域的數則報告：\n"
         + "\n".join(lines) + "\n\n"
-        "請用繁體中文，為「每一則」各產出 WHAT / WHY / SO_WHAT 三欄（各一到兩句），"
-        "嚴格依下列格式，[N] 對應輸入編號：\n"
+        "請用繁體中文，為「每一則」各產出 WHAT / WHY / SO_WHAT 三欄。"
+        "每欄務必寫滿兩句、引用具體數字或機構名，總結該則的情報內容。\n"
+        "嚴格依下列純文字格式（不要使用任何 Markdown 符號，不要 **、#、`）：\n"
         "[1]\nWHAT: ...（事實概要）\nWHY: ...（脈絡與影響）\nSO_WHAT: ...（對台灣產業的啟示）\n"
         "[2]\nWHAT: ...\nWHY: ...\nSO_WHAT: ...\n"
     )
-    text = generate(prompt, max_tokens=200 + 250 * len(topics))
+    text = generate(prompt, max_tokens=250 + 320 * len(topics))
     if not text:
         return None
-    out = [None] * len(topics)
-    parts = _re.split(r"\n*\[(\d+)\]", text)
-    for j in range(1, len(parts) - 1, 2):
-        try:
-            idx = int(parts[j]) - 1
-        except ValueError:
-            continue
-        d = {"what": "", "why": "", "so_what": ""}
-        for line in parts[j + 1].splitlines():
-            low = line.strip()
-            for key in d:
-                if low.upper().startswith(key):
-                    d[key] = low.split(":", 1)[-1].strip()
-        if d["what"] and 0 <= idx < len(out):
-            out[idx] = d
-    return out if any(x for x in out) else None
+    return parse_topic_blocks(text, len(topics))

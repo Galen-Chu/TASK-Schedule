@@ -10,6 +10,7 @@ Triggered daily at **06:30 Asia/Taipei** (``30 6 * * *``). Built on
   render_obsidian -> Financial_Intelligence/obsidian_writer.write_obsidian_note
   dispatch      -> core.dispatch.drive_uploader (no-op until creds configured)
 """
+import datetime
 import os
 import sys
 
@@ -57,6 +58,11 @@ class FinancialReportScheduler(BaseReportScheduler):
                               "2Y": 4.15, "3Y": 4.24, "5Y": 4.35, "7Y": 4.48,
                               "10Y": 4.63, "20Y": 4.90, "30Y": 4.82},
                 },
+                "us10y_hist": [
+                    {"date": (datetime.date(2026, 1, 2) + datetime.timedelta(weeks=i)).strftime("%m/%d/%Y"),
+                     "v": round(4.62 - 0.010 * i + (0.05 if i % 7 == 0 else 0), 2)}
+                    for i in range(30)
+                ],
                 "cpi_hist": [{"year": y, "period_name": m,
                               "value": str(round(318.0 + 1.05 * i, 1))}
                              for i, (y, m) in enumerate(zip(
@@ -124,12 +130,15 @@ class FinancialReportScheduler(BaseReportScheduler):
         # 5) Slow macro series behind a TTL cache (BLS monthly / Treasury daily);
         #    the cache file is committed back by CI so it persists across runs.
         from core.data.macro_cache import cached
-        from core.data.fetchers import (fetch_treasury_curve, fetch_bls_history,
-                                        _BLS_SERIES)
+        from core.data.fetchers import (fetch_treasury_curve, fetch_treasury_10y_series,
+                                        fetch_bls_history, _BLS_SERIES)
         macro = {}
         curve = cached("yield_curve", 1, fetch_treasury_curve)
         if curve:
             macro["yield_curve"] = curve
+        us10 = cached("us10y_hist", 1, fetch_treasury_10y_series)
+        if us10:
+            macro["us10y_hist"] = us10
         cpi = cached("cpi_hist", 7,
                      lambda: fetch_bls_history(_BLS_SERIES["cpi_headline"], 25))
         if cpi:
