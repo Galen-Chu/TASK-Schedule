@@ -11,8 +11,7 @@ google-genai>=1.0       # Gemini SDK; only used when GEMINI_API_KEY is set
 # Optional — Google Drive upload / Gmail dispatch (absent creds => safe no-op)
 google-api-python-client>=2.0
 google-auth>=2.0
+google-auth-oauthlib>=1.0   # one-time refresh-token flow (scripts/drive_oauth_setup.py)
 
 # Optional / future (not required for the pipeline to run offline):
-#   google-api-python-client  # Drive upload + Gmail dispatch (core/dispatch stubs)
-#   google-auth               # service-account credentials
 #   pyswisseph                # Spiritual: real Swiss Ephemeris transit engines

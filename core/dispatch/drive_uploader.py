@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Google Drive upload — service-account implementation.
+"""Google Drive upload — OAuth-user or service-account implementation.
 
-Auth: a GCP service account whose JSON key is pointed at by
-``GOOGLE_APPLICATION_CREDENTIALS`` (env var, path to the downloaded key).
-The service account's email must be added as an Editor on the target Drive
-folder (shared with it). Setup steps are documented in README.md.
+Two auth paths, checked in this order:
 
-Layout: one root folder (config ``drive_folder_id``, or the account's own
-root), with a subfolder per report created lazily (Financial / Global /
-Spiritual / Macro). Files are named ``<date>_<report>.pdf``.
+1. **OAuth user credentials** (free Gmail friendly): set the env vars
+   ``GOOGLE_OAUTH_CLIENT_ID`` / ``GOOGLE_OAUTH_CLIENT_SECRET`` /
+   ``GOOGLE_REFRESH_TOKEN``. Files are owned by the USER (who has storage
+   quota), so uploads to the user's own Drive folders work. The refresh
+   token comes from a one-time consent — run ``scripts/drive_oauth_setup.py``.
+2. **Service account** (Workspace shared drives only): a JSON key pointed at
+   by ``GOOGLE_APPLICATION_CREDENTIALS``. SAs have NO storage quota on
+   personal My-Drive folders (HTTP 403 storageQuotaExceeded by design), so
+   this path only works for folders inside a 共用雲端硬碟.
+
+Layout: one root folder (env ``DRIVE_FOLDER_ID`` / config ``drive_folder_id``,
+else the account's own root), with a subfolder per report created lazily
+(Financial / Global / Spiritual / Macro). Files are named ``<date>_<report>.pdf``.
 
 With no credentials configured, every call is a safe no-op so the pipeline
 still completes in CI.
@@ -27,6 +34,21 @@ _subfolder_cache = {}
 
 
 def _credentials():
+    """OAuth-user credentials when configured, else the service-account key."""
+    cid = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+    csec = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    rt = os.environ.get("GOOGLE_REFRESH_TOKEN")
+    if cid and csec and rt:
+        try:
+            from google.oauth2.credentials import Credentials as UserCredentials
+            log.info("Drive 使用 OAuth 使用者憑證（檔案歸使用者帳號）。")
+            return UserCredentials(
+                token=None, refresh_token=rt, client_id=cid, client_secret=csec,
+                token_uri="https://oauth2.googleapis.com/token", scopes=_SCOPES,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Drive OAuth 憑證建立失敗 (%s)。", exc)
+            return None
     path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if not path or not os.path.isfile(path):
         return None
