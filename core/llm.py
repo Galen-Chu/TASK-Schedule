@@ -220,7 +220,8 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
         low = line.strip()
         for key in out:
             if low.upper().startswith(key):
-                out[key] = low.split(":", 1)[-1].strip()
+                v = low.split(":", 1)[-1].strip()
+                out[key] = v[:60] + "…" if len(v) > 60 else v
     return out if out["what"] else None
 
 

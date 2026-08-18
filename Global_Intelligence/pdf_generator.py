@@ -99,9 +99,9 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
 
     meta_st = ParagraphStyle("gmeta", fontName=FONT_CJK, fontSize=7.8, leading=10,
                              textColor=T.TEXT_MUTED, alignment=2)
-    title_st = ParagraphStyle("gtitle", fontName=FONT_CJK, fontSize=9.4, leading=12.2,
-                              textColor=dark, spaceBefore=2, spaceAfter=2)
-    body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.0, leading=10.4,
+    title_st = ParagraphStyle("gtitle", fontName=FONT_CJK, fontSize=9.2, leading=12.0,
+                              textColor=dark, spaceBefore=1, spaceAfter=1)
+    body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.0, leading=10.0,
                              textColor=T.TEXT_BODY)
 
     # Header row: linked org badge (accent fill, white) + publish time (right-aligned)
@@ -138,7 +138,7 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
         ('BOX', (0, 0), (-1, -1), 0.5, T.BORDER),
         ('LINEBEFORE', (0, 0), (0, -1), 3, base),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
     return card
 
@@ -163,14 +163,16 @@ def build_global_pdf(filename, data=None, date_str=None):
     # Optional report-level AI digest card (from RSS, when a key is set)
     digest = (data or {}).get("llm_digest")
     if digest:
+        digest_st = ParagraphStyle("gdigest", fontName=FONT_CJK, fontSize=8.0,
+                                   leading=10.4, textColor=T.TEXT_BODY)
         story.extend(make_title_row(title, "AI 智庫摘要 (Gemini 即時萃取)", date_str, T.GOLD, s))
         digest_rows = [
             [Paragraph(en("<b>WHAT（事實概要）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("what", ""), bold=True), s["body"])],
+             Paragraph(en(digest.get("what", ""), bold=True), digest_st)],
             [Paragraph(en("<b>WHY（脈絡影響）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("why", "")), s["body"])],
+             Paragraph(en(digest.get("why", "")), digest_st)],
             [Paragraph(en("<b>SO WHAT（台灣啟示）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("so_what", "")), s["body"])],
+             Paragraph(en(digest.get("so_what", "")), digest_st)],
         ]
         t_ai = Table(digest_rows, colWidths=[110, T.PRINTABLE_WIDTH - 110])
         t_ai.setStyle(TableStyle([
@@ -180,29 +182,31 @@ def build_global_pdf(filename, data=None, date_str=None):
             ('BACKGROUND', (1, 0), (1, -1), T.BG_CARD),
             ('PADDING', (0, 0), (-1, -1), 4),
         ]))
-        story += [t_ai, Spacer(1, 8)]
+        story += [t_ai, Spacer(1, 6)]
 
     for idx, (domain_tag, domain_zh, domain_en, category, ramp, rows) in enumerate(PAGES):
-        if idx > 0 or digest:
+        if idx > 0:
             story.append(PageBreak())
         page_title = title if idx == 0 else f"{category}：{domain_zh}"
         subtitle = domain_en if idx == 0 else f"{category} · {domain_en}"
         base = colors.HexColor(ramp[2])
         story.extend(make_title_row(page_title, subtitle, date_str, base, s))
 
-        # Domain label band
-        band = Table(
-            [[Paragraph(en(f"<b>{category}</b> 　{domain_zh}　·　{domain_en}"),
-                        ParagraphStyle("gband", fontName=FONT_CJK, fontSize=9, leading=12,
-                                       textColor=T.WHITE))]],
-            colWidths=[T.PRINTABLE_WIDTH],
-        )
-        band.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), base),
-            ('LEFTPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        story += [band, Spacer(1, 8)]
+        # Domain label band (skipped on page 1 — the title row already carries
+        # the domain subtitle there, and the AI digest card needs the space)
+        if idx > 0 or not digest:
+            band = Table(
+                [[Paragraph(en(f"<b>{category}</b> 　{domain_zh}　·　{domain_en}"),
+                            ParagraphStyle("gband", fontName=FONT_CJK, fontSize=8.6, leading=11,
+                                           textColor=T.WHITE))]],
+                colWidths=[T.PRINTABLE_WIDTH],
+            )
+            band.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), base),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]))
+            story += [band, Spacer(1, 7)]
 
         domain_label = domain_zh
         # One batched Gemini call per page (not per topic) to respect free-tier limits
@@ -214,7 +218,7 @@ def build_global_pdf(filename, data=None, date_str=None):
             body = _three_part_paras(tp) if tp else [analysis]
             story.append(_topic_card(org, focus, when, body, ramp, s,
                                      url=_ORG_URLS.get(org)))
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 3))
 
         # Supplement: live items from the retrieval layer (persistent corpus).
         # Page 1 already carries the AI digest card, so the supplement table
