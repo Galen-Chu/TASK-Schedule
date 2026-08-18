@@ -60,12 +60,15 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
 
     story = []
 
-    # 1. Header — shared title row + accent rule in this system's primary color
+    # 1. Header — shared title row + accent rule in this system's primary color.
+    # Subtitle carries only context (location / page x of 5), not content
+    # restatement; the weekday label is derived inside make_title_row.
     story += make_title_row(
-        f"Spiritual Intelligence 每日覺察運勢報告 ── {cfg['title']}",
-        subtitle_text=f"地點：{location}　|　副標題：{cfg['subtitle']}",
-        date_str=_date_label(date_str),
+        cfg["title"],
+        subtitle_text=f"地點：{location}　·　五術 {page_num}/{page_total}（{cfg['subtitle']}）",
+        date_str=date_str,
         accent_color=cfg["color_primary"],
+        eyebrow_text="Spiritual Intelligence 每日覺察運勢報告",
     )
     story.append(Spacer(1, 6))
 

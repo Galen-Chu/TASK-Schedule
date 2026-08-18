@@ -145,6 +145,14 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 - **字型**：CJK（Noto Sans TC）為主，拉丁/數字可選用 Liberation Sans（`en()` 雙字型切換 + XML 跳脫）
 - 各報告的「分節色」（市場/領域/五術）皆由上述同一組品牌色階衍生，部分保留各報告身分（例：Spiritual 保留暖色卡片底、紫微用品牌 plum `#7A4B6B`）。
 
+### 統一頁首規範（2026-08-18 起，三報告所有頁面一致）
+每頁頁首由 `core.pdf_engine.make_title_row()` 統一產生，解剖順序：
+1. **Eyebrow**：報告系列名（8pt 淡灰），如 `Financial Intelligence`。
+2. **主標題列**：章節/頁面名（16pt 墨藍）靠左；**發布日期＋星期**（`2026-08-18（二）`）以 11pt 分節色靠右——日期是標題帶的一部分，不再是頁尾小字。
+3. **副標題**：單行淡色**脈絡資訊**（資料來源／範圍），**不得重述內文**（例：`資料：美國財政部・BLS｜殖利率每日、總經月度`）。
+4. **分隔線**：全寬 1.5pt 分節色細線，間距全報告一致。
+輔助規則：內文小標不顯示開發用色碼（`#hex`）；Global 每頁只有一個標題列（摘要卡與領域 1 共享第 1 頁，領域標記改為色字行）；Spiritual 副標題只放地點與頁次，五術內容留在內文卡片。
+
 ---
 
 ## 資料來源
@@ -177,8 +185,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 項目 | 狀態 |
 |---|---|
 | 統一檢索層 Phase 1（ingest / dedup / BM25 / 持久化 / 補充編輯） | ✅ 已開發（`core/retrieval/`） |
-| 統一檢索層 Phase 2（embedding 向量檢索 + 擴充來源 + remote store） | ⏳ 未開發（待 GEMINI key + GCP） |
-| 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏳ 未開發 |
+| 統一檢索層 Phase 2（embedding 向量檢索 + 擴充來源 + remote store） | ⏸ 暫緩（2026-08-18 決議：待排程穩定數日後啟動） |
+| 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏸ 暫緩（同上） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 
 ---

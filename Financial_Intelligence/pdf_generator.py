@@ -160,9 +160,9 @@ def generate_daily_pdf(filename, data=None, date_str=None):
 
     # ======================= PAGE 1 — Dashboard ============================
     story.extend(make_title_row(
-        "Financial Intelligence 每日投資趨勢報告",
-        "整合台股、美股、債券、外匯與大宗商品之總經指標、大盤融資維持率與籌碼極限值",
-        date_str, T.GOLD, s,
+        "每日投資趨勢報告",
+        "台股融資餘額・美股 VIX・美債殖利率・外匯・商品與加密 —— 量化訊號與資產配置矩陣",
+        date_str, T.GOLD, s, eyebrow_text="Financial Intelligence",
     ))
 
     rating_rows = [
@@ -273,9 +273,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
-        "聚焦槓桿清洗、融資維持率、三大法人期現貨籌碼與美股市場廣度", date_str, COLOR_TW_STOCK, s))
+        "資料：TWSE MI_MARGN・Yahoo Finance｜籌碼數據截至前一交易日",
+        date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
 
-    story.append(Paragraph(en("<b>【台股市場專題】活力橘紅識別 (#EF6F53) — 融資維持率與籌碼分析</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【台股市場專題】活力橘紅 —— 融資/融券餘額與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
@@ -291,7 +292,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(tw_rows)
     story.append(Spacer(1, 10))
 
-    story.append(Paragraph(en("<b>【美股市場專題】科技青識別 (#0E7C86) — 恐慌指數與市場廣度</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【美股市場專題】科技青 —— 恐慌指數與市場廣度</b>"), s["h1"]))
     us_rows = _detail_table(
         ["美股指數/指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
@@ -309,9 +310,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 3 — Bonds / Forex / Macro ================
     story.append(PageBreak())
     story.extend(make_title_row("全球債券、外匯與總經數據趨勢",
-        "追蹤美債殖利率曲線、降息預期、美元指數與核心通膨就業數據", date_str, COLOR_BOND, s))
+        "資料：美國財政部・BLS｜殖利率每日、總經月度（TTL 快取）",
+        date_str, COLOR_BOND, s, eyebrow_text="Financial Intelligence"))
 
-    story.append(Paragraph(en("<b>【全球債券專題】暖琥珀識別 (#E8A33D) — 利率與殖利率曲線</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【全球債券專題】暖琥珀 —— 利率與殖利率曲線</b>"), s["h1"]))
     story.append(_detail_table(
         ["債券指標", "當前數據", "上月數據", "趨勢判讀與進出場建議"],
         [
@@ -324,7 +326,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     ))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph(en("<b>【外匯與美元專題】抹茶綠識別 (#6B8F71) — 匯率與資金流動性</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【外匯與美元專題】抹茶綠 —— 匯率與資金流動性</b>"), s["h1"]))
     story.append(_detail_table(
         ["外匯指標", "當前數據", "關鍵水位", "資金流向與影響判讀"],
         [
@@ -389,9 +391,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 4 — Commodities / Allocation =============
     story.append(PageBreak())
     story.extend(make_title_row("大宗商品、數位資產與動態資產配置",
-        "追蹤黃金、原油、比特幣鏈上數據與多資產動態配置矩陣", date_str, COLOR_CRYPTO, s))
+        "資料：Yahoo Finance｜商品與數位資產報價即時",
+        date_str, COLOR_CRYPTO, s, eyebrow_text="Financial Intelligence"))
 
-    story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑識別 (#1C2333)</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑</b>"), s["h1"]))
     story.append(_detail_table(
         ["資產標的", "當前價格", "關鍵支撐/壓力", "鏈上/市場籌碼與觀點分析"],
         [
@@ -425,7 +428,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 5 — Entry / Exit targets =================
     story.append(PageBreak())
     story.extend(make_title_row("各領域進場與退場投資標的整合追蹤",
-        "綜合融資維持率、籌碼動向、Valuation 評價與總經趨勢之精選投資標的清單", date_str, T.SIGNAL_BUY, s))
+        "綜合前述指標之精選清單｜非投資建議",
+        date_str, T.SIGNAL_BUY, s, eyebrow_text="Financial Intelligence"))
 
     story.append(Paragraph(en("<b>🟢 適合進場 / 分批加碼投資標的 (Recommended Entry Targets)</b>"), s["h1"]))
     story.append(_detail_table(
@@ -459,7 +463,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row(
         "總體經濟儀表板（Macro Dashboard）",
         "殖利率曲線 × 10Y 走勢 × 通膨趨勢 — 資料：美國財政部 / BLS（TTL 快取：月頻 7 天、殖利率 1 天）",
-        date_str, T.SAGE, s))
+        date_str, T.SAGE, s, eyebrow_text="Financial Intelligence"))
     md = data.get("macro") or {}
     ycd = md.get("yield_curve") or {}
     curve = ycd.get("curve") or {}

@@ -158,14 +158,21 @@ def build_global_pdf(filename, data=None, date_str=None):
     s = standard_styles()
     story = []
     title = "Global Intelligence 每日產業局勢報告"
+    EYEBROW = "Global Intelligence"
     use_llm = llm.is_available()
 
-    # Optional report-level AI digest card (from RSS, when a key is set)
+    # Optional report-level AI digest card (from RSS, when a key is set).
+    # This header also heads page 1 — the domain loop below does NOT render a
+    # second title row for idx == 0 (that double-header was the old duplication).
     digest = (data or {}).get("llm_digest")
     if digest:
         digest_st = ParagraphStyle("gdigest", fontName=FONT_CJK, fontSize=8.0,
                                    leading=10.4, textColor=T.TEXT_BODY)
-        story.extend(make_title_row(title, "AI 智庫摘要 (Gemini 即時萃取)", date_str, T.GOLD, s))
+        story.extend(make_title_row(
+            "每日產業局勢報告",
+            "AI 智庫摘要（Gemini）＋ 五大領域智庫速讀（2 國際＋2 國內／領域）",
+            date_str, T.GOLD, s, eyebrow_text=EYEBROW))
+        story.append(Paragraph(en("<b>AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
         digest_rows = [
             [Paragraph(en("<b>WHAT（事實概要）</b>", color="#FFFFFF"), s["th"]),
              Paragraph(en(digest.get("what", ""), bold=True), digest_st)],
@@ -182,31 +189,22 @@ def build_global_pdf(filename, data=None, date_str=None):
             ('BACKGROUND', (1, 0), (1, -1), T.BG_CARD),
             ('PADDING', (0, 0), (-1, -1), 4),
         ]))
-        story += [t_ai, Spacer(1, 6)]
+        story += [t_ai, Spacer(1, 8)]
 
     for idx, (domain_tag, domain_zh, domain_en, category, ramp, rows) in enumerate(PAGES):
         if idx > 0:
             story.append(PageBreak())
-        page_title = title if idx == 0 else f"{category}：{domain_zh}"
-        subtitle = domain_en if idx == 0 else f"{category} · {domain_en}"
         base = colors.HexColor(ramp[2])
-        story.extend(make_title_row(page_title, subtitle, date_str, base, s))
-
-        # Domain label band (skipped on page 1 — the title row already carries
-        # the domain subtitle there, and the AI digest card needs the space)
-        if idx > 0 or not digest:
-            band = Table(
-                [[Paragraph(en(f"<b>{category}</b> 　{domain_zh}　·　{domain_en}"),
-                            ParagraphStyle("gband", fontName=FONT_CJK, fontSize=8.6, leading=11,
-                                           textColor=T.WHITE))]],
-                colWidths=[T.PRINTABLE_WIDTH],
-            )
-            band.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), base),
-                ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ]))
-            story += [band, Spacer(1, 7)]
+        if idx == 0 and digest:
+            # page 1 already headed by the digest header; just mark the section
+            story.append(Paragraph(en(f"<b>{category}　{domain_zh}</b>　·　{domain_en}"),
+                                   ParagraphStyle("gsecmark", fontName=FONT_CJK, fontSize=9,
+                                                  leading=12, textColor=base,
+                                                  spaceBefore=4, spaceAfter=4)))
+        else:
+            story.extend(make_title_row(
+                f"{category}　{domain_zh}", domain_en, date_str, base, s,
+                eyebrow_text=EYEBROW))
 
         domain_label = domain_zh
         # One batched Gemini call per page (not per topic) to respect free-tier limits

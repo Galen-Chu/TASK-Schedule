@@ -65,13 +65,37 @@ def standard_styles():
     }
 
 
-def make_title_row(title_text, subtitle_text=None, date_str="", accent_color=None, styles=None):
-    """Two-column header (title left, date right) + accent rule."""
+def make_title_row(title_text, subtitle_text=None, date_str="", accent_color=None,
+                   styles=None, eyebrow_text=None):
+    """Unified page header shared by every report and every page.
+
+    Anatomy (identical across reports):
+      eyebrow   — report series name, small muted caps (first page of sections)
+      title     — section/page title (16pt navy); publish date + weekday right
+                  (11pt, accent colour — part of the title band, not tiny footer text)
+      subtitle  — ONE muted context line (data sources / scope). Must add
+                  information, not restate the body content below.
+      divider   — full-width 1.5pt accent rule, same spacing everywhere.
+    """
     styles = styles or standard_styles()
     accent = accent_color or T.GOLD
-    p_title = Paragraph(en(title_text), styles["title"])
-    p_date = Paragraph(en(f"發布日期：{date_str}  |  v2.0"), styles["date"])
-    header = Table([[p_title, p_date]], colWidths=[360, 187])
+    eyebrow_st = ParagraphStyle("eyebrow", fontName=FONT_CJK, fontSize=8,
+                                leading=10, textColor=T.TEXT_MUTED)
+    date_st = ParagraphStyle("dateband", fontName=FONT_CJK, fontSize=11,
+                             leading=13, textColor=accent, alignment=2)
+    label = str(date_str)
+    try:
+        import datetime as _dt
+        d = _dt.date.fromisoformat(label[:10])
+        label = f"{label[:10]}（{'一二三四五六日'[d.weekday()]}）"
+    except ValueError:
+        pass
+    rows = []
+    if eyebrow_text:
+        rows.append([Paragraph(en(eyebrow_text), eyebrow_st), ""])
+    rows.append([Paragraph(en(title_text), styles["title"]),
+                 Paragraph(en(label), date_st)])
+    header = Table(rows, colWidths=[350, T.PRINTABLE_WIDTH - 350])
     header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
         ('PADDING', (0, 0), (-1, -1), 0),
