@@ -78,12 +78,15 @@ jobs:
             echo "GCP service-account key provisioned."
             # Diagnostic: show whether the target folder lives in a Shared
             # Drive (driveId set) — SAs can only own files there.
-            DRIVE_FOLDER_ID="$DRIVE_FOLDER_ID" python - <<'PY'
+            # NOTE: GITHUB_ENV exports only apply to LATER steps, so pass the
+            # key path directly here instead of reading GOOGLE_APPLICATION_CREDENTIALS.
+            DRIVE_FOLDER_ID="$DRIVE_FOLDER_ID" \
+              SA_KEY_PATH="$RUNNER_TEMP/sa-key.json" python - <<'PY'
           import json, os
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
           creds = service_account.Credentials.from_service_account_file(
-              os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+              os.environ["SA_KEY_PATH"],
               scopes=["https://www.googleapis.com/auth/drive.file"])
           svc = build("drive", "v3", credentials=creds, cache_discovery=False)
           fid = os.environ.get("DRIVE_FOLDER_ID", "")
