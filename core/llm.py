@@ -294,4 +294,9 @@ def summarize_topics_what_why_sowhat(topics, domain_label=""):
     text = generate(prompt, max_tokens=250 + 320 * len(topics))
     if not text:
         return None
-    return parse_topic_blocks(text, len(topics))
+    parsed = parse_topic_blocks(text, len(topics))
+    n_ok = sum(1 for x in parsed or [] if x)
+    log.info("three-part parsed %d/%d topics", n_ok, len(topics))
+    if not n_ok:
+        log.info("unparsed reply head: %.300s", text.replace("\n", " | "))
+    return parsed
