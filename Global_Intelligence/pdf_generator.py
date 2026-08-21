@@ -104,14 +104,18 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
     body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.0, leading=10.0,
                              textColor=T.TEXT_BODY)
 
-    # Header row: linked org badge (accent fill, white) + publish time (right-aligned)
+    # Header row: linked org badge (accent fill, white) + publish time (right-aligned).
+    # The header sits INSIDE the card cell (8pt padding each side), so its width
+    # must be the inner width — using PRINTABLE_WIDTH here made the timestamp
+    # column overflow the card border by 16pt.
+    inner = T.PRINTABLE_WIDTH - 16
     org_html = (f'<a href="{url}" color="#FFFFFF"><u><b>{org}</b></u></a>'
                 if url else f"<b>{org}</b>")
     badge = Table(
         [[Paragraph(en(org_html, color="#FFFFFF"),
                     ParagraphStyle("gbadge", fontName=FONT_CJK, fontSize=8.2,
                                    leading=10, textColor=T.WHITE))]],
-        colWidths=[T.PRINTABLE_WIDTH - 150],
+        colWidths=[inner - 140],
     )
     badge.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), base),
@@ -120,7 +124,7 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
     ]))
     header = Table([[badge, Paragraph(en(f"🕒 {when}"), meta_st)],
                     [Paragraph(en(f"<b>{focus}</b>"), title_st), ""]],
-                   colWidths=[T.PRINTABLE_WIDTH - 150, 150])
+                   colWidths=[inner - 140, 140])
     header.setStyle(TableStyle([
         ('BACKGROUND', (1, 0), (1, 0), tint),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
