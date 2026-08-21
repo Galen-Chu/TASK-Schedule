@@ -21,10 +21,20 @@ financial:
 
 # ===== Global =====
 global:
-  # RSS 來源（免 key；feedparser 未安裝時自動略過）
+  # RSS 來源（免 key；feedparser 未安裝時自動略過）。以下為預設清單——
+  # 覆蓋五大領域、國際＋台灣，已驗證可達（2026-08-20）；可自行增刪。
   rss_feeds:
-    - https://feeds.bbci.co.uk/news/world/rss.xml
-    - https://www.reddit.com/r/worldnews/.rss
+    - https://feeds.bbci.co.uk/news/world/rss.xml          # 地緣/國際
+    - https://www.aljazeera.com/xml/rss/all.xml            # 地緣/國際
+    - https://news.un.org/feed/subscribe/en/news/all/rss.xml  # 聯合國
+    - https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258  # 巨觀經濟
+    - https://www.economist.com/latest/rss.xml             # 經濟學人
+    - https://techcrunch.com/category/artificial-intelligence/feed/  # AI
+    - https://technews.tw/feed/                            # 台灣科技
+    - https://www.ithome.com.tw/rss                        # 台灣 IT/資安
+    - https://www.sciencedaily.com/rss/health_medicine.xml # 生技/醫療
+    - https://spectrum.ieee.org/feeds/topic/semiconductors.rss  # 半導體
+    - https://electrek.co/feed/                            # 能源/電動車
 
 # ===== Spiritual =====
 spiritual:

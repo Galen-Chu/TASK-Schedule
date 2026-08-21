@@ -19,12 +19,27 @@ from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve
 from core.retrieval.ingest import DOMAIN_KEYWORDS
 
-# A few public, keyless RSS feeds to demonstrate the live-source path. Parsed
-# with feedparser (optional); on any failure the scheduler falls back to the
-# editorial sample content baked into the PDF generator.
+# Default public, keyless RSS feeds — breadth across the five domains
+# (international + Taiwan). All verified reachable 2026-08-20. Override via
+# config global.rss_feeds. Parsed with feedparser (optional); any feed that
+# fails is skipped and the report still builds.
 SAMPLE_FEEDS = [
+    # 地緣政治 / 國際
     "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://www.reddit.com/r/worldnews/.rss",
+    "https://www.aljazeera.com/xml/rss/all.xml",
+    "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+    # 巨觀經濟 / 金融
+    "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258",
+    "https://www.economist.com/latest/rss.xml",
+    # 資訊科技 / AI（國際 + 台灣）
+    "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "https://technews.tw/feed/",
+    "https://www.ithome.com.tw/rss",
+    # 生技 / 醫療
+    "https://www.sciencedaily.com/rss/health_medicine.xml",
+    # 硬體 / 半導體 / 能源
+    "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
+    "https://electrek.co/feed/",
 ]
 
 # Persistent retrieval corpus — committed to the repo so it accumulates across
@@ -56,7 +71,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         items = []
         store = self._store()
         for url in self.config.get("rss_feeds", SAMPLE_FEEDS):
-            feed_items = fetch_rss_items(url, limit=3)
+            feed_items = fetch_rss_items(url, limit=4)
             items.extend(feed_items)
             if store is not None and feed_items:
                 ingest_items(store, feed_items, source=url)

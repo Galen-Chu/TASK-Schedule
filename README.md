@@ -165,7 +165,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | **Financial** | 美國財政部每日殖利率曲線 CSV（2Y / 10Y / 利差） | ✅ | 退回 sample |
 | **Financial** | Fear & Greed 指數（alternative.me） | ✅ | 退回 sample |
 | **Financial** | TWSE 全市場融資/融券餘額（MI_MARGN 加總） | ✅ | 退回 sample |
-| **Global** | RSS 即時快訊（BBC World 等）→ 寫進 Obsidian note | ✅（需 `feedparser`） | note 標示離線 |
+| **Global** | 11 條跨領域 RSS（BBC/半島/聯合國/CNBC/經濟學人/TechCrunch/TechNews/iThome/ScienceDaily/IEEE Spectrum/Electrek）→ 檢索語料庫＋即時補充 | ✅（需 `feedparser`） | 退回編輯樣板 |
 | **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 五術資料 |
 
 > 三份報告現在 **完全零 key**——沒有任何欄位需要 API key，CI 無 secret 即可跑真實資料。

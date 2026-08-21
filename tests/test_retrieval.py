@@ -33,6 +33,22 @@ def test_classify_domain_empty_when_no_keyword():
     assert classify_domain("一則與任何領域無關的天氣短訊", "") == ""
 
 
+def test_classify_domain_english_titles():
+    """The expanded source list is mostly English — keywords must classify
+    English headlines, and short ASCII keywords must respect word boundaries
+    ('ai' must NOT match inside 'said')."""
+    assert classify_domain("U.S. government debt passes $40 trillion", "") == "macro"
+    assert classify_domain("Nvidia unveils new AI chip for data centers", "") == "it_ai"
+    assert classify_domain("Coffee drinkers have less fat, study finds", "") == "biotech"
+    assert classify_domain("Solid-state battery breakthrough for EV makers", "") == "hardware"
+    assert classify_domain("Ceasefire talks collapse as border conflict widens", "") == "geopolitics"
+
+
+def test_classify_domain_word_boundary_no_false_positive():
+    # 'ai' inside 'said'/'maintain' must not classify as it_ai
+    assert classify_domain("He said the weather was nice and calm", "") == ""
+
+
 # ---- item_id ---------------------------------------------------------------
 def test_item_id_stable_and_case_insensitive_title():
     assert item_id("A", "b") == item_id("a", "b")
