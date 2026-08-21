@@ -114,6 +114,15 @@ class CorpusStore:
         log.info("corpus +%d (total %d)", len(new), len(existing) + len(new))
         return len(new)
 
+    def save_all(self, records):
+        """Atomically rewrite the corpus with the given records (embeddings
+        and semantic tags are attached in place by the caller)."""
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for it in records:
+                f.write(json.dumps(it, ensure_ascii=False) + "\n")
+        os.replace(tmp, self.path)
+
     def compact(self, keep_days=30, now=None):
         """Drop items whose fetched_at is older than keep_days. Returns count removed."""
         now = now or datetime.now(_TZ)

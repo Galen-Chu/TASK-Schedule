@@ -77,6 +77,10 @@ class GlobalReportScheduler(BaseReportScheduler):
                 ingest_items(store, feed_items, source=url)
         if store is not None:
             store.compact(keep_days=30)
+            # Phase 2: attach embeddings + semantic domain tags (no-op without
+            # GEMINI_API_KEY; never raises into the pipeline).
+            from core.retrieval.embed import backfill as embed_backfill
+            embed_backfill(store)
         if not items:
             return None
         return {"editorial": True, "rss_items": items[:6]}

@@ -185,7 +185,9 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 項目 | 狀態 |
 |---|---|
 | 統一檢索層 Phase 1（ingest / dedup / BM25 / 持久化 / 補充編輯） | ✅ 已開發（`core/retrieval/`） |
-| 統一檢索層 Phase 2（embedding 向量檢索 + 擴充來源 + remote store） | ⏸ 暫緩（2026-08-18 決議：待排程穩定數日後啟動） |
+| 統一檢索層 Phase 2 — 來源擴充（11 條跨領域 RSS）＋語意分類 | ✅ 已開發（2026-08-21） |
+| 統一檢索層 Phase 2 — embedding 混合檢索（cosine 55% + BM25 45%） | ✅ 已開發（2026-08-21，`core/retrieval/embed.py`；批次 256 維、計入每日額度守門、無 key 自動退回 BM25） |
+| 統一檢索層 Phase 2 — remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏸ 暫緩（同上） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 

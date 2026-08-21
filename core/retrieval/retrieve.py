@@ -4,6 +4,7 @@ Backend-agnostic: takes a ``CorpusStore`` (anything with ``.all()``) and a
 query string. Phase 1 uses BM25 over title+summary tokens; a Phase 2 embedding
 scorer can replace ``_bm25_scores`` without touching callers.
 """
+import logging
 import math
 import re
 from datetime import datetime, timedelta, timezone
@@ -94,11 +95,32 @@ def retrieve(store, query, k=4, days=7, domain=None, now=None,
     qtoks = tokenize(query)
     dtoks = [tokenize(it.get("title", "") + " " + it.get("summary", "")) for it in cands]
     bm = _bm25_scores(qtoks, dtoks)
+    # Semantic layer (Phase 2): embed the query once; items carrying vectors
+    # get a hybrid score (cosine 55% + BM25 45%). No key / no vectors on
+    # either side -> pure BM25, exactly the Phase-1 behaviour.
+    qvec = None
+    try:
+        from core.retrieval import embed as _embed
+        if _embed.is_available():
+            qvec = _embed.embed_query(query)
+    except Exception:  # noqa: BLE001
+        qvec = None
+    bmax = max(bm) or 1.0
     scored = []
+    n_sem = 0
     for it, raw in zip(cands, bm):
         recency = math.exp(-_age_days(it, now) / 7.0)
         w = weights.get(it.get("source", ""), 1.0)
-        scored.append((raw * recency * w, it))
+        if qvec and it.get("emb"):
+            n_sem += 1
+            cos = _embed.cosine(qvec, it["emb"])
+            s = (0.45 * (raw / bmax) + 0.55 * cos) * recency * w
+        else:
+            s = raw * recency * w
+        scored.append((s, it))
+    if qvec:
+        logging.getLogger("retrieval").info(
+            "retrieve: semantic hybrid (query+item vectors) for %d/%d candidates", n_sem, len(cands))
     scored.sort(key=lambda x: x[0], reverse=True)
     if domain:
         return [it for _, it in scored[:k]]
