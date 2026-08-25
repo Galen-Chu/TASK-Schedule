@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Global Intelligence — PDF report generator (5-page A4).
+"""Global Intelligence — PDF report generator (6-page A4, dynamic cards).
 
-Each page is one domain rendered as a stack of **topic cards** (2
-international + 2 domestic think tanks), per the Design Spec: a source badge,
-two-row metadata, a bold focus title, and a What/Why/So-What body. When a
-Gemini key is configured each topic's editorial analysis is distilled into the
-three-part structure; otherwise the raw analysis paragraph is shown.
+Each page is one domain rendered as a stack of **dynamic topic cards**
+pulled live from the retrieval corpus (5 per page = the primary content).
+Editorial fallback cards are shown only when the corpus has insufficient
+items for a domain. The 6th domain (aerospace) covers aviation & space.
+
+When a Gemini key is configured each topic's editorial analysis is distilled
+into a What/Why/So-What structure; otherwise the RSS summary is shown.
 
 Built on the shared core (:mod:`core.pdf_engine`, :mod:`core.design_tokens`).
-Domain colours come from the Typography-Guide brand ramps, so every domain
-reads as part of the same family.
+Domain colours come from the Typography-Guide brand ramps.
 """
 import os
+import re
 import sys
+from datetime import datetime, timedelta, timezone
+from html import unescape as _html_unescape
+from urllib.parse import urlparse as _urlparse
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
@@ -29,73 +34,164 @@ from core.fonts import FONT_CJK
 
 DISCLAIMER = "本報告由 Global Intelligence 自動化情報系統產生，涵蓋全球與國內權威智庫報告速讀。"
 
-# Editorial source homepages — used for the clickable source badge on each card.
-_ORG_URLS = {
-    "CSIS": "https://www.csis.org",
-    "The Conference Board": "https://www.conference-board.org",
-    "國防院 (INDSR)": "https://www.indsr.org.tw",
-    "中經院 (CIER)": "https://www.cier.edu.tw",
-    "歐洲央行 (ECB)": "https://www.ecb.europa.eu",
-    "Mohamed El-Erian": "https://www.project-syndicate.org",
-    "台經院 (TIER)": "https://www.tier.org.tw",
-    "中央銀行 (CBC)": "https://www.cbc.gov.tw",
-    "TSMC / Motley Fool": "https://www.fool.com",
-    "NVIDIA / Design&Reuse": "https://www.designreuse.com",
-    "工研院 (ITRI ISTI)": "https://www.itri.org.tw",
-    "資策會 (MIC)": "https://mic.iii.org.tw",
-    "U.S. FDA / Endpoints": "https://endpts.com",
-    "Eli Lilly / PR Newswire": "https://www.prnewswire.com",
-    "國衛院 (NHRI)": "https://www.nhri.org.tw",
-    "生技中心 (DCB)": "https://www.dcb.org.tw",
-    "U.S. DOE / NCSL": "https://www.energy.gov",
-    "Cambridge EnerTech": "https://www.informaconnect.com",
-    "國研院 (NARLabs)": "https://www.narlabs.org.tw",
-    "工研院綠能所 (GEL)": "https://www.itri.org.tw",
+_TZ = timezone(timedelta(hours=8))
+
+# ---- Domain definitions (tag, zh, en, category, ramp, editorial_fallback) ----
+# Editorial fallbacks are used ONLY when the retrieval corpus has < 5 items
+# for a domain. They mirror the original PAGES data but serve as backup.
+DOMAINS = [
+    ("geopolitics", "地緣政治與國際關係", "Geopolitics & International Relations", "Category 01", T.RAMP_INK),
+    ("macro", "巨觀經濟與金融市場", "Macroeconomics & Financial Markets", "Category 02", T.RAMP_AMBER),
+    ("it_ai", "資訊科技與人工智慧", "IT, AI & Semiconductors", "Category 03", T.RAMP_TEAL),
+    ("biotech", "生物科技與健康醫療", "Biotech & Healthcare", "Category 04", T.RAMP_SAGE),
+    ("hardware", "硬體工程、自動化與能源轉型", "Hardware, Automation & Energy", "Category 05", T.RAMP_CORAL),
+    ("aerospace", "航空太空與量子科技", "Aerospace & Quantum Technology", "Category 06", T.RAMP_INDIGO),
+]
+
+# Editorial fallback content (org, focus, time, analysis) — used when the
+# retrieval corpus is empty or has fewer than 5 items for a domain.
+EDITORIAL_FALLBACK = {
+    "geopolitics": [
+        ["CSIS", "中朝關係重組研討會", "2026-08-10 09:00 EDT", "CSIS 舉辦專題研討會剖析東北亞安全新格局。"],
+        ["The Conference Board", "近岸與友岸外包加速", "2026-08-06 18:00 EST", "美國關稅政策新規常態化，製造業供應鏈加速向東南亞與拉美近岸轉移。"],
+        ["國防院 (INDSR)", "印太安全與供應鏈保全", "2026-08-08 10:00 TST", "評估紅海航道干擾與台海安全，建議企業提高安全存貨水準。"],
+        ["中經院 (CIER)", "地緣政治對台商投資影響", "2026-08-07 15:30 TST", "分析關稅合規與地緣風險，建議跨國企業建立多區域備援供應鏈。"],
+    ],
+    "macro": [
+        ["歐洲央行 (ECB)", "最新貨幣通報與通膨警告", "2026-08-06 10:00 CEST", "ECB 指出歐元區頭條通膨雖受控制，但能源波動仍存。"],
+        ["Mohamed El-Erian", "全球央行政策分化分析", "2026-08-09 21:00 EST", "成熟與新興市場經濟復甦步調不一，資本跨國流動敏感度提升。"],
+        ["台經院 (TIER)", "台灣宏觀經濟與出口展望", "2026-08-08 11:00 TST", "受惠 AI 與伺服器拉貨強勁，出口動能維持高檔。"],
+        ["中央銀行 (CBC)", "貨幣政策與流動性分析", "2026-08-07 16:30 TST", "維持適度緊縮貨幣立場，密切監控不動產信用風險。"],
+    ],
+    "it_ai": [
+        ["TSMC / Motley Fool", "超預期算力帶動 640 億 Capex", "2026-08-09 08:30 EST", "台積電擴大 640 億美元資本支出，加速 2nm 與 CoWoS 先進封裝擴產。"],
+        ["NVIDIA / Design&Reuse", "AI 演算法深入晶圓廠良率控制", "2026-08-08 11:00 EST", "NVIDIA 與台積電合作將 AI 檢測演算法導入晶圓廠。"],
+        ["工研院 (ITRI ISTI)", "3D Chiplet 與 HBM4 封裝趨勢", "2026-08-08 14:00 TST", "單晶片微縮極限顯現，晶片競賽轉向 3D 堆疊與 SiP。"],
+        ["資策會 (MIC)", "AI Agent 商業落地與 ROI 評估", "2026-08-07 10:30 TST", "企業 AI 應用從 PoC 轉向 ROI 驗證，軟體自動化代理需求爆發。"],
+    ],
+    "biotech": [
+        ["U.S. FDA / Endpoints", "Pilot Plan 試點加速計畫推動", "2026-08-07 06:38 EST", "FDA 啟動試點加速計畫，縮短新藥上市週期 15%~20%。"],
+        ["Eli Lilly / PR Newswire", "Olomorasib 獲突破性療法認證", "2026-08-03 09:00 EST", "禮來 KRAS G12C 新藥獲 FDA 突破性療法認證。"],
+        ["國衛院 (NHRI)", "抗體藥物複合體 (ADC) 研發", "2026-08-08 10:00 TST", "精準腫瘤學標靶藥物突破，國內生技團隊取得專利進展。"],
+        ["生技中心 (DCB)", "CDMO 委託開發製造量能", "2026-08-07 14:30 TST", "推動核酸藥物與細胞治療 CDMO 產線國際認證。"],
+    ],
+    "hardware": [
+        ["U.S. DOE / NCSL", "8 月 SMR 核能創新園區名單", "2026-08-08 12:00 EST", "美國能源部啟動核能生命週期園區計畫，加速 SMR 商業化。"],
+        ["Cambridge EnerTech", "固態電池與人形機器人應用", "2026-08-09 09:00 EST", "固態電池高峰會聚焦人形機器人高能量密度需求。"],
+        ["國研院 (NARLabs)", "工業 4.0 智慧感測與自動化", "2026-08-08 11:30 TST", "研發次世代高精度物理量感測器。"],
+        ["工研院綠能所 (GEL)", "智慧電網與長時儲能 (LDES)", "2026-08-07 16:00 TST", "數據中心高算力倒逼區域電網升級。"],
+    ],
+    "aerospace": [
+        ["NASA", "Artemis II 月球任務進展", "2026-08-20 10:00 EST", "NASA 載人繞月任務持續推進，SLS 火箭與 Orion 太空船整合測試。"],
+        ["SpaceNews", "Starship 第五次試飛與商業發射", "2026-08-22 08:00 EST", "SpaceX Starship 筷子夾火箭回收成功，商業發射成本大幅下降。"],
+        ["IBM Quantum", "量子錯誤修正里程碑", "2026-08-21 14:00 EST", "IBM 發表 1,000+ qubit 量子處理器，錯誤修正碼實用化進程加速。"],
+        ["The Quantum Insider", "後量子密碼學標準化", "2026-08-19 11:00 EST", "NIST 後量子密碼學標準正式定案，金融與國防體系啟動遷移時程。"],
+        ["Ars Technica", "量子網際網路原型", "2026-08-18 14:00 EST", "量子糾纏分發距離突破 1,000 公里，量子通訊基礎設施邁向實用。"],
+        ["Aviation Week", "電動航空與 eVTOL 變局", "2026-08-21 09:00 EST", "電動垂直起降飛機認證進度加速，2030 年城市空中交通市場可期。"],
+    ],
 }
 
-# ---- Editorial content: (domain_tag, domain_zh, domain_en, category, ramp, rows)
-# domain_tag links each page to the retrieval layer's classify_domain tags.
-# ramp = [tint, light, base, dark, darkest]; base is the domain accent.
-# rows = [org, focus, time, analysis]
-PAGES = [
-    ("geopolitics", "地緣政治與國際關係", "Geopolitics & International Relations", "Category 01", T.RAMP_INK, [
-        ["CSIS", "中朝關係重組研討會", "2026-08-10 09:00 EDT", "CSIS 舉辦專題研討會剖析東北亞安全新格局。大國博弈加劇，供應鏈韌性建置與友岸外包 (Friendshoring) 需求提升。"],
-        ["The Conference Board", "近岸與友岸外包加速", "2026-08-06 18:00 EST", "美國關稅政策新規常態化，製造業供應鏈加速向東南亞與拉美近岸轉移，合規門檻提高。"],
-        ["國防院 (INDSR)", "印太安全與供應鏈保全", "2026-08-08 10:00 TST", "評估紅海航道干擾與台海安全，建議企業提高安全存貨水準以因應物流延遲。"],
-        ["中經院 (CIER)", "地緣政治對台商投資影響", "2026-08-07 15:30 TST", "分析關稅合規與地緣風險，建議跨國企業建立多區域備援供應鏈。"],
-    ]),
-    ("macro", "巨觀經濟與金融市場", "Macroeconomics & Financial Markets", "Category 02", T.RAMP_AMBER, [
-        ["歐洲央行 (ECB)", "最新貨幣通報與通膨警告", "2026-08-06 10:00 CEST", "ECB 指出歐元區頭條通膨雖受控制，但能源波動仍存。主要央行延後大幅降息，高利率 Higher for Longer 成為常態。"],
-        ["Mohamed El-Erian", "全球央行政策分化分析", "2026-08-09 21:00 EST", "成熟與新興市場經濟復甦步調不一，資本跨國流動敏感度提升，投資人應增加防禦性資產配置。"],
-        ["台經院 (TIER)", "台灣宏觀經濟與出口展望", "2026-08-08 11:00 TST", "受惠 AI 與伺服器拉貨強勁，出口動能維持高檔，景氣黃紅燈展現內外需強勁韌性。"],
-        ["中央銀行 (CBC)", "貨幣政策與流動性分析", "2026-08-07 16:30 TST", "維持適度緊縮貨幣立場，密切監控不動產信用風險與通膨預期。"],
-    ]),
-    ("it_ai", "資訊科技與人工智慧", "IT, AI & Semiconductors", "Category 03", T.RAMP_TEAL, [
-        ["TSMC / Motley Fool", "超預期算力帶動 640 億 Capex", "2026-08-09 08:30 EST", "台積電擴大 640 億美元資本支出，加速 2nm 與 CoWoS 先進封裝擴產，鞏固台灣半導體戰略龍頭地位。"],
-        ["NVIDIA / Design&Reuse", "AI 演算法深入晶圓廠良率控制", "2026-08-08 11:00 EST", "NVIDIA 與台積電合作將 AI 檢測演算法導入晶圓廠，進行複雜奈米晶圓缺陷檢測，大幅提升生產良率。"],
-        ["工研院 (ITRI ISTI)", "3D Chiplet 與 HBM4 封裝趨勢", "2026-08-08 14:00 TST", "單晶片微縮極限顯現，晶片競賽轉向 3D 堆疊、HBM 高頻寬記憶體與系統級封裝 (SiP)。"],
-        ["資策會 (MIC)", "AI Agent 商業落地與 ROI 評估", "2026-08-07 10:30 TST", "企業 AI 應用從 PoC 概念驗證轉向算力投資回報率 (ROI) 驗證，軟體自動化代理需求爆發。"],
-    ]),
-    ("biotech", "生物科技與健康醫療", "Biotech & Healthcare", "Category 04", T.RAMP_SAGE, [
-        ["U.S. FDA / Endpoints", "Pilot Plan 試點加速計畫推動", "2026-08-07 06:38 EST", "FDA 正式啟動試點加速計畫，開放最多 10 個核心臨床專案簡化行政審查，縮短新藥上市週期 15%~20%。"],
-        ["Eli Lilly / PR Newswire", "Olomorasib 獲突破性療法認證", "2026-08-03 09:00 EST", "禮來 KRAS G12C 突變晚期胰臟癌新藥獲得 FDA 突破性療法認證 (Breakthrough Designation)，帶動生醫價值重估。"],
-        ["國衛院 (NHRI)", "抗體藥物複合體 (ADC) 研發", "2026-08-08 10:00 TST", "精準腫瘤學標靶藥物突破，國內生技團隊於 ADC 鏈結技術與 Biomarkers 生物標記取得專利進展。"],
-        ["生技中心 (DCB)", "CDMO 委託開發製造量能", "2026-08-07 14:30 TST", "推動核酸藥物與細胞治療 CDMO 產線國際認證，打造台灣成為亞洲生技製造樞紐。"],
-    ]),
-    ("hardware", "硬體工程、自動化與能源轉型", "Hardware, Automation & Energy", "Category 05", T.RAMP_CORAL, [
-        ["U.S. DOE / NCSL", "8 月 SMR 核能創新園區名單", "2026-08-08 12:00 EST", "美國能源部啟動核能生命週期園區計畫，加速小型模組化反應爐 (SMR) 商業化，滿足 AI 數據中心零碳電力。"],
-        ["Cambridge EnerTech", "固態電池與人形機器人應用", "2026-08-09 09:00 EST", "固態電池高峰會聚焦人形機器人高能量密度與高放電倍率需求，次世代電池決定自動化商業落地進程。"],
-        ["國研院 (NARLabs)", "工業 4.0 智慧感測與自動化", "2026-08-08 11:30 TST", "研發次世代高精度物理量感測器，強化國產自動化設備在極端環境下之穩定度。"],
-        ["工研院綠能所 (GEL)", "智慧電網與長時儲能 (LDES)", "2026-08-07 16:00 TST", "數據中心高算力倒逼區域電網升級，推動 AI 智慧電池管理系統 (AI-BMS) 與地熱能供電合約。"],
-    ]),
-]
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+# Domain → clean source name (for the card badge). Falls back to extracting
+# the second-level domain (e.g., feeds.bbci.co.uk → BBC, search.cnbc.com → CNBC).
+_SOURCE_NAMES = {
+    "feeds.bbci.co.uk": "BBC",
+    "search.cnbc.com": "CNBC",
+    "www.aljazeera.com": "ALJAZEERA",
+    "news.un.org": "UN NEWS",
+    "techcrunch.com": "TECHCRUNCH",
+    "technews.tw": "TECHNEWS",
+    "www.ithome.com.tw": "ITHOME",
+    "www.sciencedaily.com": "SCIENCEDAILY",
+    "www.economist.com": "ECONOMIST",
+    "spectrum.ieee.org": "IEEE SPECTRUM",
+    "electrek.co": "ELECTREK",
+    "www.nasa.gov": "NASA",
+    "spacenews.com": "SPACENEWS",
+    "arstechnica.com": "ARS TECHNICA",
+    "aviationweek.com": "AVIATION WEEK",
+    "www.reuters.com": "REUTERS",
+    "www.reddit.com": "REDDIT",
+}
+
+def _source_display(url_or_domain):
+    """Map a source URL/domain to a clean organization name."""
+    try:
+        netloc = _urlparse(url_or_domain).netloc if "://" in url_or_domain else url_or_domain
+    except Exception:
+        netloc = url_or_domain
+    netloc = (netloc or "").lower().strip()
+    if netloc in _SOURCE_NAMES:
+        return _SOURCE_NAMES[netloc]
+    # Fallback: extract the recognizable part (skip subdomains like www./feeds./search.)
+    parts = netloc.replace("www.", "").split(".")
+    # Take the first non-generic part (skip feeds, search, news, www)
+    generic = {"feeds", "search", "news", "www", "rss", "feed"}
+    for p in parts:
+        if p not in generic and len(p) > 2:
+            return p.upper()
+    return (parts[0] if parts else "RSS").upper()
+
+
+def _strip_html(text):
+    """Remove HTML tags + unescape entities from RSS summaries (ReportLab-safe)."""
+    if not text:
+        return ""
+    cleaned = _TAG_RE.sub(" ", text)
+    cleaned = _html_unescape(cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _format_rss_time(item):
+    """Format the article's PUBLISHED date (not when we fetched it)."""
+    # Try published (from RSS feed, article's actual date)
+    pub = item.get("published", "")
+    if pub:
+        # RFC 2822 format: "Mon, 25 Aug 2026 08:00:00 GMT"
+        try:
+            from email.utils import parsedate_to_datetime as _pdt
+            dt = _pdt(pub)
+            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+        except Exception:
+            pass
+        # ISO format
+        try:
+            dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+        except Exception:
+            pass
+    # Fallback to fetched_at (when our pipeline ran)
+    fa = item.get("fetched_at", "")
+    try:
+        dt = datetime.fromisoformat(fa)
+        return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return (pub or "—")[:16]
+
+
+def _rss_card(item, ramp, styles, three_part=None):
+    """Render a retrieval item as a topic card (dynamic content).
+
+    ``three_part``: optional {what, why, so_what} dict from Gemini. When present,
+    renders the three-part analysis instead of the raw RSS summary.
+    """
+    org_display = _source_display(item.get("source", ""))
+    focus = _strip_html(item.get("title", ""))[:80]
+    when = _format_rss_time(item)
+    summary = _strip_html(item.get("summary", ""))[:200] or focus
+    link = item.get("link", "")
+
+    body = _three_part_paras(three_part) if three_part else [summary]
+    return _topic_card(org_display, focus, when, body, ramp, styles, url=link)
 
 
 def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
-    """One think-tank topic as a card: linked source badge + metadata, focus title, body."""
-    base = colors.HexColor(ramp[2])    # domain accent
-    tint = colors.HexColor(ramp[0])    # light card fill
-    dark = colors.HexColor(ramp[3])    # emphasis
+    """One topic as a card: linked source badge + metadata, focus title, body."""
+    base = colors.HexColor(ramp[2])
+    tint = colors.HexColor(ramp[0])
+    dark = colors.HexColor(ramp[3])
 
     meta_st = ParagraphStyle("gmeta", fontName=FONT_CJK, fontSize=7.8, leading=10,
                              textColor=T.TEXT_MUTED, alignment=2)
@@ -104,10 +200,6 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
     body_st = ParagraphStyle("gbody", fontName=FONT_CJK, fontSize=8.0, leading=10.0,
                              textColor=T.TEXT_BODY)
 
-    # Header row: linked org badge (accent fill, white) + publish time (right-aligned).
-    # The header sits INSIDE the card cell (8pt padding each side), so its width
-    # must be the inner width — using PRINTABLE_WIDTH here made the timestamp
-    # column overflow the card border by 16pt.
     inner = T.PRINTABLE_WIDTH - 16
     org_html = (f'<a href="{url}" color="#FFFFFF"><u><b>{org}</b></u></a>'
                 if url else f"<b>{org}</b>")
@@ -134,7 +226,6 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
         ('TOPPADDING', (0, 1), (-1, 1), 2),
     ]))
 
-    # Wrap header + body in an outer card with tint fill + accent left stripe.
     rows = [[header]] + [[Paragraph(en(b), body_st)] for b in body_flowables]
     card = Table(rows, colWidths=[T.PRINTABLE_WIDTH])
     card.setStyle(TableStyle([
@@ -157,24 +248,23 @@ def _three_part_paras(tp):
 
 
 def build_global_pdf(filename, data=None, date_str=None):
-    """Build the 5-page Global PDF. Returns ``filename``."""
-    date_str = date_str or (data or {}).get("date") or "2026-08-11"
+    """Build the 6-page Global PDF with dynamic topic cards."""
+    date_str = date_str or (data or {}).get("date") or "2026-08-25"
     s = standard_styles()
     story = []
     title = "Global Intelligence 每日產業局勢報告"
     EYEBROW = "Global Intelligence"
     use_llm = llm.is_available()
+    retrieval_data = (data or {}).get("retrieval", {})
 
     # Optional report-level AI digest card (from RSS, when a key is set).
-    # This header also heads page 1 — the domain loop below does NOT render a
-    # second title row for idx == 0 (that double-header was the old duplication).
     digest = (data or {}).get("llm_digest")
     if digest:
         digest_st = ParagraphStyle("gdigest", fontName=FONT_CJK, fontSize=8.0,
                                    leading=10.4, textColor=T.TEXT_BODY)
         story.extend(make_title_row(
             "每日產業局勢報告",
-            "AI 智庫摘要（Gemini）＋ 五大領域智庫速讀（2 國際＋2 國內／領域）",
+            "AI 智庫摘要（Gemini）＋ 六大領域即時情報速讀",
             date_str, T.GOLD, s, eyebrow_text=EYEBROW))
         story.append(Paragraph(en("<b>AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
         digest_rows = [
@@ -195,12 +285,11 @@ def build_global_pdf(filename, data=None, date_str=None):
         ]))
         story += [t_ai, Spacer(1, 8)]
 
-    for idx, (domain_tag, domain_zh, domain_en, category, ramp, rows) in enumerate(PAGES):
+    for idx, (domain_tag, domain_zh, domain_en, category, ramp) in enumerate(DOMAINS):
         if idx > 0:
             story.append(PageBreak())
         base = colors.HexColor(ramp[2])
         if idx == 0 and digest:
-            # page 1 already headed by the digest header; just mark the section
             story.append(Paragraph(en(f"<b>{category}　{domain_zh}</b>　·　{domain_en}"),
                                    ParagraphStyle("gsecmark", fontName=FONT_CJK, fontSize=9,
                                                   leading=12, textColor=base,
@@ -210,51 +299,56 @@ def build_global_pdf(filename, data=None, date_str=None):
                 f"{category}　{domain_zh}", domain_en, date_str, base, s,
                 eyebrow_text=EYEBROW))
 
-        domain_label = domain_zh
-        # One batched Gemini call per page (not per topic) to respect free-tier limits
-        page_tp = (llm.summarize_topics_what_why_sowhat(
-            [(o, f, a) for (o, f, _w, a) in rows], domain_label=domain_label)
-            if use_llm else None)
-        for i, (org, focus, when, analysis) in enumerate(rows):
-            tp = page_tp[i] if page_tp else None
-            body = _three_part_paras(tp) if tp else [analysis]
-            story.append(_topic_card(org, focus, when, body, ramp, s,
-                                     url=_ORG_URLS.get(org)))
-            story.append(Spacer(1, 3))
+        # Pull live items from retrieval (primary content)
+        live_items = retrieval_data.get(domain_tag, [])
 
-        # Supplement: live items from the retrieval layer (persistent corpus).
-        # Page 1 already carries the AI digest card, so the supplement table
-        # would overflow it — show it on pages 2+ only.
-        live = (data or {}).get("retrieval", {}).get(domain_tag, [])
-        if live and not (idx == 0 and digest):
-            from urllib.parse import urlparse as _up
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(en("<b>🔍 即時檢索補充 (Live Retrieval · 近 7 日累積)</b>"), s["h1"]))
-            base = colors.HexColor(ramp[2])
-            live_st = ParagraphStyle("glive", fontName=FONT_CJK, fontSize=8.0,
-                                     leading=10.5, textColor=T.TEXT_BODY)
-            rows = [[Paragraph(en("<b>日期</b>", color="#FFFFFF"), s["th"]),
-                     Paragraph(en("<b>來源</b>", color="#FFFFFF"), s["th"]),
-                     Paragraph(en("<b>標題</b>", color="#FFFFFF"), s["th"])]]
-            for it in live:
-                day = (it.get("fetched_at") or "")[5:10] or "—"
-                src = _up(it.get("source", "")).netloc or "RSS"
-                title = it.get("title", "")
-                link = it.get("link", "")
-                txt = (f'<a href="{link}" color="#0E7C86"><u>{title}</u></a>'
-                       if link else title)
-                rows.append([Paragraph(en(day), live_st),
-                             Paragraph(en(src), live_st),
-                             Paragraph(en(txt), live_st)])
-            t_live = Table(rows, colWidths=[42, 150, T.PRINTABLE_WIDTH - 192])
-            t_live.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), base),
-                ('GRID', (0, 0), (-1, -1), 0.4, T.BORDER),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('BACKGROUND', (0, 1), (-1, -1), T.BG_CARD),
-                ('PADDING', (0, 0), (-1, -1), 3),
-            ]))
-            story.append(t_live)
+        # LLM three-part analysis for dynamic cards (one batched call per page)
+        dynamic_tp = None
+        if use_llm and live_items:
+            topics_for_llm = [
+                (_source_display(it.get("source", "")),
+                 _strip_html(it.get("title", ""))[:60],
+                 _strip_html(it.get("summary", ""))[:200])
+                for it in live_items[:5]
+            ]
+            dynamic_tp = llm.summarize_topics_what_why_sowhat(
+                topics_for_llm, domain_label=domain_zh)
+
+        # Build 5 cards: dynamic first, editorial fallback fills the gap
+        cards_shown = 0
+        for i, item in enumerate(live_items[:5]):
+            tp = dynamic_tp[i] if dynamic_tp and i < len(dynamic_tp) else None
+            story.append(_rss_card(item, ramp, s, three_part=tp))
+            story.append(Spacer(1, 3))
+            cards_shown += 1
+
+        # Fill remaining slots with editorial fallback (+ LLM if available)
+        if cards_shown < 5:
+            fallback = EDITORIAL_FALLBACK.get(domain_tag, [])
+            fallback_rows = fallback[:5 - cards_shown]
+            fallback_tp = None
+            if use_llm and fallback_rows:
+                fallback_tp = llm.summarize_topics_what_why_sowhat(
+                    [(o, f, a) for (o, f, _w, a) in fallback_rows],
+                    domain_label=domain_zh)
+            for j, (org, focus, when, analysis) in enumerate(fallback_rows):
+                tp = fallback_tp[j] if fallback_tp and j < len(fallback_tp) else None
+                body = _three_part_paras(tp) if tp else [analysis]
+                story.append(_topic_card(org, focus, when, body, ramp, s))
+                story.append(Spacer(1, 3))
+                cards_shown += 1
+
+        # Source indicator: dynamic vs editorial
+        if live_items:
+            n_live = min(len(live_items), 5)
+            source_note = f"📡 {n_live} 則即時 RSS" + (f" + {5 - n_live} 則編輯精選" if n_live < 5 else "")
+        else:
+            source_note = "📚 編輯精選（語料庫累積中）"
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(en(f"<i>{source_note}</i>"),
+                               ParagraphStyle("gsrcnote", fontName=FONT_CJK, fontSize=7.5,
+                                              leading=10, textColor=T.TEXT_MUTED,
+                                              alignment=2)))
 
     doc = new_doc(filename, title=title)
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER),
@@ -265,4 +359,4 @@ def build_global_pdf(filename, data=None, date_str=None):
 
 if __name__ == "__main__":
     out = os.path.join(_REPO_ROOT, "output", "Global_Intelligence_每日產業局勢報告.pdf")
-    build_global_pdf(out, date_str="2026-08-11")
+    build_global_pdf(out, date_str="2026-08-25")

@@ -68,8 +68,36 @@ def _bm25_scores(query_tokens, doc_token_lists, k1=1.5, b=0.75):
     return scores
 
 
-# Per-source authority multiplier (Phase 1: uniform). Overridable per call.
-DEFAULT_SOURCE_WEIGHTS = {}
+# Per-source authority multiplier — authoritative sources rank higher in
+# retrieval scoring. Domain-based (matches the `source` field, which is the
+# RSS feed URL). Overridable per call via `source_weights` parameter.
+_AUTHORITY = {
+    # Tier 1: International authoritative (news agencies, institutions)
+    "feeds.bbci.co.uk": 1.5,
+    "news.un.org": 1.5,
+    "www.economist.com": 1.4,
+    "www.reuters.com": 1.4,
+    "search.cnbc.com": 1.3,
+    "www.aljazeera.com": 1.2,
+    # Tier 2: Domain-specialist publications
+    "www.nasa.gov": 1.4,
+    "spacenews.com": 1.3,
+    "arstechnica.com": 1.2,
+    "aviationweek.com": 1.2,
+    "spectrum.ieee.org": 1.2,
+    "www.sciencedaily.com": 1.1,
+    "electrek.co": 1.0,
+    # Tier 3: Tech blogs / regional (good but less authoritative)
+    "techcrunch.com": 0.9,
+    "technews.tw": 0.9,
+    "www.ithome.com.tw": 0.9,
+    # Low authority: community aggregators
+    "www.reddit.com": 0.3,
+}
+DEFAULT_SOURCE_WEIGHTS = _AUTHORITY
+
+# Minimum content quality: skip clickbait / too-short summaries.
+_MIN_SUMMARY_LEN = 60  # characters; shorter than this = likely just a link
 
 
 def retrieve(store, query, k=4, days=7, domain=None, now=None,
@@ -88,6 +116,10 @@ def retrieve(store, query, k=4, days=7, domain=None, now=None,
         if domain and it.get("domain_tag") != domain:
             continue
         if _age_days(it, now) > days:
+            continue
+        # Quality filter: skip items with too-short summaries (link-only, clickbait)
+        summary_len = len((it.get("summary") or "").strip())
+        if summary_len < _MIN_SUMMARY_LEN and len((it.get("title") or "").strip()) < 20:
             continue
         cands.append(it)
     if not cands:
@@ -110,7 +142,13 @@ def retrieve(store, query, k=4, days=7, domain=None, now=None,
     n_sem = 0
     for it, raw in zip(cands, bm):
         recency = math.exp(-_age_days(it, now) / 7.0)
-        w = weights.get(it.get("source", ""), 1.0)
+        # Domain-based weight: match the source URL against _AUTHORITY domains
+        src = it.get("source", "")
+        w = 1.0
+        for dom, weight in weights.items():
+            if dom in src:
+                w = weight
+                break
         if qvec and it.get("emb"):
             n_sem += 1
             cos = _embed.cosine(qvec, it["emb"])

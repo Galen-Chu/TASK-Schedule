@@ -40,6 +40,15 @@ SAMPLE_FEEDS = [
     # 硬體 / 半導體 / 能源
     "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
     "https://electrek.co/feed/",
+    # 航空太空與量子科技
+    "https://www.nasa.gov/news-release/feed/",
+    "https://spacenews.com/feed/",
+    "https://arstechnica.com/space/feed/",
+    "https://aviationweek.com/rss-feeds?rss=air-transport",
+    "https://www.reuters.com/technology/space/rss",
+    # 量子科技
+    "https://thequantuminsider.com/feed/",
+    "https://physicsworld.com/feed/",
 ]
 
 # Persistent retrieval corpus — committed to the repo so it accumulates across
@@ -51,7 +60,7 @@ class GlobalReportScheduler(BaseReportScheduler):
     report_id = "global"
     report_title = "Global Intelligence 每日產業局勢報告"
     default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
-    page_count = 5
+    page_count = 6
 
     def sample_data(self):
         return {"editorial": True}
@@ -65,16 +74,31 @@ class GlobalReportScheduler(BaseReportScheduler):
             return None
 
     def fetch_data(self):
-        """Best-effort RSS pull. Ingests items into the persistent retrieval
-        corpus so it accumulates across runs. Returns the sample if nothing is
-        reachable."""
+        """Best-effort RSS pull (parallel). Ingests items into the persistent
+        retrieval corpus so it accumulates across runs. Returns the sample if
+        nothing is reachable."""
         items = []
         store = self._store()
-        for url in self.config.get("rss_feeds", SAMPLE_FEEDS):
-            feed_items = fetch_rss_items(url, limit=4)
+
+        # Purge items from removed/deprecated sources (immediate cleanup,
+        # instead of waiting for 30-day retention).
+        if store is not None:
+            store.purge_source("reddit.com")
+
+        # Parallel RSS fetching (16 feeds × ~2s sequential = ~32s → ~5s parallel)
+        import concurrent.futures as _cf
+        feed_urls = self.config.get("rss_feeds", SAMPLE_FEEDS)
+        with _cf.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(
+                lambda url: (url, fetch_rss_items(url, limit=4)),
+                feed_urls
+            ))
+
+        for url, feed_items in results:
             items.extend(feed_items)
             if store is not None and feed_items:
                 ingest_items(store, feed_items, source=url)
+
         if store is not None:
             store.compact(keep_days=30)
             # Phase 2: attach embeddings + semantic domain tags (no-op without
@@ -87,9 +111,8 @@ class GlobalReportScheduler(BaseReportScheduler):
 
     def synthesize(self, data):
         """Gemini digest of today's RSS (when keyed), then pull recent real
-        items per domain from the retrieval corpus to supplement the editorial
-        content. Retrieval works even if today's fetch failed, because the
-        corpus persists across runs."""
+        items per domain from the retrieval corpus — these become the **primary
+        dynamic topic cards** (5 per page). Editorial content is fallback."""
         items = (data or {}).get("rss_items") or []
         if items:
             from core import llm
@@ -102,7 +125,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if store is not None:
             data.setdefault("retrieval", {})
             for dom, kws in DOMAIN_KEYWORDS.items():
-                got = retrieve(store, query=" ".join(kws[:6]), domain=dom, k=2, days=7)
+                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=5, days=7)
                 if got:
                     data["retrieval"][dom] = got
         return data
