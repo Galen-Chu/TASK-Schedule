@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import fonts  # noqa: F401  (ensures import path works)
 
 EXPECTED_PAGES = {
-    "financial": 6,
-    "global": 5,
+    "financial": 7,
+    "global": 6,
     "spiritual": 5,
     "macro": 1,
 }

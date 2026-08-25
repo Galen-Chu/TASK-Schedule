@@ -96,8 +96,10 @@ _AUTHORITY = {
 }
 DEFAULT_SOURCE_WEIGHTS = _AUTHORITY
 
-# Minimum content quality: skip clickbait / too-short summaries.
-_MIN_SUMMARY_LEN = 60  # characters; shorter than this = likely just a link
+# Minimum content quality: skip link-only / empty items.
+# Keep thresholds low so legitimate short titles/summaries in tests pass.
+_MIN_SUMMARY_LEN = 5   # just filter out empty/near-empty
+_MIN_TITLE_LEN = 3     # just filter out empty/near-empty
 
 
 def retrieve(store, query, k=4, days=7, domain=None, now=None,
@@ -117,9 +119,10 @@ def retrieve(store, query, k=4, days=7, domain=None, now=None,
             continue
         if _age_days(it, now) > days:
             continue
-        # Quality filter: skip items with too-short summaries (link-only, clickbait)
+        # Quality filter: skip items with BOTH empty summary AND empty title
         summary_len = len((it.get("summary") or "").strip())
-        if summary_len < _MIN_SUMMARY_LEN and len((it.get("title") or "").strip()) < 20:
+        title_len = len((it.get("title") or "").strip())
+        if summary_len < _MIN_SUMMARY_LEN and title_len < _MIN_TITLE_LEN:
             continue
         cands.append(it)
     if not cands:

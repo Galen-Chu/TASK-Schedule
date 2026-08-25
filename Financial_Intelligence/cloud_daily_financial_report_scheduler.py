@@ -23,6 +23,19 @@ from core.data.fetchers import (
     fetch_twse_margin, fetch_market_snapshot, fetch_treasury_yields, fetch_fear_greed,
 )
 from core.dispatch.drive_uploader import upload_to_drive
+from core.retrieval import CorpusStore, ingest_items, retrieve
+
+# Financial news RSS feeds — ingested into the same retrieval corpus as Global,
+# but tagged with "financial" domain keywords via the classify_domain logic.
+FINANCIAL_FEEDS = [
+    "https://finance.yahoo.com/news/rss.xml",
+    "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html",  # CNBC Top News
+    "https://www.ft.com/rss/home",
+    "https://seekingalpha.com/market_currents.xml",
+]
+
+CORPUS_PATH = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl")
 
 # Imported lazily inside methods so the module imports cleanly even before
 # reportlab/fonts are available (e.g. during `--help`).
@@ -32,7 +45,7 @@ class FinancialReportScheduler(BaseReportScheduler):
     report_id = "financial"
     report_title = "Financial Intelligence 每日投資趨勢報告"
     default_cron = "30 6 * * *"          # 06:30 Asia/Taipei
-    page_count = 6
+    page_count = 7
 
     def sample_data(self):
         """Bundled offline dataset (used when the live source is unavailable)."""
@@ -84,14 +97,29 @@ class FinancialReportScheduler(BaseReportScheduler):
     def fetch_data(self):
         """Best-effort real data, layered onto the sample baseline.
 
-        All sources are keyless now: Yahoo Finance (VIX/DXY/Gold/BTC/WTI),
-        U.S. Treasury yield-curve CSV (2Y/10Y/spread), Fear & Greed index,
-        and TWSE margin maintenance ratio. Each layer only overwrites the
-        fields it actually resolved; if nothing resolves the method returns
-        None and the base class falls back to the full sample.
+        All sources are keyless: Yahoo Finance, Treasury, Fear & Greed, TWSE.
+        Also ingests financial news RSS into the retrieval corpus for the
+        Market Intelligence page (dynamic cards).
         """
         sources = []
         data = self.sample_data()
+
+        # 0) Financial news RSS → retrieval corpus (for Market Intelligence page)
+        try:
+            from core.data.fetchers import fetch_rss_items
+            store = CorpusStore(CORPUS_PATH)
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=4) as pool:
+                feeds = list(pool.map(
+                    lambda url: (url, fetch_rss_items(url, limit=4)),
+                    FINANCIAL_FEEDS
+                ))
+            for url, items in feeds:
+                if items:
+                    ingest_items(store, items, source=url)
+            store.compact(keep_days=30)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("financial RSS ingest failed: %s", exc)
 
         # 1) Yahoo Finance headline quotes (keyless)
         snap = fetch_market_snapshot()
@@ -165,6 +193,18 @@ class FinancialReportScheduler(BaseReportScheduler):
         if "signal_score" not in data:
             data["signal_score"] = calculate_signal_score(data)
         data["signal_rating"] = rating_from_score(data["signal_score"])
+
+        # Pull financial news for the Market Intelligence page (macro domain)
+        try:
+            store = CorpusStore(CORPUS_PATH)
+            items = retrieve(store, query="market stocks bonds federal reserve "
+                              "inflation earnings economy finance",
+                              domain="macro", k=5, days=3)
+            if items:
+                data["market_intel"] = items
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("market intel retrieval failed: %s", exc)
+
         return data
 
     def render_pdf(self, data):
