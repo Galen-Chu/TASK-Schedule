@@ -40,6 +40,15 @@ _DOMAIN_KEYWORDS = {
         "ev", "electric vehicle", "charging", "nuclear", "power", "renewable",
         "manufacturing", "supply chain", "factory", "chip plant",
     ],
+    "aerospace": [
+        "航太", "太空", "航空", "衛星", "火箭", "太空梭", "太空站", "發射",
+        "aerospace", "space", "satellite", "rocket", "launch", "nasa",
+        "spacex", "blue origin", "boeing", "airbus", "aviation", "aircraft",
+        "jet", "drone", "uav", "orbit", "mars", "moon", "lunar", "iss",
+        "spacecraft", "milstar", "starlink", "kuiper", "hypersonic",
+        "defense aerospace", "commercial space", "space tourism",
+        "space station", "space telescope", "james webb", "artemis",
+    ],
 }
 
 DOMAIN_KEYWORDS = _DOMAIN_KEYWORDS  # re-export for callers (e.g. queries)

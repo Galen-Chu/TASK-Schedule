@@ -40,6 +40,12 @@ SAMPLE_FEEDS = [
     # 硬體 / 半導體 / 能源
     "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
     "https://electrek.co/feed/",
+    # 航空太空產業
+    "https://www.nasa.gov/news-release/feed/",
+    "https://spacenews.com/feed/",
+    "https://arstechnica.com/space/feed/",
+    "https://aviationweek.com/rss-feeds?rss=air-transport",
+    "https://www.reuters.com/technology/space/rss",
 ]
 
 # Persistent retrieval corpus — committed to the repo so it accumulates across
@@ -51,7 +57,7 @@ class GlobalReportScheduler(BaseReportScheduler):
     report_id = "global"
     report_title = "Global Intelligence 每日產業局勢報告"
     default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
-    page_count = 5
+    page_count = 6
 
     def sample_data(self):
         return {"editorial": True}
@@ -87,9 +93,8 @@ class GlobalReportScheduler(BaseReportScheduler):
 
     def synthesize(self, data):
         """Gemini digest of today's RSS (when keyed), then pull recent real
-        items per domain from the retrieval corpus to supplement the editorial
-        content. Retrieval works even if today's fetch failed, because the
-        corpus persists across runs."""
+        items per domain from the retrieval corpus — these become the **primary
+        dynamic topic cards** (5 per page). Editorial content is fallback."""
         items = (data or {}).get("rss_items") or []
         if items:
             from core import llm
@@ -102,7 +107,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if store is not None:
             data.setdefault("retrieval", {})
             for dom, kws in DOMAIN_KEYWORDS.items():
-                got = retrieve(store, query=" ".join(kws[:6]), domain=dom, k=2, days=7)
+                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=5, days=7)
                 if got:
                     data["retrieval"][dom] = got
         return data

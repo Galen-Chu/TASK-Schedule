@@ -11,7 +11,7 @@
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
 | **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（6 頁，含總經儀表板） |
-| **Global Intelligence** | 每日全球情報：5 大領域智庫焦點速讀（地緣、總經、AI/半導體、生技、硬體/能源）＋統一檢索層即時補充 | `30 6 * * *`（06:30） | 智庫級主題卡版面（每頁 1 領域 4 則，5 頁） |
+| **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 6 * * *`（06:30） | 智庫級主題卡版面（每頁 1 領域 5 則動態卡，6 頁） |
 | **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數五術，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（5 頁，每頁一系統） |
 
 ---
@@ -165,7 +165,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | **Financial** | 美國財政部每日殖利率曲線 CSV（2Y / 10Y / 利差） | ✅ | 退回 sample |
 | **Financial** | Fear & Greed 指數（alternative.me） | ✅ | 退回 sample |
 | **Financial** | TWSE 全市場融資/融券餘額（MI_MARGN 加總） | ✅ | 退回 sample |
-| **Global** | 11 條跨領域 RSS（BBC/半島/聯合國/CNBC/經濟學人/TechCrunch/TechNews/iThome/ScienceDaily/IEEE Spectrum/Electrek）→ 檢索語料庫＋即時補充 | ✅（需 `feedparser`） | 退回編輯樣板 |
+| **Global** | 16 條跨領域 RSS（含 NASA/SpaceNews/Ars Technica Space/Aviation Week/Reuters 航太源）（BBC/半島/聯合國/CNBC/經濟學人/TechCrunch/TechNews/iThome/ScienceDaily/IEEE Spectrum/Electrek）→ 檢索語料庫＋即時補充 | ✅（需 `feedparser`） | 退回編輯樣板 |
 | **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 五術資料 |
 
 > 三份報告現在 **完全零 key**——沒有任何欄位需要 API key，CI 無 secret 即可跑真實資料。
@@ -185,7 +185,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 項目 | 狀態 |
 |---|---|
 | 統一檢索層 Phase 1（ingest / dedup / BM25 / 持久化 / 補充編輯） | ✅ 已開發（`core/retrieval/`） |
-| 統一檢索層 Phase 2 — 來源擴充（11 條跨領域 RSS）＋語意分類 | ✅ 已開發（2026-08-21） |
+| 統一檢索層 Phase 2 — 來源擴充（16 條跨領域 RSS（含 NASA/SpaceNews/Ars Technica Space/Aviation Week/Reuters 航太源））＋語意分類 | ✅ 已開發（2026-08-21） |
 | 統一檢索層 Phase 2 — embedding 混合檢索（cosine 55% + BM25 45%） | ✅ 已開發（2026-08-21，`core/retrieval/embed.py`；批次 256 維、計入每日額度守門、無 key 自動退回 BM25） |
 | 統一檢索層 Phase 2 — remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏸ 暫緩（同上） |
