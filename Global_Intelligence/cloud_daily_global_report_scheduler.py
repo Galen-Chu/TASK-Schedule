@@ -71,16 +71,31 @@ class GlobalReportScheduler(BaseReportScheduler):
             return None
 
     def fetch_data(self):
-        """Best-effort RSS pull. Ingests items into the persistent retrieval
-        corpus so it accumulates across runs. Returns the sample if nothing is
-        reachable."""
+        """Best-effort RSS pull (parallel). Ingests items into the persistent
+        retrieval corpus so it accumulates across runs. Returns the sample if
+        nothing is reachable."""
         items = []
         store = self._store()
-        for url in self.config.get("rss_feeds", SAMPLE_FEEDS):
-            feed_items = fetch_rss_items(url, limit=4)
+
+        # Purge items from removed/deprecated sources (immediate cleanup,
+        # instead of waiting for 30-day retention).
+        if store is not None:
+            store.purge_source("reddit.com")
+
+        # Parallel RSS fetching (16 feeds × ~2s sequential = ~32s → ~5s parallel)
+        import concurrent.futures as _cf
+        feed_urls = self.config.get("rss_feeds", SAMPLE_FEEDS)
+        with _cf.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(
+                lambda url: (url, fetch_rss_items(url, limit=4)),
+                feed_urls
+            ))
+
+        for url, feed_items in results:
             items.extend(feed_items)
             if store is not None and feed_items:
                 ingest_items(store, feed_items, source=url)
+
         if store is not None:
             store.compact(keep_days=30)
             # Phase 2: attach embeddings + semantic domain tags (no-op without

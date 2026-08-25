@@ -147,3 +147,25 @@ class CorpusStore:
             os.replace(tmp, self.path)
             log.info("corpus compacted: -%d (kept %d)", removed, len(kept))
         return removed
+
+    def purge_source(self, domain_fragment):
+        """Remove all items whose `source` contains the given domain fragment.
+        Use to immediately clean up items from removed/deprecated feeds,
+        instead of waiting for the 30-day retention to expire.
+
+        Returns the number of items removed.
+        """
+        kept, removed = [], 0
+        for it in self.all():
+            if domain_fragment.lower() in (it.get("source", "") or "").lower():
+                removed += 1
+            else:
+                kept.append(it)
+        if removed:
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                for it in kept:
+                    f.write(json.dumps(it, ensure_ascii=False) + "\n")
+            os.replace(tmp, self.path)
+            log.info("corpus purged source '%s': -%d (kept %d)", domain_fragment, removed, len(kept))
+        return removed
