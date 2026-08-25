@@ -285,11 +285,81 @@ def build_global_pdf(filename, data=None, date_str=None):
         ]))
         story += [t_ai, Spacer(1, 8)]
 
+    # ---- Trend comparison (G): domain heat + trending keywords ----
+    trends = (data or {}).get("trends") or {}
+    if trends.get("domains"):
+        trend_st = ParagraphStyle("gtrend", fontName=FONT_CJK, fontSize=7.8,
+                                  leading=10, textColor=T.TEXT_BODY)
+        trend_hdr = ParagraphStyle("gtrendh", fontName=FONT_CJK, fontSize=8.0,
+                                   leading=10, textColor=T.WHITE)
+
+        # Title for trend section (compact, not a full h1)
+        if not digest:
+            story.extend(make_title_row(
+                "每日產業局勢報告",
+                "六大領域即時情報速讀 ＋ 趨勢比較",
+                date_str, T.GOLD, s, eyebrow_text=EYEBROW))
+        story.append(Paragraph(en("<b>📈 趨勢速覽（本週 vs 上週）</b>"), s["h1"]))
+
+        dom_names = {d[0]: d[1] for d in DOMAINS}
+        dom_rows = [[
+            Paragraph(en("<b>領域</b>", color="#FFFFFF"), trend_hdr),
+            Paragraph(en("<b>本週</b>", color="#FFFFFF"), trend_hdr),
+            Paragraph(en("<b>上週</b>", color="#FFFFFF"), trend_hdr),
+            Paragraph(en("<b>變化</b>", color="#FFFFFF"), trend_hdr),
+        ]]
+        for dom_tag, info in trends["domains"].items():
+            zh = dom_names.get(dom_tag, dom_tag)
+            tw, lw = info["this_week"], info["last_week"]
+            pct = info.get("change_pct")
+            if pct is None or lw < 3:
+                # New domain or very low baseline → show as new/emerging
+                pct_str = "🆕 新增" if tw > 0 else "—"
+                color = T.TEXT_MUTED
+            else:
+                arrow = "↑" if pct > 0 else ("↓" if pct < 0 else "→")
+                capped = min(abs(pct), 500)  # cap at 500% to avoid absurd numbers
+                pct_str = f"{arrow} {capped:.0f}%" + ("+" if abs(pct) > 500 else "")
+                color = "#2E8B4F" if pct > 0 else ("#D64545" if pct < 0 else T.TEXT_MUTED)
+            dom_rows.append([
+                Paragraph(en(zh), trend_st),
+                Paragraph(en(f"<b>{tw}</b>"), trend_st),
+                Paragraph(en(str(lw)), trend_st),
+                Paragraph(en(f'<font color="{color}"><b>{pct_str}</b></font>'), trend_st),
+            ])
+        t_trend = Table(dom_rows, colWidths=[200, 80, 80, 187])
+        t_trend.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), T.NAVY),
+            ('GRID', (0, 0), (-1, -1), 0.4, T.BORDER),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 1), (-1, -1), T.BG_CARD),
+            ('PADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t_trend)
+
+        # Trending keywords line
+        kw_list = trends.get("keywords") or []
+        if kw_list:
+            kw_str = " · ".join(
+                f"{'🔥' if k['change'] >= 5 else '📈'} {k['keyword']} (+{k['change']})"
+                for k in kw_list[:6]
+            )
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(
+                en(f"<b>發燒關鍵字：</b>{kw_str}"),
+                ParagraphStyle("gkw", fontName=FONT_CJK, fontSize=7.5,
+                               leading=10, textColor=T.TEXT_MUTED)))
+
+        story.append(Spacer(1, 6))
+
+    # Track whether page 1 already has a title row (from digest or trends)
+    _page1_has_header = bool(digest) or bool(trends.get("domains"))
+
     for idx, (domain_tag, domain_zh, domain_en, category, ramp) in enumerate(DOMAINS):
         if idx > 0:
             story.append(PageBreak())
         base = colors.HexColor(ramp[2])
-        if idx == 0 and digest:
+        if idx == 0 and _page1_has_header:
             story.append(Paragraph(en(f"<b>{category}　{domain_zh}</b>　·　{domain_en}"),
                                    ParagraphStyle("gsecmark", fontName=FONT_CJK, fontSize=9,
                                                   leading=12, textColor=base,

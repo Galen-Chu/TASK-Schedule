@@ -167,3 +167,86 @@ def retrieve(store, query, k=4, days=7, domain=None, now=None,
         return [it for _, it in scored[:k]]
     matched = [it for s, it in scored if s > 0]
     return matched[:k]
+
+
+# ---- Trend analysis (weekly comparison) --------------------------------------
+
+def domain_trends(store, now=None):
+    """Per-domain article counts: this week vs last week.
+
+    Returns dict: {domain: {"this_week": int, "last_week": int,
+                             "change_pct": float or None}}
+    Sorted by absolute change (most active movement first).
+    """
+    now = now or datetime.now(_TZ)
+    this_week, last_week = {}, {}
+    for it in store.all():
+        dom = it.get("domain_tag", "") or "(未分類)"
+        age = _age_days(it, now)
+        if age <= 7:
+            this_week[dom] = this_week.get(dom, 0) + 1
+        elif age <= 14:
+            last_week[dom] = last_week.get(dom, 0) + 1
+
+    all_doms = set(this_week) | set(last_week)
+    out = {}
+    for dom in all_doms:
+        tw = this_week.get(dom, 0)
+        lw = last_week.get(dom, 0)
+        if lw > 0:
+            pct = round((tw - lw) / lw * 100, 1)
+        elif tw > 0:
+            pct = None  # new this week (no baseline)
+        else:
+            pct = None
+        out[dom] = {"this_week": tw, "last_week": lw, "change_pct": pct}
+    return dict(sorted(out.items(), key=lambda x: abs(x[1]["change_pct"] or 0), reverse=True))
+
+
+# English stop words to exclude from trending keywords
+_STOP_WORDS = frozenset({
+    "the", "and", "for", "from", "with", "that", "this", "have", "has",
+    "will", "was", "are", "were", "been", "being", "into", "over", "after",
+    "than", "then", "them", "they", "their", "there", "these", "those",
+    "what", "when", "where", "which", "while", "who", "whom", "why",
+    "how", "all", "any", "both", "each", "few", "more", "most", "other",
+    "some", "such", "not", "only", "own", "same", "too", "very", "just",
+    "also", "but", "can", "did", "does", "doing", "had", "having", "his",
+    "her", "hers", "him", "his", "its", "may", "might", "must", "shall",
+    "should", "would", "could", "about", "against", "between", "through",
+    "during", "before", "after", "above", "below", "off", "down", "out",
+    "up", "in", "on", "at", "by", "to", "of", "or", "as", "is", "it",
+    "an", "be", "do", "if", "no", "so", "we", "he", "she", "you", "i",
+    "a", "new", "says", "said", "amid", "after", "first", "two", "one",
+})
+
+def trending_keywords(store, now=None, top_k=8):
+    """Keywords that surge this week vs last week.
+
+    Extracts bigrams/unigrams from titles, counts frequency per week,
+    returns items with the biggest positive change (only if this week > 2 hits).
+    English stop words are excluded.
+    """
+    now = now or datetime.now(_TZ)
+    this_kw, last_kw = {}, {}
+    for it in store.all():
+        age = _age_days(it, now)
+        tokens = set(tokenize(it.get("title", "")))
+        target = this_kw if age <= 7 else (last_kw if age <= 14 else None)
+        if target is None:
+            continue
+        for t in tokens:
+            if len(t) >= 3 and t not in _STOP_WORDS:
+                target[t] = target.get(t, 0) + 1
+
+    trending = []
+    for kw, tw_count in this_kw.items():
+        if tw_count < 3:
+            continue
+        lw_count = last_kw.get(kw, 0)
+        change = tw_count - lw_count
+        if change > 0:
+            trending.append({"keyword": kw, "this_week": tw_count,
+                             "last_week": lw_count, "change": change})
+    trending.sort(key=lambda x: x["change"], reverse=True)
+    return trending[:top_k]
