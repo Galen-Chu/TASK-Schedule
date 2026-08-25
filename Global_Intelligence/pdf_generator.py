@@ -92,6 +92,47 @@ EDITORIAL_FALLBACK = {
 
 _TAG_RE = re.compile(r"<[^>]+>")
 
+# Domain → clean source name (for the card badge). Falls back to extracting
+# the second-level domain (e.g., feeds.bbci.co.uk → BBC, search.cnbc.com → CNBC).
+_SOURCE_NAMES = {
+    "feeds.bbci.co.uk": "BBC",
+    "search.cnbc.com": "CNBC",
+    "www.aljazeera.com": "ALJAZEERA",
+    "news.un.org": "UN NEWS",
+    "techcrunch.com": "TECHCRUNCH",
+    "technews.tw": "TECHNEWS",
+    "www.ithome.com.tw": "ITHOME",
+    "www.sciencedaily.com": "SCIENCEDAILY",
+    "www.economist.com": "ECONOMIST",
+    "spectrum.ieee.org": "IEEE SPECTRUM",
+    "electrek.co": "ELECTREK",
+    "www.nasa.gov": "NASA",
+    "spacenews.com": "SPACENEWS",
+    "arstechnica.com": "ARS TECHNICA",
+    "aviationweek.com": "AVIATION WEEK",
+    "www.reuters.com": "REUTERS",
+    "www.reddit.com": "REDDIT",
+}
+
+def _source_display(url_or_domain):
+    """Map a source URL/domain to a clean organization name."""
+    try:
+        netloc = _urlparse(url_or_domain).netloc if "://" in url_or_domain else url_or_domain
+    except Exception:
+        netloc = url_or_domain
+    netloc = (netloc or "").lower().strip()
+    if netloc in _SOURCE_NAMES:
+        return _SOURCE_NAMES[netloc]
+    # Fallback: extract the recognizable part (skip subdomains like www./feeds./search.)
+    parts = netloc.replace("www.", "").split(".")
+    # Take the first non-generic part (skip feeds, search, news, www)
+    generic = {"feeds", "search", "news", "www", "rss", "feed"}
+    for p in parts:
+        if p not in generic and len(p) > 2:
+            return p.upper()
+    return (parts[0] if parts else "RSS").upper()
+
+
 def _strip_html(text):
     """Remove HTML tags + unescape entities from RSS summaries (ReportLab-safe)."""
     if not text:
@@ -102,24 +143,46 @@ def _strip_html(text):
 
 
 def _format_rss_time(item):
-    """Format a retrieval item's timestamp for the card header."""
+    """Format the article's PUBLISHED date (not when we fetched it)."""
+    # Try published (from RSS feed, article's actual date)
+    pub = item.get("published", "")
+    if pub:
+        # RFC 2822 format: "Mon, 25 Aug 2026 08:00:00 GMT"
+        try:
+            from email.utils import parsedate_to_datetime as _pdt
+            dt = _pdt(pub)
+            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+        except Exception:
+            pass
+        # ISO format
+        try:
+            dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+        except Exception:
+            pass
+    # Fallback to fetched_at (when our pipeline ran)
     fa = item.get("fetched_at", "")
     try:
         dt = datetime.fromisoformat(fa)
-        return dt.strftime("%m-%d %H:%M")
+        return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
     except (ValueError, TypeError):
-        return item.get("published", "")[:16] or "—"
+        return (pub or "—")[:16]
 
 
-def _rss_card(item, ramp, styles):
-    """Render a retrieval item as a topic card (dynamic content)."""
-    org = _urlparse(item.get("source", "")).netloc or "RSS"
-    org_display = org.replace("www.", "").split(".")[0].upper()
+def _rss_card(item, ramp, styles, three_part=None):
+    """Render a retrieval item as a topic card (dynamic content).
+
+    ``three_part``: optional {what, why, so_what} dict from Gemini. When present,
+    renders the three-part analysis instead of the raw RSS summary.
+    """
+    org_display = _source_display(item.get("source", ""))
     focus = _strip_html(item.get("title", ""))[:80]
     when = _format_rss_time(item)
     summary = _strip_html(item.get("summary", ""))[:200] or focus
     link = item.get("link", "")
-    return _topic_card(org_display, focus, when, [summary], ramp, styles, url=link)
+
+    body = _three_part_paras(three_part) if three_part else [summary]
+    return _topic_card(org_display, focus, when, body, ramp, styles, url=link)
 
 
 def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None):
@@ -237,18 +300,39 @@ def build_global_pdf(filename, data=None, date_str=None):
         # Pull live items from retrieval (primary content)
         live_items = retrieval_data.get(domain_tag, [])
 
+        # LLM three-part analysis for dynamic cards (one batched call per page)
+        dynamic_tp = None
+        if use_llm and live_items:
+            topics_for_llm = [
+                (_source_display(it.get("source", "")),
+                 _strip_html(it.get("title", ""))[:60],
+                 _strip_html(it.get("summary", ""))[:200])
+                for it in live_items[:5]
+            ]
+            dynamic_tp = llm.summarize_topics_what_why_sowhat(
+                topics_for_llm, domain_label=domain_zh)
+
         # Build 5 cards: dynamic first, editorial fallback fills the gap
         cards_shown = 0
-        for item in live_items[:5]:
-            story.append(_rss_card(item, ramp, s))
+        for i, item in enumerate(live_items[:5]):
+            tp = dynamic_tp[i] if dynamic_tp and i < len(dynamic_tp) else None
+            story.append(_rss_card(item, ramp, s, three_part=tp))
             story.append(Spacer(1, 3))
             cards_shown += 1
 
-        # Fill remaining slots with editorial fallback
+        # Fill remaining slots with editorial fallback (+ LLM if available)
         if cards_shown < 5:
             fallback = EDITORIAL_FALLBACK.get(domain_tag, [])
-            for org, focus, when, analysis in fallback[:5 - cards_shown]:
-                story.append(_topic_card(org, focus, when, [analysis], ramp, s))
+            fallback_rows = fallback[:5 - cards_shown]
+            fallback_tp = None
+            if use_llm and fallback_rows:
+                fallback_tp = llm.summarize_topics_what_why_sowhat(
+                    [(o, f, a) for (o, f, _w, a) in fallback_rows],
+                    domain_label=domain_zh)
+            for j, (org, focus, when, analysis) in enumerate(fallback_rows):
+                tp = fallback_tp[j] if fallback_tp and j < len(fallback_tp) else None
+                body = _three_part_paras(tp) if tp else [analysis]
+                story.append(_topic_card(org, focus, when, body, ramp, s))
                 story.append(Spacer(1, 3))
                 cards_shown += 1
 
