@@ -42,12 +42,21 @@ _DOMAIN_KEYWORDS = {
     ],
     "aerospace": [
         "航太", "太空", "航空", "衛星", "火箭", "太空梭", "太空站", "發射",
+        "量子", "量子計算", "量子電腦", "量子科技", "量子加密", "量子通訊",
         "aerospace", "space", "satellite", "rocket", "launch", "nasa",
         "spacex", "blue origin", "boeing", "airbus", "aviation", "aircraft",
         "jet", "drone", "uav", "orbit", "mars", "moon", "lunar", "iss",
         "spacecraft", "milstar", "starlink", "kuiper", "hypersonic",
         "defense aerospace", "commercial space", "space tourism",
         "space station", "space telescope", "james webb", "artemis",
+        "quantum", "quantum computing", "qubit", "quantum computer",
+        "superposition", "entanglement", "quantum encryption",
+        "quantum key distribution", "qkd", "post-quantum",
+        "quantum sensing", "quantum metrology", "quantum algorithm",
+        "quantum error correction", "photonic quantum", "topological quantum",
+        "ibm quantum", "google quantum", "ionq", "rigetti", "d-wave",
+        "quantum supremacy", "quantum advantage", "quantum internet",
+        "neutral atom", "trapped ion", "superconducting qubit",
     ],
 }
 

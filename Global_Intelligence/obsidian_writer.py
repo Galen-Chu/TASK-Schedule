@@ -32,7 +32,7 @@ def _domain_name(tag):
         "it_ai": "資訊科技與人工智慧",
         "biotech": "生物科技與健康醫療",
         "hardware": "硬體工程、自動化與能源轉型",
-        "aerospace": "航空太空產業趨勢",
+        "aerospace": "航空太空與量子科技",
     }.get(tag, tag)
 
 
@@ -97,7 +97,7 @@ tags:
 # Global Intelligence 每日產業局勢報告 ({date_str})
 
 > [!abstract] 每日 6 大領域即時情報速讀（5 卡/領域，動態檢索）
-> 來源：BBC / AlJazeera / UN / CNBC / Economist / TechCrunch / TechNews / iThome / ScienceDaily / IEEE / Electrek / NASA / SpaceNews / Ars Technica / Aviation Week / Reuters
+> 來源：BBC / AlJazeera / UN / CNBC / Economist / TechCrunch / TechNews / iThome / ScienceDaily / IEEE / Electrek / NASA / SpaceNews / Ars Technica / Aviation Week / Reuters / Quantum Insider / Physics World
 {live}
 {domains_md}
 

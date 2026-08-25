@@ -40,12 +40,15 @@ SAMPLE_FEEDS = [
     # 硬體 / 半導體 / 能源
     "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
     "https://electrek.co/feed/",
-    # 航空太空產業
+    # 航空太空與量子科技
     "https://www.nasa.gov/news-release/feed/",
     "https://spacenews.com/feed/",
     "https://arstechnica.com/space/feed/",
     "https://aviationweek.com/rss-feeds?rss=air-transport",
     "https://www.reuters.com/technology/space/rss",
+    # 量子科技
+    "https://thequantuminsider.com/feed/",
+    "https://physicsworld.com/feed/",
 ]
 
 # Persistent retrieval corpus — committed to the repo so it accumulates across

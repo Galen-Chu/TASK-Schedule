@@ -45,7 +45,7 @@ DOMAINS = [
     ("it_ai", "資訊科技與人工智慧", "IT, AI & Semiconductors", "Category 03", T.RAMP_TEAL),
     ("biotech", "生物科技與健康醫療", "Biotech & Healthcare", "Category 04", T.RAMP_SAGE),
     ("hardware", "硬體工程、自動化與能源轉型", "Hardware, Automation & Energy", "Category 05", T.RAMP_CORAL),
-    ("aerospace", "航空太空產業趨勢", "Aerospace & Space Industry", "Category 06", T.RAMP_INDIGO),
+    ("aerospace", "航空太空與量子科技", "Aerospace & Quantum Technology", "Category 06", T.RAMP_INDIGO),
 ]
 
 # Editorial fallback content (org, focus, time, analysis) — used when the
@@ -84,7 +84,9 @@ EDITORIAL_FALLBACK = {
     "aerospace": [
         ["NASA", "Artemis II 月球任務進展", "2026-08-20 10:00 EST", "NASA 載人繞月任務持續推進，SLS 火箭與 Orion 太空船整合測試。"],
         ["SpaceNews", "Starship 第五次試飛與商業發射", "2026-08-22 08:00 EST", "SpaceX Starship 筷子夾火箭回收成功，商業發射成本大幅下降。"],
-        ["Ars Technica Space", "James Webb 太空望遠鏡新發現", "2026-08-18 14:00 EST", "JWST 觀測到早期星系形成新證據，改寫宇宙學模型。"],
+        ["IBM Quantum", "量子錯誤修正里程碑", "2026-08-21 14:00 EST", "IBM 發表 1,000+ qubit 量子處理器，錯誤修正碼實用化進程加速。"],
+        ["The Quantum Insider", "後量子密碼學標準化", "2026-08-19 11:00 EST", "NIST 後量子密碼學標準正式定案，金融與國防體系啟動遷移時程。"],
+        ["Ars Technica", "量子網際網路原型", "2026-08-18 14:00 EST", "量子糾纏分發距離突破 1,000 公里，量子通訊基礎設施邁向實用。"],
         ["Aviation Week", "電動航空與 eVTOL 變局", "2026-08-21 09:00 EST", "電動垂直起降飛機認證進度加速，2030 年城市空中交通市場可期。"],
     ],
 }
