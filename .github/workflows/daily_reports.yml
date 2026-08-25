@@ -121,7 +121,8 @@ jobs:
           echo "::group::Output tree"
           find output -type f | sort
           echo "::endgroup::"
-          # Verify each PDF exists and report page counts (daily=6, macro=1)
+          # Verify each PDF exists and report page counts
+          # financial=7 (6 quant + 1 Market Intelligence), global=6 (5 + aerospace/quantum), spiritual=5, macro=1
           python - <<'PY'
           import glob, re, os, sys
           pdfs = sorted(glob.glob("output/*.pdf"))
@@ -131,7 +132,8 @@ jobs:
               pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
               is_macro = "Macro_Digest" in p
               is_fin = ("Financial" in p) and not is_macro
-              expect = 1 if is_macro else (6 if is_fin else 5)
+              is_global = "Global" in p
+              expect = 1 if is_macro else (7 if is_fin else (6 if is_global else 5))
               print(f"{pages} pages  {os.path.getsize(p):>8} bytes  {os.path.basename(p)}")
               assert pages == expect, f"{p} expected {expect} pages, got {pages}"
           print(f"\nOK: {len(pdfs)} PDF(s), page counts verified.")
