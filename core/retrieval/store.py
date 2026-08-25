@@ -169,3 +169,67 @@ class CorpusStore:
             os.replace(tmp, self.path)
             log.info("corpus purged source '%s': -%d (kept %d)", domain_fragment, removed, len(kept))
         return removed
+
+    def dedup_cross_source(self):
+        """Remove near-duplicate items reported by multiple sources.
+
+        Groups items by title similarity (token overlap > 0.8, or embedding
+        cosine > 0.85 when vectors are present). Within each group, keeps the
+        item from the highest-authority source and removes the rest.
+
+        Returns the number of items removed.
+        """
+        from core.retrieval.retrieve import tokenize, _AUTHORITY
+
+        def _source_weight(it):
+            src = it.get("source", "")
+            for dom, w in _AUTHORITY.items():
+                if dom in src:
+                    return w
+            return 1.0
+
+        def _are_dup(a, b):
+            # Embedding-based (high precision, when available)
+            if a.get("emb") and b.get("emb"):
+                from core.retrieval.embed import cosine as _cos
+                try:
+                    if _cos(a["emb"], b["emb"]) > 0.85:
+                        return True
+                except Exception:
+                    pass
+            # Token-overlap fallback (title-based)
+            at = set(tokenize(a.get("title", "")))
+            bt = set(tokenize(b.get("title", "")))
+            if not at or not bt:
+                return False
+            denom = min(len(at), len(bt))
+            if denom and len(at & bt) / denom >= 0.75:
+                return True
+            return False
+
+        items = self.all()
+        kept, removed = [], 0
+        for it in items:
+            is_dup = False
+            for existing in kept:
+                # Only compare within the same domain_tag and recent window
+                if it.get("domain_tag") != existing.get("domain_tag"):
+                    continue
+                if _are_dup(it, existing):
+                    # Keep the higher-authority source
+                    if _source_weight(it) > _source_weight(existing):
+                        kept[kept.index(existing)] = it  # replace with higher authority
+                    is_dup = True
+                    removed += 1
+                    break
+            if not is_dup:
+                kept.append(it)
+
+        if removed:
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                for it in kept:
+                    f.write(json.dumps(it, ensure_ascii=False) + "\n")
+            os.replace(tmp, self.path)
+            log.info("cross-source dedup: -%d (kept %d)", removed, len(kept))
+        return removed

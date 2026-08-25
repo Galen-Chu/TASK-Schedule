@@ -101,6 +101,7 @@ class GlobalReportScheduler(BaseReportScheduler):
 
         if store is not None:
             store.compact(keep_days=30)
+            store.dedup_cross_source()
             # Phase 2: attach embeddings + semantic domain tags (no-op without
             # GEMINI_API_KEY; never raises into the pipeline).
             from core.retrieval.embed import backfill as embed_backfill
