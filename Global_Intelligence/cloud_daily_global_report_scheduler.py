@@ -17,6 +17,7 @@ from core.scheduler_base import BaseReportScheduler
 from core.data.fetchers import fetch_rss_items
 from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve
+from core.retrieval.retrieve import domain_trends, trending_keywords
 from core.retrieval.ingest import DOMAIN_KEYWORDS
 
 # Default public, keyless RSS feeds — breadth across the five domains
@@ -129,6 +130,11 @@ class GlobalReportScheduler(BaseReportScheduler):
                 got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=5, days=7)
                 if got:
                     data["retrieval"][dom] = got
+            # Trend comparison (G): week-over-week domain heat + trending keywords
+            data["trends"] = {
+                "domains": domain_trends(store),
+                "keywords": trending_keywords(store),
+            }
         return data
 
     def render_pdf(self, data):
