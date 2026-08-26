@@ -179,6 +179,14 @@ class FinancialReportScheduler(BaseReportScheduler):
                        lambda: fetch_bls_history(_BLS_SERIES["unemployment"], 1))
         if unemp:
             macro["unemployment"] = unemp[0]
+        nfp = cached("nfp", 7,
+                     lambda: fetch_bls_history(_BLS_SERIES["nfp"], 1))
+        if nfp:
+            macro["nfp"] = nfp[0]
+        nfp_hist = cached("nfp_hist", 7,
+                          lambda: fetch_bls_history(_BLS_SERIES["nfp"], 25))
+        if nfp_hist:
+            macro["nfp_hist"] = nfp_hist
         if macro:
             data["macro"] = macro
             sources.append("Macro")
