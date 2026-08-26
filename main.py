@@ -9,6 +9,7 @@ Run one or all daily reports:
     python main.py all --date 2026-08-11 --output-dir ./out
     python main.py --list                # show reports + schedules
     python main.py --fonts               # show resolved fonts
+    python main.py --stats               # show retrieval corpus health
 
 Optional overrides come from ``config/spark.yaml`` (see
 ``config/spark.yaml.example``). No config file is required — every report has
@@ -74,6 +75,99 @@ def cmd_fonts():
     print(json.dumps(fonts_status(), ensure_ascii=False, indent=2))
 
 
+def cmd_stats():
+    """Display retrieval corpus health: per-feed activity + domain distribution."""
+    import json
+    from urllib.parse import urlparse as _up
+    from collections import Counter
+    from datetime import datetime, timedelta, timezone
+
+    _TZ = timezone(timedelta(hours=8))
+    _now = datetime.now(_TZ)
+    _path = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl")
+    items, bad_lines = [], 0
+    if os.path.isfile(_path):
+        with open(_path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    items.append(json.loads(line))
+                except json.JSONDecodeError:
+                    bad_lines += 1
+
+    if not items:
+        print("Corpus is empty (run `python main.py all` to ingest items)")
+        return
+
+    skipped = f" (+{bad_lines} unparseable lines)" if bad_lines else ""
+    print(f"Corpus: {len(items)} items{skipped}")
+    print()
+
+    # Domain distribution
+    dom = Counter(it.get("domain_tag", "") or "(unclassified)" for it in items)
+    print("Domain distribution:")
+    for d, n in dom.most_common():
+        pct = n / len(items) * 100
+        print(f"  {d:20s} {n:5d} ({pct:.0f}%)")
+
+    unclass = dom.get("(unclassified)", 0)
+    if unclass:
+        print()
+        print(f"Recent unclassified titles ({unclass} total — keyword candidates for ingest.py):")
+        recent = sorted(items, key=lambda it: it.get("fetched_at", ""), reverse=True)
+        for it in [it for it in recent if not (it.get("domain_tag") or "")][:5]:
+            src = _up(it.get("source", "")).netloc.replace("www.", "")
+            print(f"  · {it.get('title', '')[:70]}  [{src}]")
+
+    print()
+
+    # Per-feed stats
+    feed_items = {}
+    for it in items:
+        src = _up(it.get("source", "")).netloc.replace("www.", "")
+        if src not in feed_items:
+            feed_items[src] = {"count": 0, "last": None}
+        feed_items[src]["count"] += 1
+        fa = it.get("fetched_at", "")
+        if fa and (feed_items[src]["last"] is None or fa > feed_items[src]["last"]):
+            feed_items[src]["last"] = fa
+
+    print("Feed health (by domain):")
+    for src, info in sorted(feed_items.items(), key=lambda x: -x[1]["count"]):
+        days = "?"
+        if info["last"]:
+            try:
+                dt = datetime.fromisoformat(info["last"])
+                days = f"{(_now - dt).days}d ago"
+            except ValueError:
+                days = "?"
+        status = "✅" if info["count"] >= 5 else ("⚠️" if info["count"] >= 2 else "❌")
+        print(f"  {status} {src:40s} {info['count']:5d} items, last {days}")
+
+    print()
+    print("Tips:")
+    print("  ❌ = feed has <2 items (may be dead)")
+    print("  ⚠️ = feed has 2-4 items (sporadic)")
+    print("  ✅ = healthy (5+ items)")
+    print("  Run `python main.py all` to ingest fresh items.")
+
+
+def cmd_reclassify():
+    """Re-tag stored corpus items with the current keyword set."""
+    from core.retrieval.store import CorpusStore
+    from core.retrieval.ingest import DOMAIN_KEYWORDS
+
+    store = CorpusStore(os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl"))
+    before = sum(1 for it in store.all() if it.get("domain_tag"))
+    changed = store.reclassify()
+    after = sum(1 for it in store.all() if it.get("domain_tag"))
+    total = len(store.all())
+    print(f"Re-tagged {changed} items; classified {before} → {after} of {total} "
+          f"({(total - after) / total * 100:.0f}% unclassified)")
+    print("Keywords live in core/retrieval/ingest.py —"
+          f" {sum(len(k) for k in DOMAIN_KEYWORDS.values())} terms across "
+          f"{len(DOMAIN_KEYWORDS)} domains.")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Spark Schedule — 每日排程報告統一入口")
     parser.add_argument("reports", nargs="*", default=["all"],
@@ -82,12 +176,19 @@ def main(argv=None):
     parser.add_argument("--output-dir", help="輸出目錄（預設 ./output）")
     parser.add_argument("--list", action="store_true", help="列出報告與排程時間後退出")
     parser.add_argument("--fonts", action="store_true", help="顯示字型解析狀態後退出")
+    parser.add_argument("--stats", action="store_true", help="顯示檢索語料庫健康度統計")
+    parser.add_argument("--reclassify", action="store_true",
+                        help="以目前關鍵字重新分類語料庫既有項目後退出")
     args = parser.parse_args(argv)
 
     if args.list:
         cmd_list(); return 0
     if args.fonts:
         cmd_fonts(); return 0
+    if args.stats:
+        cmd_stats(); return 0
+    if args.reclassify:
+        cmd_reclassify(); return 0
 
     # "all" = the three daily reports only. "macro" is a separate monthly
     # cadence — run it explicitly or via the monthly workflow job.

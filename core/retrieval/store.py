@@ -170,6 +170,31 @@ class CorpusStore:
             log.info("corpus purged source '%s': -%d (kept %d)", domain_fragment, removed, len(kept))
         return removed
 
+    def reclassify(self):
+        """Re-run keyword domain classification over stored items.
+
+        Applies the *current* keyword set to items tagged with an older,
+        narrower set (or not tagged at all). An existing tag is only replaced
+        when the new classification yields a non-empty hit — tags that came
+        from a feed-level domain_hint are never blanked.
+
+        Returns the number of items whose tag changed.
+        """
+        from core.retrieval.ingest import classify_domain
+
+        changed = 0
+        items = self.all()
+        for it in items:
+            new_tag = classify_domain(it.get("title", ""), it.get("summary", ""))
+            if new_tag and new_tag != it.get("domain_tag", ""):
+                it["domain_tag"] = new_tag
+                changed += 1
+        if changed:
+            self.save_all(items)
+            log.info("corpus reclassified: %d items re-tagged (total %d)",
+                     changed, len(items))
+        return changed
+
     def dedup_cross_source(self):
         """Remove near-duplicate items reported by multiple sources.
 

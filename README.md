@@ -10,9 +10,9 @@
 
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
-| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（6 頁，含總經儀表板） |
-| **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太與量子科技）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 6 * * *`（06:30） | 智庫級主題卡版面（每頁 1 領域 5 則動態卡，6 頁） |
-| **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數五術，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（5 頁，每頁一系統） |
+| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含 NFP/CPI 總經頁、進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（7 頁：P1 Market Intelligence 動態卡＋6 量化頁） |
+| **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太與量子科技）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 6 * * *`（06:30） | 智庫級主題卡版面（7 頁：P1 趨勢速覽＋6 領域頁） |
+| **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數，加易經六爻與塔羅，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（7 頁：五術＋易經＋塔羅） |
 
 ---
 
@@ -77,6 +77,8 @@ python main.py                      # 三份全部（今天）
 python main.py financial            # 只跑 Financial
 python main.py all --date 2026-08-11 --output-dir ./out
 python main.py --list               # 看排程時間
+python main.py --stats              # 檢索語料庫健康度（各 feed 活躍度 / 領域分布 / 未分類樣本）
+python main.py --reclassify         # 以目前關鍵字重新分類語料庫既有項目
 ```
 PDF 與 Obsidian 筆記會輸出到 `output/`。
 
@@ -119,6 +121,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | Secret 名稱 | 用途 | 何時需要 |
 |---|---|---|
 | `GEMINI_API_KEY` | 啟用 LLM 摘要與導引 | 想啟用 Global/Spiritual 的 AI 內容時 |
+| `BLS_API_KEY` | BLS API 額度 25 → 500 請求/日（[免費註冊](https://data.bls.gov/registration_engine.htm)） | 選用；未設照常以免 key 模式抓 NFP/CPI |
 | `GCP_SA_KEY` | GCP service-account JSON **整份內容** | 啟用 Drive 上傳時 |
 | `DRIVE_FOLDER_ID` | Drive 目標資料夾 ID | 啟用 Drive 上傳時 |
 
@@ -175,8 +178,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 - **Google Drive 上傳 / Gmail**：`core/dispatch/` 已實作，待補 GCP service account 憑證（見下方「Google Drive 上傳」）。
 
 ### 尚未開發（路線圖）
-- **向量 RAG（檢索層 Phase 2）**：embedding 語意檢索 + 擴充智庫來源 + store 換 remote backend（見下方「統一檢索層」）。
-- **非農就業（NFP）**：尚未接入（CPI / Core CPI / 失業率 / 殖利率曲線已上線，見第 3 頁 live 表與第 6 頁 Macro Dashboard）。
+- **remote vector store（GCP）**：目前語料以 JSONL commit 回 repo 跨 CI run 持久，remote backend 介面已預留。
 
 ---
 
@@ -187,8 +189,12 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 統一檢索層 Phase 1（ingest / dedup / BM25 / 持久化 / 補充編輯） | ✅ 已開發（`core/retrieval/`） |
 | 統一檢索層 Phase 2 — 來源擴充（18 條跨領域 RSS（含 NASA/SpaceNews/Quantum Insider/Physics World）（含 NASA/SpaceNews/Ars Technica Space/Aviation Week/Reuters 航太源））＋語意分類 | ✅ 已開發（2026-08-21） |
 | 統一檢索層 Phase 2 — embedding 混合檢索（cosine 55% + BM25 45%） | ✅ 已開發（2026-08-21，`core/retrieval/embed.py`；批次 256 維、計入每日額度守門、無 key 自動退回 BM25） |
-| 統一檢索層 Phase 2 — remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
-| 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ⏸ 暫緩（同上） |
+| 統一檢索層 Phase 3（Financial / Spiritual 也消費同一層） | ✅ 已開發（2026-08-26，Spiritual RSS＋Financial Market Intelligence 動態卡共用語料庫） |
+| NFP 非農就業接入（BLS） | ✅ 已開發（2026-08-26，P2 總經頁圖表；支援 `BLS_API_KEY` 提升額度） |
+| 域分類關鍵字擴充＋語料重分類（未分類 28%→12%） | ✅ 已開發（2026-08-26，`python main.py --reclassify`） |
+| 語料庫健康監控 | ✅ 已開發（2026-08-26，`python main.py --stats`：feed 活躍度／領域分布／未分類樣本） |
+| PDF metadata（author/subject/keywords） | ✅ 已開發（2026-08-26，`core/pdf_engine.new_doc`） |
+| remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 
 ---
