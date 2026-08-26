@@ -483,6 +483,21 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                       Paragraph(en("充分就業 4%–4.5%"), s["body"]),
                       Paragraph(en(f"{un.get('period_name', '')}"), s["body"]),
                       Paragraph(en(un_j), s["body"])])
+    nfp_data = md.get("nfp") or {}
+    nfp_v = nfp_data.get("value")
+    if nfp_v:
+        try:
+            nfp_f = float(nfp_v)
+            nfp_j = ("🟢 就業強勁" if nfp_f > 200 else
+                     "🟡 溫和（100–200K）" if nfp_f > 100 else
+                     "🔴 走弱（<100K）")
+            macro.append([Paragraph(en("非農就業新增"), s["body"]),
+                          Paragraph(en(f"{nfp_f:+.0f}K", bold=True), s["body"]),
+                          Paragraph(en("健康水準 150–250K"), s["body"]),
+                          Paragraph(en(f"{nfp_data.get('period_name', '')}"), s["body"]),
+                          Paragraph(en(nfp_j), s["body"])])
+        except ValueError:
+            pass
     macro.append([Paragraph(en("美債 10Y 殖利率"), s["body"]),
                   Paragraph(en(f"{t10}%", bold=True), s["body"]),
                   Paragraph(en("2Y 殖利率 " + f"{t2}%"), s["body"]),
@@ -566,7 +581,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(PageBreak())
     story.extend(make_title_row(
         "總體經濟儀表板（Macro Dashboard）",
-        "殖利率曲線 × 10Y 走勢 × 通膨趨勢 — 資料：美國財政部 / BLS（TTL 快取：月頻 7 天、殖利率 1 天）",
+        "殖利率曲線 × 10Y 走勢 × 通膨趨勢 × 非農就業 — 資料：美國財政部 / BLS（TTL 快取：月頻 7 天、殖利率 1 天）",
         date_str, T.SAGE, s, eyebrow_text="Financial Intelligence"))
     md = data.get("macro") or {}
     ycd = md.get("yield_curve") or {}
@@ -599,6 +614,21 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（青線 = CPI，琥珀線 = Core CPI）</b>"), s["h1"]))
         story.append(_line_chart(labels, series, height=138))
         story.append(Spacer(1, 6))
+
+    # NFP trend chart (BLS CES0000000001, monthly, thousands)
+    nfp_h = md.get("nfp_hist") or []
+    if len(nfp_h) >= 12:
+        have_any = True
+        try:
+            nfp_vals = [float(p.get("value", 0)) for p in nfp_h]
+            nfp_labels = [f"{p.get('period_name', '')[:3]}" for p in nfp_h]
+            step = max(1, len(nfp_h) // 8)
+            nfp_labels = [l if i % step == 0 else "" for i, l in enumerate(nfp_labels)]
+            story.append(Paragraph(en("<b>非農就業新增走勢（千/月）— 就業動能指標</b>"), s["h1"]))
+            story.append(_line_chart(nfp_labels, [nfp_vals], height=138))
+            story.append(Spacer(1, 6))
+        except ValueError:
+            pass
     if curve and len(ten10y) >= 20:
         def _cv(t):
             return curve.get(t)
