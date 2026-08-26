@@ -158,12 +158,116 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     s = standard_styles()
     story = []
 
-    # ======================= PAGE 1 — Dashboard ============================
     story.extend(make_title_row(
         "每日投資趨勢報告",
-        "台股融資餘額・美股 VIX・美債殖利率・外匯・商品與加密 —— 量化訊號與資產配置矩陣",
+        "市場情報速讀 ＋ 台股融資餘額・美股 VIX・美債殖利率・外匯・商品與加密",
         date_str, T.GOLD, s, eyebrow_text="Financial Intelligence",
     ))
+
+    # ======================= P1a — Market Intelligence (news cards) =======
+    market_intel = data.get("market_intel") or []
+    if market_intel:
+        import re as _re
+        from html import unescape as _html_unescape
+        from urllib.parse import urlparse as _urlparse
+        from core.fonts import FONT_CJK as _FONT_CJK
+        from reportlab.lib.styles import ParagraphStyle as _PS
+
+        _tag_re = _re.compile(r"<[^>]+>")
+        _fin_src = {
+            "finance.yahoo.com": "YAHOO FINANCE",
+            "feeds.content.dowjones.io": "MARKETWATCH",
+            "www.cnbc.com": "CNBC",
+            "search.cnbc.com": "CNBC",
+            "www.ft.com": "FINANCIAL TIMES",
+            "seekingalpha.com": "SEEKING ALPHA",
+            "feeds.bbci.co.uk": "BBC",
+            "www.reuters.com": "REUTERS",
+        }
+
+        def _fsrc(url):
+            try:
+                nl = _urlparse(url).netloc.lower()
+            except Exception:
+                return "RSS"
+            return _fin_src.get(nl, nl.split(".")[0].upper() if nl else "RSS")
+
+        def _fclean(text):
+            if not text:
+                return ""
+            return _re.sub(r"\s+", " ", _tag_re.sub(" ", text)).strip()
+
+        def _ftime(item):
+            pub = item.get("published", "")
+            if pub:
+                try:
+                    from email.utils import parsedate_to_datetime as _pdt
+                    import datetime as _dt
+                    dt = _pdt(pub)
+                    _tz = _dt.timezone(_dt.timedelta(hours=8))
+                    return dt.astimezone(_tz).strftime("%m-%d %H:%M")
+                except Exception:
+                    pass
+            return (item.get("fetched_at", "") or "")[:10] or "—"
+
+        story.append(Paragraph(en("<b>📰 市場情報速讀（Market Intelligence）</b>"), s["h1"]))
+        card_body = _PS("fmi_body", fontName=_FONT_CJK, fontSize=8.0,
+                         leading=10.0, textColor=T.TEXT_BODY)
+        card_meta = _PS("fmi_meta", fontName=_FONT_CJK, fontSize=7.8,
+                          leading=10, textColor=T.TEXT_MUTED, alignment=2)
+        card_title = _PS("fmi_title", fontName=_FONT_CJK, fontSize=9.2,
+                           leading=12.0, textColor=T.CORAL, spaceBefore=1, spaceAfter=1)
+
+        for item in market_intel[:5]:
+            org = _fsrc(item.get("source", ""))
+            focus = _fclean(item.get("title", ""))[:80]
+            when = _ftime(item)
+            summary = _fclean(item.get("summary", ""))[:200] or focus
+            link = item.get("link", "")
+            inner = T.PRINTABLE_WIDTH - 16
+            safe_link = (link or "").replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+            badge_html = (f'<a href="{safe_link}" color="#FFFFFF"><u><b>{org}</b></u></a>'
+                          if link else f"<b>{org}</b>")
+            badge = Table(
+                [[Paragraph(badge_html,
+                             _PS("fmi_badge", fontName=_FONT_CJK, fontSize=8.2,
+                                 leading=10, textColor=T.WHITE))]],
+                colWidths=[inner - 140])
+            badge.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), T.CORAL),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            hdr = Table([[badge, Paragraph(en(f"🕒 {when}"), card_meta)],
+                          [Paragraph(en(f"<b>{focus}</b>"), card_title), ""]],
+                         colWidths=[inner - 140, 140])
+            hdr.setStyle(TableStyle([
+                ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#FDE7E1")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("SPAN", (0, 1), (1, 1)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, 0), 0), ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+                ("TOPPADDING", (0, 1), (-1, 1), 2),
+            ]))
+            mi_card = Table([[hdr], [Paragraph(en(summary), card_body)]],
+                             colWidths=[T.PRINTABLE_WIDTH])
+            mi_card.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FDE7E1")),
+                ("BOX", (0, 0), (-1, -1), 0.5, T.BORDER),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, T.CORAL),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]))
+            story.append(mi_card)
+            story.append(Spacer(1, 3))
+
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(en(f"<i>📡 {min(len(market_intel), 5)} 則即時金融新聞（近 3 日）</i>"),
+                                _PS("fmi_note", fontName=_FONT_CJK, fontSize=7.5,
+                                    leading=10, textColor=T.TEXT_MUTED, alignment=2)))
+        story.append(PageBreak())
+
+    # ======================= P1b — Signal Summary + KPI (was P1) ===========
 
     rating_rows = [
         [Paragraph(en("<b>【本日全球資產綜合評級】</b>", color="#FFFFFF"),
@@ -529,115 +633,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         story.append(Paragraph(en("<b>利差與動能計算表</b>"), s["h1"]))
         story.append(t_spread)
     if not have_any:
-        story.append(Paragraph(en("（總經資料來源暫時無法取得，快取亦為空——本頁略過圖表）"), s["body"]))
-
-    # ======================= PAGE 7 — Market Intelligence (dynamic cards) =====
-    market_intel = data.get("market_intel") or []
-    if market_intel:
-        import re as _re
-        from html import unescape as _html_unescape
-        from urllib.parse import urlparse as _urlparse
-        from core.fonts import FONT_CJK as _FONT_CJK
-        from reportlab.lib.styles import ParagraphStyle as _PS
-
-        _tag_re = _re.compile(r"<[^>]+>")
-        _src_names = {
-            "finance.yahoo.com": "YAHOO FINANCE",
-            "feeds.content.dowjones.io": "MARKETWATCH",
-            "www.cnbc.com": "CNBC",
-            "www.ft.com": "FINANCIAL TIMES",
-            "seekingalpha.com": "SEEKING ALPHA",
-            "search.cnbc.com": "CNBC",
-            "feeds.bbci.co.uk": "BBC",
-            "www.reuters.com": "REUTERS",
-        }
-
-        def _src(url):
-            try:
-                nl = _urlparse(url).netloc.lower()
-            except Exception:
-                return "RSS"
-            return _src_names.get(nl, nl.split(".")[0].upper() if nl else "RSS")
-
-        def _clean(text):
-            if not text:
-                return ""
-            return _re.sub(r"\s+", " ", _html_unescape(_tag_re.sub(" ", text))).strip()
-
-        def _fmt_time(item):
-            pub = item.get("published", "")
-            if pub:
-                try:
-                    from email.utils import parsedate_to_datetime as _pdt
-                    import datetime as _dt
-                    dt = _pdt(pub)
-                    _tz = _dt.timezone(_dt.timedelta(hours=8))
-                    return dt.astimezone(_tz).strftime("%m-%d %H:%M")
-                except Exception:
-                    pass
-            return (item.get("fetched_at", "") or "")[:10] or "—"
-
-        story.append(PageBreak())
-        story.extend(make_title_row(
-            "市場情報速讀（Market Intelligence）",
-            "即時金融新聞 — 來源：Yahoo Finance / MarketWatch / CNBC / FT / Seeking Alpha",
-            date_str, T.CORAL, s, eyebrow_text="Financial Intelligence"))
-
-        card_st_body = _PS("mi_body", fontName=_FONT_CJK, fontSize=8.0,
-                            leading=10.0, textColor=T.TEXT_BODY)
-        card_st_meta = _PS("mi_meta", fontName=_FONT_CJK, fontSize=7.8,
-                            leading=10, textColor=T.TEXT_MUTED, alignment=2)
-        card_st_title = _PS("mi_title", fontName=_FONT_CJK, fontSize=9.2,
-                             leading=12.0, textColor=T.CORAL, spaceBefore=1, spaceAfter=1)
-
-        for item in market_intel[:5]:
-            org = _src(item.get("source", ""))
-            focus = _clean(item.get("title", ""))[:80]
-            when = _fmt_time(item)
-            summary = _clean(item.get("summary", ""))[:200] or focus
-            link = item.get("link", "")
-            inner = T.PRINTABLE_WIDTH - 16
-
-            badge_html = (f'<a href="{link}" color="#FFFFFF"><u><b>{org}</b></u></a>'
-                          if link else f"<b>{org}</b>")
-            badge = Table(
-                [[Paragraph(en(badge_html, color="#FFFFFF"),
-                            _PS("mi_badge", fontName=_FONT_CJK, fontSize=8.2,
-                                leading=10, textColor=T.WHITE))]],
-                colWidths=[inner - 140])
-            badge.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), T.CORAL),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]))
-            header = Table(
-                [[badge, Paragraph(en(f"🕒 {when}"), card_st_meta)],
-                 [Paragraph(en(f"<b>{focus}</b>"), card_st_title), ""]],
-                colWidths=[inner - 140, 140])
-            header.setStyle(TableStyle([
-                ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#FDE7E1")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("SPAN", (0, 1), (1, 1)),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, 0), 0), ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
-                ("TOPPADDING", (0, 1), (-1, 1), 2),
-            ]))
-            card = Table([[header], [Paragraph(en(summary), card_st_body)]],
-                         colWidths=[T.PRINTABLE_WIDTH])
-            card.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FDE7E1")),
-                ("BOX", (0, 0), (-1, -1), 0.5, T.BORDER),
-                ("LINEBEFORE", (0, 0), (0, -1), 3, T.CORAL),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ]))
-            story.append(card)
-            story.append(Spacer(1, 3))
-
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(en(f"<i>📡 {min(len(market_intel), 5)} 則即時金融新聞（近 3 日）</i>"),
-                               _PS("mi_note", fontName=_FONT_CJK, fontSize=7.5,
-                                   leading=10, textColor=T.TEXT_MUTED, alignment=2)))
+        story.append(Paragraph(en("（總經資料來源暫時無法取得，快亦為空——本頁略過圖表）"), s["body"]))
 
     doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告")
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER, _PAGE_TOTAL),
