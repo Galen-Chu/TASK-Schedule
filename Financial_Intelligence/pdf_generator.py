@@ -665,7 +665,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     if not have_any:
         story.append(Paragraph(en("（總經資料來源暫時無法取得，快亦為空——本頁略過圖表）"), s["body"]))
 
-    doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告")
+    doc = new_doc(filename, title="Financial Intelligence 每日投資趨勢報告",
+                 keywords="financial intelligence, TWSE, VIX, treasury, NFP, CPI, commodities, crypto, daily, quant, signal")
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER, _PAGE_TOTAL),
               onLaterPages=footer_factory(DISCLAIMER, _PAGE_TOTAL))
     print("PDF build complete:", filename)

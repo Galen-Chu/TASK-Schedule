@@ -413,7 +413,8 @@ def build_global_pdf(filename, data=None, date_str=None):
                                               leading=10, textColor=T.TEXT_MUTED,
                                               alignment=2)))
 
-    doc = new_doc(filename, title=title)
+    doc = new_doc(filename, title=title,
+                 keywords="global intelligence, geopolitics, macro, AI, biotech, hardware, aerospace, quantum, daily report, RSS, retrieval")
     doc.build(story, onFirstPage=footer_factory(DISCLAIMER, 7),
               onLaterPages=footer_factory(DISCLAIMER, 7))
     print("PDF build complete:", filename)

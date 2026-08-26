@@ -164,6 +164,7 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
     doc = new_doc(
         output_filename,
         title="Spiritual Intelligence 每日覺察運勢報告",
+        keywords="spiritual, human design, astrology, ziwei, bazi, i ching, tarot, liu yao, daily, divination",
     )
     footer = footer_factory(
         "Spiritual Intelligence Pipeline 5 · Powered by Gemini Spark",

@@ -128,8 +128,9 @@ def footer_factory(disclaimer, total_pages=None):
     return make_footer
 
 
-def new_doc(filename, top_margin=None, bottom_margin=None, title="Spark Report"):
-    """SimpleDocTemplate with the standard A4 frame + margins."""
+def new_doc(filename, top_margin=None, bottom_margin=None, title="Spark Report",
+           author="Gemini Spark Schedule", subject="Automated Daily Report", keywords=""):
+    """SimpleDocTemplate with the standard A4 frame + margins + PDF metadata."""
     ensure_fonts()
     return SimpleDocTemplate(
         filename,
@@ -139,4 +140,9 @@ def new_doc(filename, top_margin=None, bottom_margin=None, title="Spark Report")
         topMargin=T.MARGIN_TOP if top_margin is None else top_margin,
         bottomMargin=T.MARGIN_BOTTOM if bottom_margin is None else bottom_margin,
         title=title,
+        author=author,
+        subject=subject,
+        creator="Gemini Spark Schedule",
+        producer="ReportLab + Gemini Spark",
+        keywords=keywords,
     )
