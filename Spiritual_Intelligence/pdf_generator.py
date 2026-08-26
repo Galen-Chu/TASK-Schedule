@@ -151,8 +151,10 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     return story
 
 
-def generate_pdf_report(output_filename, date_str=None, location=None, systems=None):
-    """Build the 5-page Spiritual PDF. Returns ``output_filename``."""
+def generate_pdf_report(output_filename, date_str=None, location=None, systems=None,
+                       spiritual_intel=None):
+    """Build the 7-page Spiritual PDF (7 systems + optional spiritual news strip).
+    Returns ``output_filename``."""
     ensure_fonts()
     date_str = date_str or datetime.date.today().strftime("%Y-%m-%d")
     location = location or _DEFAULT_LOCATION
@@ -170,6 +172,29 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
     story = []
     for idx, cfg in enumerate(systems, start=1):
         story.extend(create_system_page(cfg, idx, page_total, date_str, location))
+
+    # Phase 3 H1: spiritual news strip at the bottom of the last page
+    if spiritual_intel:
+        import re as _re
+        from urllib.parse import urlparse as _up
+        _tag = _re.compile(r"<[^>]+>")
+        news_st = ParagraphStyle("sp_news", fontName=FONT_CJK, fontSize=7.5,
+                                  leading=9.5, textColor=T.TEXT_MUTED)
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(en("<b>🌙 靈性資訊速讀（Spiritual Intelligence · 近 7 日 RSS）</b>"),
+                                ParagraphStyle("sp_news_h", fontName=FONT_CJK, fontSize=8,
+                                               leading=10, textColor=colors.HexColor("#8B4049"))))
+        for item in spiritual_intel[:4]:
+            src = _up(item.get("source", "")).netloc.replace("www.", "").split(".")[0].upper()
+            title = _tag.sub(" ", item.get("title", ""))[:80]
+            link = item.get("link", "")
+            safe = link.replace("&", "&amp;") if link else ""
+            txt = (f'<a href="{safe}" color="#8B4049"><u>{title}</u></a>' if safe else title)
+            story.append(Paragraph(en(f"· [{src}] {txt}"), news_st))
+        story.append(Paragraph(en('<i>📡 靈性/身心靈 RSS 即時檢索</i>'),
+                                ParagraphStyle("sp_news_f", fontName=FONT_CJK, fontSize=7,
+                                               leading=9, textColor=T.TEXT_MUTED, alignment=2)))
+
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     print(f"PDF successfully generated: {output_filename}")
     return output_filename

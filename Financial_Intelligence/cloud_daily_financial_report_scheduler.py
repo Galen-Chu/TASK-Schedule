@@ -194,14 +194,23 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["signal_score"] = calculate_signal_score(data)
         data["signal_rating"] = rating_from_score(data["signal_score"])
 
-        # Pull financial news for the Market Intelligence page (macro domain)
+        # Pull financial news for the Market Intelligence page
+        # Phase 3 H2: also query geopolitics domain for cross-domain context
+        # (e.g. Middle East tension → oil price impact)
         try:
             store = CorpusStore(CORPUS_PATH)
+            # Macro domain: core financial news
             items = retrieve(store, query="market stocks bonds federal reserve "
                               "inflation earnings economy finance",
-                              domain="macro", k=5, days=3)
+                              domain="macro", k=3, days=3)
+            # Geopolitics domain: events that drive markets
+            geo = retrieve(store, query="tariff war sanctions oil energy "
+                             "trade conflict supply chain",
+                             domain="geopolitics", k=2, days=3)
+            if geo:
+                items = (items or []) + geo
             if items:
-                data["market_intel"] = items
+                data["market_intel"] = items[:5]
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("market intel retrieval failed: %s", exc)
 
