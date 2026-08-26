@@ -244,7 +244,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                 ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]))
             story.append(bf_card)
-            story.append(Spacer(1, 6))
+            story.append(Paragraph(en("<i>🤖 AI 生成：量化訊號 × 語料趨勢關聯（Gemini）</i>"),
+                                   _PS("bf_note", fontName=_FONT_CJK, fontSize=7.5,
+                                       leading=10, textColor=T.TEXT_MUTED, alignment=2)))
+            story.append(Spacer(1, 4))
 
         story.append(Paragraph(en("<b>📰 市場情報速讀（Market Intelligence）</b>"), s["h1"]))
         card_body = _PS("fmi_body", fontName=_FONT_CJK, fontSize=8.0,

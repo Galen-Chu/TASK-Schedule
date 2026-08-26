@@ -1,10 +1,11 @@
 name: Daily Reports
 
 # NOTE: GitHub skips the push event entirely when the push's HEAD commit
-# message contains [skip ci] — including when that head is just a corpus
-# accumulate commit riding on top of a feature merge. When merging a
-# feature branch whose tip is a [skip ci] data commit, follow it with a
-# code/docs commit (like this one) so validation actually runs.
+# message contains the [skip ci] marker — and the marker is scanned in the
+# title AND the body: a commit that merely quotes it in an explanation gets
+# skipped too (that is exactly what silenced 997ce8b). Keep corpus-accumulate
+# commits off the tip of feature merges, and never write the literal token
+# in a commit message you want validated.
 
 on:
   schedule:
