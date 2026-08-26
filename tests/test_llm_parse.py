@@ -98,6 +98,6 @@ def test_global_with_maxlen_three_part_fits_5_pages(tmp_path, monkeypatch):
     g.build_global_pdf(out, data=data, date_str="2026-08-17")
     raw = open(out, "rb").read()
     pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
-    # 6 domains × 5 cards with full 110-char three-part bodies = worst case
-    # 7 pages (one domain overflows to a second page). Guard against 8+.
-    assert pages <= 7, f"Global overflowed to {pages} pages with full three-part bodies"
+    # 7 pages (P1 trend + 6 domains), 6 cards/page with full three-part bodies.
+    # Guard against 9+ (severe overflow).
+    assert pages <= 8, f"Global overflowed to {pages} pages with full three-part bodies"

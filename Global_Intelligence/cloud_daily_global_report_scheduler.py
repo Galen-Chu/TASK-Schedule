@@ -61,7 +61,7 @@ class GlobalReportScheduler(BaseReportScheduler):
     report_id = "global"
     report_title = "Global Intelligence 每日產業局勢報告"
     default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
-    page_count = 6
+    page_count = 7
 
     def sample_data(self):
         return {"editorial": True}
@@ -127,7 +127,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if store is not None:
             data.setdefault("retrieval", {})
             for dom, kws in DOMAIN_KEYWORDS.items():
-                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=5, days=7)
+                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=6, days=7)
                 if got:
                     data["retrieval"][dom] = got
             # Trend comparison (G): week-over-week domain heat + trending keywords
