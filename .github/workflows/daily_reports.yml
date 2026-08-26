@@ -106,6 +106,7 @@ jobs:
         env:
           DATE: ${{ github.event.inputs.date }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
@@ -122,7 +123,7 @@ jobs:
           find output -type f | sort
           echo "::endgroup::"
           # Verify each PDF exists and report page counts
-          # financial=7 (6 quant + 1 Market Intelligence), global=6 (5 + aerospace/quantum), spiritual=5, macro=1
+          # financial=7 (P1 Market Intelligence + 6 quant), global=7 (P1 trend + 6 domains), spiritual=7 (5 systems + I Ching + Tarot), macro=1
           python - <<'PY'
           import glob, re, os, sys
           pdfs = sorted(glob.glob("output/*.pdf"))

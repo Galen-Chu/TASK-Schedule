@@ -7,6 +7,7 @@ run end-to-end inside GitHub Actions.
 """
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
 
@@ -216,13 +217,20 @@ _BLS_SERIES = {
 def fetch_bls_series(series_id, latest=True):
     """Fetch the latest observation for a BLS series via the public v2 API.
 
-    Keyless. Returns dict {value, year, period_name} or None on failure.
+    Keyless by default. Set BLS_API_KEY env var for higher rate limits
+    (free registration → 500 requests/day vs 25/day keyless).
+    Returns dict {value, year, period_name} or None on failure.
     Note: the v2 payload nests under ``Results`` (capital R).
     """
     import ssl
+    api_key = os.environ.get("BLS_API_KEY", "")
     url = f"https://api.bls.gov/publicAPI/v2/timeseries/data/{series_id}"
     if latest:
         url += "?latest=true"
+        if api_key:
+            url += f"&registrationkey={api_key}"
+    elif api_key:
+        url += f"?registrationkey={api_key}"
     # BLS endpoint occasionally trips default cert verification on some hosts;
     # use a lenient context so a stale CA bundle doesn't break the fetch.
     try:
