@@ -18,7 +18,7 @@ from core import fonts  # noqa: F401  (ensures import path works)
 EXPECTED_PAGES = {
     "financial": 7,
     "global": 7,
-    "spiritual": 5,
+    "spiritual": 7,
     "macro": 1,
 }
 REPORT_MODULES = {

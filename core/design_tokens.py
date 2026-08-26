@@ -56,6 +56,8 @@ RAMP_SAGE  = ["#E8F0E9", "#B7CCB9", "#6B8F71", "#47654B", "#2C3F2E"]
 RAMP_INK   = ["#EEF0F4", "#C7CDD9", "#1C2333", "#4B5566", "#1C2333"]
 RAMP_PLUM  = ["#F1E9EE", "#A07A92", "#7A4B6B", "#5C3850", "#321F2C"]
 RAMP_INDIGO = ["#E8EAF6", "#9FA8DA", "#3F51B5", "#303F9F", "#1A237E"]  # aerospace
+RAMP_BRONZE = ["#F5EDE3", "#D4B896", "#A0845C", "#7A6344", "#554230"]  # I Ching — grounding earth
+RAMP_WINE   = ["#F5E6E8", "#C4909E", "#8B4049", "#6B2D35", "#4A1E24"]  # Tarot — mystical wine
 
 # Shared accent rotation — the five brand hues at the same lightness. Reports
 # draw section colours from here so category colours read as siblings, not strangers.
