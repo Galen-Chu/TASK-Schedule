@@ -374,6 +374,21 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     ]))
     story.append(t_mon)
 
+    # NFP trend chart on P2 (below KPI — P2 has ~460pt free space)
+    nfp_h = (data.get("macro") or {}).get("nfp_hist") or []
+    if len(nfp_h) >= 12:
+        try:
+            nfp_vals = [float(p.get("value", 0)) for p in nfp_h]
+            nfp_labels = [f"{p.get('period_name', '')[:3]}" for p in nfp_h]
+            step = max(1, len(nfp_h) // 8)
+            nfp_labels = [l if i % step == 0 else "" for i, l in enumerate(nfp_labels)]
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(en("<b>非農就業新增走勢（千/月）— 就業動能指標</b>"), s["h1"]))
+            story.append(_line_chart(nfp_labels, [nfp_vals], height=120))
+            story.append(Spacer(1, 4))
+        except ValueError:
+            pass
+
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
@@ -614,21 +629,6 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（青線 = CPI，琥珀線 = Core CPI）</b>"), s["h1"]))
         story.append(_line_chart(labels, series, height=138))
         story.append(Spacer(1, 6))
-
-    # NFP trend chart (BLS CES0000000001, monthly, thousands)
-    nfp_h = md.get("nfp_hist") or []
-    if len(nfp_h) >= 12:
-        have_any = True
-        try:
-            nfp_vals = [float(p.get("value", 0)) for p in nfp_h]
-            nfp_labels = [f"{p.get('period_name', '')[:3]}" for p in nfp_h]
-            step = max(1, len(nfp_h) // 8)
-            nfp_labels = [l if i % step == 0 else "" for i, l in enumerate(nfp_labels)]
-            story.append(Paragraph(en("<b>非農就業新增走勢（千/月）— 就業動能指標</b>"), s["h1"]))
-            story.append(_line_chart(nfp_labels, [nfp_vals], height=138))
-            story.append(Spacer(1, 6))
-        except ValueError:
-            pass
     if curve and len(ten10y) >= 20:
         def _cv(t):
             return curve.get(t)
