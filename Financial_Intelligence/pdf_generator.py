@@ -210,6 +210,42 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                     pass
             return (item.get("fetched_at", "") or "")[:10] or "—"
 
+        # (G) Cross-domain briefing — analyst lead card fusing this report's
+        # quantitative signals with the shared corpus' weekly trends. Only
+        # present when GEMINI_API_KEY produced one; CI omits it entirely.
+        briefing = data.get("cross_domain_briefing")
+        if briefing:
+            from core.design_tokens import RAMP_TEAL
+            story.append(Paragraph(en("<b>🧭 今日情報摘要（Cross-Domain Briefing）</b>"), s["h1"]))
+            bf_label = _PS("bf_label", fontName=_FONT_CJK, fontSize=8.0,
+                           leading=10.5, textColor=T.TEAL)
+            bf_body = _PS("bf_body", fontName=_FONT_CJK, fontSize=8.6,
+                          leading=12.0, textColor=T.TEXT_BODY)
+            bf_rows = [
+                ("WHAT · 市場全貌", briefing.get("what", "")),
+                ("WHY · 訊號×趨勢", briefing.get("why", "")),
+                ("SO WHAT · 投資啟示", briefing.get("so_what", "")),
+            ]
+            bf_table = Table(
+                [[Paragraph(en(f"<b>{lab}</b>"), bf_label),
+                  Paragraph(en(txt), bf_body)] for lab, txt in bf_rows if txt],
+                colWidths=[110, T.PRINTABLE_WIDTH - 16 - 110])
+            bf_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(RAMP_TEAL[0])),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, T.TEAL),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            bf_card = Table([[bf_table]], colWidths=[T.PRINTABLE_WIDTH])
+            bf_card.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, T.BORDER),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            story.append(bf_card)
+            story.append(Spacer(1, 6))
+
         story.append(Paragraph(en("<b>📰 市場情報速讀（Market Intelligence）</b>"), s["h1"]))
         card_body = _PS("fmi_body", fontName=_FONT_CJK, fontSize=8.0,
                          leading=10.0, textColor=T.TEXT_BODY)

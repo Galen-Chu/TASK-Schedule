@@ -219,6 +219,19 @@ class FinancialReportScheduler(BaseReportScheduler):
                 items = (items or []) + geo
             if items:
                 data["market_intel"] = items[:5]
+
+            # (G) Cross-domain briefing: fuse this report's quantitative
+            # signals with the shared corpus' week-over-week trends into one
+            # analyst lead card (needs GEMINI_API_KEY; skipped otherwise).
+            from core.retrieval.retrieve import domain_trends, trending_keywords
+            from core.cross_domain import daily_briefing
+            trends = {"domains": domain_trends(store),
+                      "keywords": trending_keywords(store)}
+            data["trends"] = trends
+            briefing = daily_briefing(data, trends, headlines=(items or [])[:3])
+            if briefing:
+                data["cross_domain_briefing"] = briefing
+                data["_source"] = (data.get("_source") or "") + "+Gemini"
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("market intel retrieval failed: %s", exc)
 

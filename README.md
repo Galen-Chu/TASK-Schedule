@@ -10,7 +10,7 @@
 
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
-| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含 NFP/CPI 總經頁、進出場訊號與資產配置矩陣 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（7 頁：P1 Market Intelligence 動態卡＋6 量化頁） |
+| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含 NFP/CPI 總經頁、進出場訊號與資產配置矩陣；P1 頭版為「今日情報摘要」跨域卡（需 key）＋5 則市場情報動態卡 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（7 頁：P1 Market Intelligence 動態卡＋6 量化頁） |
 | **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太與量子科技）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 6 * * *`（06:30） | 智庫級主題卡版面（7 頁：P1 趨勢速覽＋6 領域頁） |
 | **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數，加易經六爻與塔羅，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（7 頁：五術＋易經＋塔羅） |
 
@@ -194,6 +194,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 域分類關鍵字擴充＋語料重分類（未分類 28%→12%） | ✅ 已開發（2026-08-26，`python main.py --reclassify`） |
 | 語料庫健康監控 | ✅ 已開發（2026-08-26，`python main.py --stats`：feed 活躍度／領域分布／未分類樣本） |
 | PDF metadata（author/subject/keywords） | ✅ 已開發（2026-08-26，`core/pdf_engine.new_doc`） |
+| 跨域情報關聯（G）：Financial 訊號 × Global 語料趨勢 →「今日情報摘要」 | ✅ 已開發（2026-08-26，`core/cross_domain.py`；Financial P1 頭版 WHAT/WHY/SO_WHAT 卡＋Obsidian callout，需 `GEMINI_API_KEY`，缺 key 靜默略過） |
 | remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 

@@ -20,6 +20,18 @@ def _g(data, key, default):
     return (data or {}).get(key, default)
 
 
+def _briefing_md(data):
+    """(G) Cross-domain briefing callout; empty string when unavailable."""
+    b = (data or {}).get("cross_domain_briefing")
+    if not b:
+        return ""
+    rows = [("WHAT 市場全貌", b.get("what", "")),
+            ("WHY 訊號×趨勢", b.get("why", "")),
+            ("SO WHAT 投資啟示", b.get("so_what", ""))]
+    body = "\n".join(f"> **{lab}**：{txt}" for lab, txt in rows if txt)
+    return f"\n> [!tip] 🧭 今日情報摘要（跨域關聯）\n{body}\n\n"
+
+
 def build_note_content(data, date_str):
     twm = _g(data, "tw_margin_balance", 8970000)
     vix = _g(data, "vix", 28.4)
@@ -45,6 +57,8 @@ signal_rating: "{rating}"
 > **本日綜合評級**：`{rating}` (Signal Score: {score}/100)
 >
 > 台股全市場融資餘額 **{twm/10000:.1f} 萬張**（TWSE MI_MARGN 即時加總），美股 VIX **{vix}**。量化模型綜合評估多數市場進入中長線高勝率分批佈局點。
+{_briefing_md(data)}
+---
 
 ---
 
