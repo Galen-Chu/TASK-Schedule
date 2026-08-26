@@ -220,6 +220,119 @@ def iching_transit(date_str):
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
+# ---- 易經六爻 (Liu Yao / Six Lines divination) ------------------------------
+_LIUYAO_LINES = {
+    "初九": ("陽", "潛龍勿用，蓄勢待發"), "初六": ("陰", "陰凝於下，慎始為宜"),
+    "九二": ("陽", "見龍在田，利見大人"), "六二": ("陰", "直方大，不習無不利"),
+    "九三": ("陽", "君子終日乾乾，夕惕若厲"), "六三": ("陰", "含章可貞，或從王事"),
+    "九四": ("陽", "或躍在淵，進無咎也"), "六四": ("陰", "括囊，無咎無譽"),
+    "九五": ("陽", "飛龍在天，利見大人"), "六五": ("陰", "黃裳元吉，居中得正"),
+    "上九": ("陽", "亢龍有悔，盈不可久"), "上六": ("陰", "龍戰於野，其道窮也"),
+}
+
+def liuyao_transit(date_str):
+    """易經六爻：以日干支起卦，得六爻卦象。Returns dict or None."""
+    if not _HAS_LUNAR:
+        return None
+    try:
+        solar = _solar_from(date_str)
+        lunar = solar.getLunar()
+        day_gan = lunar.getDayGan()   # 日干
+        day_zhi = lunar.getDayZhi()   # 日支
+        gan_num = "甲乙丙丁戊己庚辛壬癸".index(day_gan) + 1  # 1-10
+        zhi_num = "子丑寅卯辰巳午未申酉戌亥".index(day_zhi) + 1  # 1-12
+        # 六爻由日干支數值決定：干定上卦、支定下卦、干支和定動爻
+        upper_num = (gan_num % 8) or 8  # 1-8 對應八卦
+        lower_num = (zhi_num % 8) or 8
+        moving_num = ((gan_num + zhi_num) % 6) or 6  # 1-6 動爻
+        # 八卦編號：1乾2兌3離4震5巽6坎7艮8坤
+        bagua = {1:"乾",2:"兌",3:"離",4:"震",5:"巽",6:"坎",7:"艮",8:"坤"}
+        upper = bagua[upper_num]
+        lower = bagua[lower_num]
+        hex_name = f"{upper}上{lower}下"
+        yao_names = ["初", "二", "三", "四", "五", "上"]
+        lines = []
+        for i in range(6):
+            yin_yang = "六" if (lower_num + i) % 2 == 0 else "九"
+            if i < 3:  # 下卦
+                trigram = lower
+            else:      # 上卦
+                trigram = upper
+            yao_label = f"{yao_names[i]}{yin_yang}"
+            meaning = _LIUYAO_LINES.get(yao_label, ("—", "—"))[1]
+            is_moving = (i + 1) == moving_num
+            lines.append(f"{yao_label}（{trigram}卦{'·動爻' if is_moving else ''}）：{meaning}")
+        spotlight = f"📍 日干支 {day_gan}{day_zhi} 起卦，得「{hex_name}」，動爻在第 {moving_num} 爻"
+        summary = f"主卦：{hex_name}（上{upper}下{lower}）| 動爻：第{moving_num}爻 | 日干支：{day_gan}{day_zhi}"
+        return {"spotlight": spotlight, "system_data_summary": summary,
+                "lines": lines, "moving_line": moving_num}
+    except Exception as exc:
+        log.warning("liuyao failed: %s", exc)
+        return None
+
+
+# ---- 塔羅牌 (Tarot daily draw) ----------------------------------------------
+_TAROT_MAJOR = [
+    ("0 愚者", ["新開始", "冒險", "自由", "純真"], "踏出舒適圈，以初學者心態迎接未知。信任直覺的引導。"),
+    ("I 魔術師", ["創造", "意志", "專注", "資源"], "你擁有實現目標的所有工具。集中意志力，付諸行動。"),
+    ("II 女祭司", ["直覺", "智慧", "內在", "寧靜"], "答案在內心而非外在。靜心傾聽，信任潛意識的訊息。"),
+    ("III 皇后", ["豐盛", "創造力", "母性", "感官"], "滋養自己與他人。享受當下的美好，創造力正處於高峰。"),
+    ("IV 皇帝", ["秩序", "權威", "穩定", "結構"], "以紀律和邏輯建立秩序。今天適合規劃與組織。"),
+    ("V 教皇", ["傳統", "學習", "指引", "信念"], "向導師或傳統智慧學習。遵循已驗證的方法論。"),
+    ("VI 戀人", ["選擇", "和諧", "關係", "價值觀"], "面對重要的價值選擇。以心為指引，做出真實的決定。"),
+    ("VII 戰車", ["決心", "勝利", "意志", "掌控"], "以堅定意志駕馭方向。專注目標，克服障礙。"),
+    ("VIII 力量", ["內在力量", "勇氣", "耐心", "慈悲"], "以柔克剛。真正的力量來自耐心與慈悲，而非強迫。"),
+    ("IX 隱者", ["內省", "智慧", "孤獨", "指引"], "暫時退隱充電。在獨處中找到答案。"),
+    ("X 命運之輪", ["轉變", "週期", "機會", "命運"], "局勢正在轉動。順應變化，把握時機。"),
+    ("XI 正義", ["公正", "平衡", "因果", "責任"], "因果法則運作中。為選擇負責，追求公平。"),
+    ("XII 吊人", ["犧牲", "換位", "等待", "放下"], "暫停行動，從不同角度看事情。放下執著。"),
+    ("XIII 死神", ["結束", "轉化", "重生", "釋放"], "舊的結束是新的開始。釋放不再服務你的事物。"),
+    ("XIV 節制", ["平衡", "融合", "療癒", "耐心"], "在極端之間找到中道。調和衝突，融合資源。"),
+    ("XV 惡魔", ["束縛", "慾望", "依賴", "解放"], "看見束縛自己的模式。覺察即是解脫的第一步。"),
+    ("XVI 高塔", ["突變", "崩塌", "覺醒", "真相"], "既有結構突然瓦解。擁抱真相，從廢墟中重建。"),
+    ("XVII 星星", ["希望", "療癒", "信念", "靈感"], "風暴後的寧靜。保持信念，靈感正在流入。"),
+    ("XVIII 月亮", ["幻象", "潛意識", "不安", "直覺"], "並非所有如表面所見。信任直覺，穿越迷霧。"),
+    ("XIX 太陽", ["成功", "喜悅", "活力", "明確"], "光明與溫暖的日子。自信地表達，成功自然到來。"),
+    ("XX 審判", ["覺醒", "重生", "召喚", "整合"], "聆聽內在召喚。整合過去經驗，迎接蛻變。"),
+    ("XXI 世界", ["完成", "整合", "成就", "圓滿"], "週期完成。慶祝成就，準備展開新篇章。"),
+]
+
+def tarot_transit(date_str):
+    """塔羅牌：以日期為種子，決定性地抽取三張牌（過去/現在/未來）。
+    Returns dict or None."""
+    import hashlib
+    try:
+        h = hashlib.sha256(date_str.encode("utf-8")).hexdigest()
+        # 三張牌：從 22 張大牌中選取，由 hash 決定
+        nums = []
+        for i in range(3):
+            idx = int(h[i*4:i*4+4], 16) % 22
+            nums.append(idx)
+        # 確保三張不重複（若重複則偏移）
+        seen = set()
+        for i, n in enumerate(nums):
+            while n in seen:
+                n = (n + 1) % 22
+            nums[i] = n
+            seen.add(n)
+        cards = []
+        positions = ["過去／根源", "現在／課題", "未來／指引"]
+        for i, (idx, pos) in enumerate(zip(nums, positions)):
+            name, keywords, interp = _TAROT_MAJOR[idx]
+            # 正逆位由 hash 決定
+            reversed_ = bool(int(h[12 + i], 16) % 2)
+            orient = "逆位" if reversed_ else "正位"
+            # 逆位時調整解讀
+            rev_hint = {"正位": "", "逆位": "（能量內化或受阻，需向內在探索）"}
+            cards.append(f"{pos}：{name}（{orient}）— {interp}{rev_hint[orient]}")
+        spotlight = f"📍 今日牌陣：{cards[0].split('：')[1][:20]} → {cards[1].split('：')[1][:20]} → {cards[2].split('：')[1][:20]}"
+        summary = " | ".join(c.split("—")[0].strip() for c in cards)
+        return {"spotlight": spotlight, "system_data_summary": summary, "cards": cards}
+    except Exception as exc:
+        log.warning("tarot failed: %s", exc)
+        return None
+
+
 # ---- aggregate -------------------------------------------------------------
 def all_transits(date_str):
     """Return {system_id: {spotlight, system_data_summary}} for all 5 systems.
@@ -233,6 +346,12 @@ def all_transits(date_str):
         sp = _astro.astrology_spotlight(t) if t else None
         if sp:
             out["SYS_AST"] = {"spotlight": sp[0], "system_data_summary": sp[1]}
+    ly = liuyao_transit(date_str)
+    if ly:
+        out["SYS_LIUYAO"] = ly
+    to = tarot_transit(date_str)
+    if to:
+        out["SYS_TAROT"] = to
     for sid, fn in [("SYS_HD", human_design_transit),
                     ("SYS_ZW", ziwei_transit),
                     ("SYS_BAZI", bazi_transit),

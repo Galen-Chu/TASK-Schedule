@@ -133,7 +133,7 @@ jobs:
               is_macro = "Macro_Digest" in p
               is_fin = ("Financial" in p) and not is_macro
               is_global = "Global" in p
-              expect = 1 if is_macro else (7 if is_fin else (7 if is_global else 5))
+              expect = 1 if is_macro else (7 if is_fin else (7 if is_global else 7))
               print(f"{pages} pages  {os.path.getsize(p):>8} bytes  {os.path.basename(p)}")
               assert pages == expect, f"{p} expected {expect} pages, got {pages}"
           print(f"\nOK: {len(pdfs)} PDF(s), page counts verified.")
