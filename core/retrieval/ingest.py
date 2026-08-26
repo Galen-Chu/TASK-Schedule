@@ -58,6 +58,19 @@ _DOMAIN_KEYWORDS = {
         "quantum supremacy", "quantum advantage", "quantum internet",
         "neutral atom", "trapped ion", "superconducting qubit",
     ],
+    "spiritual": [
+        "靈性", "心靈", "冥想", "正念", "身心靈", "自我成長", "內在",
+        "占星", "星座", "塔羅", "易經", "紫微", "八字", "風水", "能量",
+        "spiritual", "spirituality", "meditation", "mindfulness",
+        "astrology", "tarot", "zodiac", "horoscope", "i ching",
+        "wellness", "holistic", "healing", "crystal", "chakra",
+        "aura", "karma", "soul", "consciousness", "enlightenment",
+        "yoga", "breathwork", "journaling", "self-care", "intuition",
+        " manifestation", "gratitude", "affirmation", "ritual",
+        "full moon", "new moon", "retrograde", "solstice", "equinox",
+        "psychic", "mediumship", "palmistry", "numerology",
+        "human design", "gene keys", "sacred geometry",
+    ],
 }
 
 DOMAIN_KEYWORDS = _DOMAIN_KEYWORDS  # re-export for callers (e.g. queries)

@@ -21,6 +21,16 @@ from core.scheduler_base import BaseReportScheduler
 from core.data import divination
 from core.dispatch.drive_uploader import upload_to_drive
 from core.dispatch.gmail_dispatcher import send_digest
+from core.retrieval import CorpusStore, ingest_items, retrieve
+
+# Spiritual/wellness RSS — ingested into the shared corpus (Phase 3 H1)
+SPIRITUAL_FEEDS = [
+    "https://www.biddytarot.com/blog/feed/",
+    "https://www.mindful.org/feed/",
+    "https://www.elephantjournal.com/feed/",
+    "https://astrostyle.com/feed/",
+]
+CORPUS_PATH = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl")
 
 
 class SpiritualReportScheduler(BaseReportScheduler):
@@ -53,16 +63,41 @@ class SpiritualReportScheduler(BaseReportScheduler):
         return {"transit": spotlight_map()}
 
     def fetch_data(self):
-        """Compute live readings for all five occult systems.
+        """Compute live readings for all systems + ingest spiritual RSS (Phase 3 H1).
 
         Returns a dict whose ``systems`` field maps system_id -> spotlight/
-        summary strings, or None if nothing could be computed (full sample
-        fallback).
+        summary strings. Spiritual/wellness RSS items are ingested into the
+        shared retrieval corpus. Returns None only if nothing computed AND
+        no RSS items (full sample fallback).
         """
+        # Phase 3 H1: ingest spiritual RSS into the shared corpus
+        try:
+            from core.data.fetchers import fetch_rss_items
+            store = CorpusStore(CORPUS_PATH)
+            for url in SPIRITUAL_FEEDS:
+                items = fetch_rss_items(url, limit=4)
+                if items:
+                    ingest_items(store, items, source=url)
+            store.compact(keep_days=30)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("spiritual RSS ingest failed: %s", exc)
+
         transits = divination.all_transits(self.date_str)
         if not transits:
             return None
         return {"_source": "divination", "systems": transits}
+
+    def synthesize(self, data):
+        """Phase 3 H1: retrieve spiritual domain items for the PDF news section."""
+        try:
+            store = CorpusStore(CORPUS_PATH)
+            items = retrieve(store, query="spiritual meditation tarot astrology mindfulness wellness",
+                              domain="spiritual", k=4, days=7)
+            if items:
+                data["spiritual_intel"] = items
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("spiritual retrieval failed: %s", exc)
+        return data
 
     def render_pdf(self, data):
         import copy
@@ -85,7 +120,8 @@ class SpiritualReportScheduler(BaseReportScheduler):
                     cfg["system_data_summary"] = hit["system_data_summary"]
 
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
-        generate_pdf_report(pdf_path, date_str=self.date_str, location=location, systems=systems)
+        generate_pdf_report(pdf_path, date_str=self.date_str, location=location, systems=systems,
+                           spiritual_intel=(data or {}).get("spiritual_intel"))
         return pdf_path
 
     def render_obsidian(self, data):
