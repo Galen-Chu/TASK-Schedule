@@ -70,6 +70,120 @@ def rating_from_score(score):
     return "🔴 偏空減碼 / 提高現金比重"
 
 
+def _market_verdicts(data):
+    """Per-market trading verdicts from live data — rule-based, transparent.
+
+    Thresholds mirror the ones already documented in the detail tables and
+    calculate_signal_score, so the banner can never contradict the model.
+    Returns {key: (name, light, headline, reason)} where light is one of
+    buy / hold / sell / neutral ("neutral" when the rule's input is missing).
+    """
+    out = {}
+
+    twm = data.get("tw_margin_balance")
+    ceiling = data.get("tw_margin_ceiling", 9_000_000)
+    if twm is None:
+        out["tw"] = ("台股", "neutral", "數據待補", "融資餘額未取得")
+    elif twm < ceiling:
+        out["tw"] = ("台股", "buy", "分批進場",
+                     f"融資 {twm/10000:.0f} 萬張 < 門檻 {ceiling/10000:.0f} 萬張")
+    elif twm < ceiling * 1.05:
+        out["tw"] = ("台股", "hold", "觀望",
+                     f"融資 {twm/10000:.0f} 萬張貼近門檻，槓桿偏熱")
+    else:
+        out["tw"] = ("台股", "sell", "減碼",
+                     f"融資 {twm/10000:.0f} 萬張顯著超越門檻，斷頭風險升")
+
+    vix = data.get("vix")
+    if vix is None:
+        out["us"] = ("美股", "neutral", "數據待補", "VIX 未取得")
+    elif vix > 25:
+        out["us"] = ("美股", "buy", "恐慌區・中長線買點", f"VIX {vix} > 25，情緒極端通常為買點")
+    elif vix >= 15:
+        out["us"] = ("美股", "buy", "分批進場", f"VIX {vix} 中性偏低，波動可控")
+    else:
+        out["us"] = ("美股", "hold", "低波動觀望", f"VIX {vix} < 15，無恐慌財")
+
+    spread = data.get("spread_10y2y")
+    if spread is None:
+        out["bond"] = ("債券", "neutral", "數據待補", "利差未取得")
+    elif spread > 0:
+        out["bond"] = ("債券", "buy", "鎖定高票息", f"10Y-2Y 利差 {spread:+.2f}pp，曲線未倒掛")
+    elif spread > -0.5:
+        out["bond"] = ("債券", "hold", "倒掛觀察", f"10Y-2Y 利差 {spread:+.2f}pp 輕度倒掛")
+    else:
+        out["bond"] = ("債券", "sell", "深度倒掛警戒", f"10Y-2Y 利差 {spread:+.2f}pp 深度倒掛")
+
+    dxy = data.get("dxy")
+    if dxy is None:
+        out["forex"] = ("外匯", "neutral", "數據待補", "DXY 未取得")
+    elif dxy >= 104.5:
+        out["forex"] = ("外匯", "hold", "美元強勢", f"DXY {dxy} 逼近阻力 104.5，新興市場承壓")
+    elif dxy <= 101:
+        out["forex"] = ("外匯", "buy", "美元轉弱", f"DXY {dxy} 位於支撐 101 之下，利多風險性資產")
+    else:
+        out["forex"] = ("外匯", "hold", "區間震盪", f"DXY {dxy} 於 101–104.5 區間內")
+
+    fg = data.get("fear_and_greed")
+    if fg is None:
+        out["cmdty"] = ("商品", "neutral", "數據待補", "恐貪指數未取得")
+        out["crypto"] = ("加密", "neutral", "數據待補", "恐貪指數未取得")
+    elif fg <= 25:
+        out["cmdty"] = ("商品", "buy", "極端恐慌・逆向布局", f"恐貪指數 {fg} 落於極度恐慌區")
+        out["crypto"] = ("加密", "buy", "極端恐慌・逆向布局", f"恐貪指數 {fg} 落於極度恐慌區")
+    elif fg >= 75:
+        out["cmdty"] = ("商品", "hold", "極端貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區")
+        out["crypto"] = ("加密", "hold", "極端貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區")
+    else:
+        out["cmdty"] = ("商品", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區")
+        out["crypto"] = ("加密", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區")
+
+    score = calculate_signal_score(data)
+    light = "buy" if score >= 65 else ("hold" if score >= 45 else "sell")
+    out["overall"] = ("綜合評級", light, rating_from_score(score).split(" ", 1)[1],
+                      f"Signal Score {score}/100（量化模型綜合評分）")
+    return out
+
+
+_VERDICT_STYLE = {
+    "buy":     (T.SIGNAL_BUY, T.SIGNAL_BUY_TINT),
+    "hold":    (T.SIGNAL_HOLD, T.SIGNAL_HOLD_TINT),
+    "sell":    (T.SIGNAL_SELL, T.SIGNAL_SELL_TINT),
+    "neutral": (T.TEXT_MUTED, colors.HexColor("#F3F4F6")),
+}
+
+
+def _verdict_banner(verdicts, s):
+    """One-row colored trading-verdict strip for a report page.
+
+    ● uses the signal colors (the 🟢 emoji renders as a .notdef box in the
+    bundled CJK fonts, so lights are drawn as colored ● glyphs instead).
+    Returns a list of flowables to extend into the story.
+    """
+    from reportlab.lib.styles import ParagraphStyle
+    cells = []
+    for name, light, headline, reason in verdicts:
+        fg, bg = _VERDICT_STYLE[light]
+        fg_hex = "#" + fg.hexval()[2:]
+        cells.append(Paragraph(
+            en(f'<font color="{fg_hex}"><b>●</b></font> '
+               f"<b>{name}｜{headline}</b> — {reason}"),
+            ParagraphStyle("vb", fontName=FONT_CJK, fontSize=8.2,
+                           leading=11.5, textColor=T.TEXT_BODY)))
+    t = Table([cells], colWidths=[T.PRINTABLE_WIDTH / len(cells)] * len(cells))
+    style = [
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    for i, (_, light, _, _) in enumerate(verdicts):
+        fg, bg = _VERDICT_STYLE[light]
+        style.append(("BACKGROUND", (i, 0), (i, 0), bg))
+        style.append(("LINEABOVE", (i, 0), (i, 0), 2, fg))
+    t.setStyle(TableStyle(style))
+    return [t, Spacer(1, 8)]
+
+
 def _g(data, key, default):
     return (data or {}).get(key, default)
 
@@ -107,31 +221,88 @@ def _yoy_series(history):
         return None
 
 
-def _line_chart(labels, series, height=175):
-    """Brand-styled ReportLab line chart flowable (no extra dependencies)."""
-    from reportlab.graphics.shapes import Drawing
+def _nice_ticks(lo, hi, n=5):
+    """~n round tick values spanning [lo, hi] (1/2/2.5/5 × 10^k steps)."""
+    import math
+    if hi <= lo:
+        hi = lo + 1.0
+    raw = (hi - lo) / (n - 1)
+    mag = 10 ** math.floor(math.log10(raw))
+    step = 10 * mag
+    for m in (1, 2, 2.5, 5, 10):
+        if m * mag >= raw:
+            step = m * mag
+            break
+    start = math.floor(lo / step) * step
+    end = math.ceil(hi / step) * step
+    out, v = [], start
+    while v <= end + step * 0.01:
+        out.append(round(v, 6))
+        v += step
+    return out
+
+
+def _nfp_monthly_changes(nfp_hist):
+    """(diffs, labels) oldest→newest of month-over-month employment change.
+
+    Input is BLS newest-first LEVEL history (CES0000000001, thousands) — the
+    chart must show monthly additions (就業動能), not the near-flat ~158M
+    level. 'Annual' (M13) rows and non-numeric values are skipped.
+    """
+    pts = []
+    for x in nfp_hist or []:
+        v = str(x.get("value", ""))
+        period = str(x.get("period_name", ""))
+        if period.lower().startswith("annual"):
+            continue
+        if not v.replace(".", "").replace("-", "").isdigit():
+            continue
+        pts.append((float(v), f"{period[:3]} {str(x.get('year', ''))[-2:]}"))
+    pts.reverse()  # oldest → newest
+    diffs = [round(pts[i][0] - pts[i - 1][0], 1) for i in range(1, len(pts))]
+    labels = [p[1] for p in pts[1:]]
+    return (diffs, labels) if len(diffs) >= 6 else None
+
+
+def _line_chart(labels, series, height=175, y_unit="", y_fmt="{:.2f}", x_unit=""):
+    """Brand-styled line chart with readable axis scales and unit labels.
+
+    The value axis gets explicit round ticks (the old auto-range often drew
+    only 3); units are appended to ticks when short (%, 千人) and always
+    annotated at the axis top, with the category-axis unit bottom-right.
+    """
+    from reportlab.graphics.shapes import Drawing, String
     from reportlab.graphics.charts.linecharts import VerticalLineChart
     width = T.PRINTABLE_WIDTH
     d = Drawing(width, height)
     ch = VerticalLineChart()
-    ch.x, ch.y = 38, 30
-    ch.width, ch.height = width - 60, height - 58
+    ch.x, ch.y = 44, 30
+    ch.width, ch.height = width - 66, height - 60
     ch.data = series
     ch.categoryAxis.categoryNames = labels
     ch.categoryAxis.labels.fontName = FONT_CJK
-    ch.categoryAxis.labels.fontSize = 6.5
+    ch.categoryAxis.labels.fontSize = 7
     ch.valueAxis.labels.fontName = FONT_CJK
-    ch.valueAxis.labels.fontSize = 6.5
+    ch.valueAxis.labels.fontSize = 7
     allv = [v for s in series for v in s]
     pad = max(0.15, (max(allv) - min(allv)) * 0.15)
-    ch.valueAxis.valueMin = round(min(allv) - pad, 2)
-    ch.valueAxis.valueMax = round(max(allv) + pad, 2)
+    ticks = _nice_ticks(min(allv) - pad, max(allv) + pad, 5)
+    ch.valueAxis.valueMin, ch.valueAxis.valueMax = ticks[0], ticks[-1]
+    ch.valueAxis.valueSteps = ticks
+    tick_unit = y_unit if len(y_unit) <= 3 else ""
+    ch.valueAxis.labelTextFormat = (lambda v: y_fmt.format(v) + tick_unit)
     ch.joinedLines = 1
     for i, c in enumerate([T.TEAL, T.AMBER]):
         if i < len(ch.lines):
             ch.lines[i].strokeColor = c
             ch.lines[i].strokeWidth = 1.4
     d.add(ch)
+    if y_unit:
+        d.add(String(2, height - 10, f"單位：{y_unit}", fontName=FONT_CJK,
+                     fontSize=7, fillColor=T.TEXT_MUTED))
+    if x_unit:
+        d.add(String(width - 4, 8, f"（{x_unit}）", fontName=FONT_CJK,
+                     fontSize=7, fillColor=T.TEXT_MUTED, textAnchor="end"))
     return d
 
 
@@ -413,26 +584,27 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     ]))
     story.append(t_mon)
 
-    # NFP trend chart on P2 (below KPI — P2 has ~460pt free space)
-    nfp_h = (data.get("macro") or {}).get("nfp_hist") or []
-    if len(nfp_h) >= 12:
-        try:
-            nfp_vals = [float(p.get("value", 0)) for p in nfp_h]
-            nfp_labels = [f"{p.get('period_name', '')[:3]}" for p in nfp_h]
-            step = max(1, len(nfp_h) // 8)
-            nfp_labels = [l if i % step == 0 else "" for i, l in enumerate(nfp_labels)]
-            story.append(Spacer(1, 8))
-            story.append(Paragraph(en("<b>非農就業新增走勢（千/月）— 就業動能指標</b>"), s["h1"]))
-            story.append(_line_chart(nfp_labels, [nfp_vals], height=120))
-            story.append(Spacer(1, 4))
-        except ValueError:
-            pass
+    # NFP monthly-change chart on P2 (below KPI — P2 has ~460pt free space).
+    # Plots MoM additions from the BLS level series; without enough history
+    # the whole block is skipped (CI/sample path).
+    nfp_chart = _nfp_monthly_changes((data.get("macro") or {}).get("nfp_hist"))
+    if nfp_chart:
+        nfp_diffs, nfp_labels = nfp_chart
+        step = max(1, len(nfp_labels) // 8)
+        nfp_labels = [l if i % step == 0 else "" for i, l in enumerate(nfp_labels)]
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(en("<b>非農就業月增人數（千人/月）— 就業動能指標</b>"), s["h1"]))
+        story.append(_line_chart(nfp_labels, [nfp_diffs], height=130,
+                                 y_unit="千人", y_fmt="{:+.0f}", x_unit="月份"))
+        story.append(Spacer(1, 4))
 
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
         "資料：TWSE MI_MARGN・Yahoo Finance｜籌碼數據截至前一交易日",
         date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
+    verdicts = _market_verdicts(data)
+    story.extend(_verdict_banner([verdicts["tw"], verdicts["us"]], s))
 
     story.append(Paragraph(en("<b>【台股市場專題】活力橘紅 —— 融資/融券餘額與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
@@ -470,6 +642,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("全球債券、外匯與總經數據趨勢",
         "資料：美國財政部・BLS｜殖利率每日、總經月度（TTL 快取）",
         date_str, COLOR_BOND, s, eyebrow_text="Financial Intelligence"))
+    story.extend(_verdict_banner([verdicts["bond"], verdicts["forex"]], s))
 
     story.append(Paragraph(en("<b>【全球債券專題】暖琥珀 —— 利率與殖利率曲線</b>"), s["h1"]))
     story.append(_detail_table(
@@ -566,6 +739,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("大宗商品、數位資產與動態資產配置",
         "資料：Yahoo Finance｜商品與數位資產報價即時",
         date_str, COLOR_CRYPTO, s, eyebrow_text="Financial Intelligence"))
+    story.extend(_verdict_banner([verdicts["cmdty"], verdicts["crypto"]], s))
 
     story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑</b>"), s["h1"]))
     story.append(_detail_table(
@@ -603,6 +777,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.extend(make_title_row("各領域進場與退場投資標的整合追蹤",
         "綜合前述指標之精選清單｜非投資建議",
         date_str, T.SIGNAL_BUY, s, eyebrow_text="Financial Intelligence"))
+    story.extend(_verdict_banner([verdicts["overall"]], s))
 
     story.append(Paragraph(en("<b>🟢 適合進場 / 分批加碼投資標的 (Recommended Entry Targets)</b>"), s["h1"]))
     story.append(_detail_table(
@@ -644,7 +819,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     if curve:
         have_any = True
         story.append(Paragraph(en(f"<b>美債殖利率曲線（{ycd.get('date', '')}）</b>"), s["h1"]))
-        story.append(_line_chart(list(curve.keys()), [list(curve.values())], height=138))
+        story.append(_line_chart(list(curve.keys()), [list(curve.values())], height=138,
+                                 y_unit="%", y_fmt="{:.2f}", x_unit="天期"))
         story.append(Spacer(1, 6))
     ten10y = md.get("us10y_hist") or []
     if len(ten10y) >= 20:
@@ -657,7 +833,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         story.append(Paragraph(
             en(f"<b>美債 10Y 殖利率走勢（{first['date']} → {last['date']}，年內 {len(ten10y)} 個交易日）</b>"),
             s["h1"]))
-        story.append(_line_chart(labels, [vals], height=138))
+        story.append(_line_chart(labels, [vals], height=138,
+                                 y_unit="%", y_fmt="{:.2f}", x_unit="月份"))
         story.append(Spacer(1, 6))
     cpi_r2 = _yoy_series(md.get("cpi_hist"))
     core_r2 = _yoy_series(md.get("core_cpi_hist"))
@@ -666,7 +843,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         series = [r[0] for r in (cpi_r2, core_r2) if r]
         labels = (cpi_r2 or core_r2)[1]
         story.append(Paragraph(en("<b>通膨趨勢 — CPI / Core CPI 年增率（青線 = CPI，琥珀線 = Core CPI）</b>"), s["h1"]))
-        story.append(_line_chart(labels, series, height=138))
+        story.append(_line_chart(labels, series, height=138,
+                                 y_unit="%", y_fmt="{:.1f}", x_unit="月份"))
         story.append(Spacer(1, 6))
     if curve and len(ten10y) >= 20:
         def _cv(t):
