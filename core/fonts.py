@@ -77,6 +77,16 @@ def ensure_fonts():
         )
     pdfmetrics.registerFont(TTFont(FONT_CJK, cjk_path))
 
+    # A real Bold face when available — otherwise <b> silently renders in the
+    # same weight. With the variable-font default (Thin) that made small
+    # white badge text near-invisible. Statics: scripts/fetch_fonts.py.
+    bold_path = _resolve(["NotoSansTC-Bold.ttf"], [])
+    if bold_path:
+        from reportlab.pdfbase.pdfmetrics import registerFontFamily
+        pdfmetrics.registerFont(TTFont(FONT_CJK + "/Bold", bold_path))
+        registerFontFamily(FONT_CJK, normal=FONT_CJK, bold=FONT_CJK + "/Bold",
+                           italic=FONT_CJK, boldItalic=FONT_CJK + "/Bold")
+
     latin_path = _resolve(_LATIN_FILES, _LINUX_SYS["latin"] + _WIN_SYS["latin"])
     latin_bold_path = _resolve(_LATIN_BOLD_FILES, _LINUX_SYS["latin_bold"] + _WIN_SYS["latin_bold"])
     # When a Latin font is missing, alias its logical name to the CJK file so

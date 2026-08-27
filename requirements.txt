@@ -15,3 +15,4 @@ google-auth-oauthlib>=1.0   # one-time refresh-token flow (scripts/drive_oauth_s
 
 # Optional / future (not required for the pipeline to run offline):
 #   pyswisseph                # Spiritual: real Swiss Ephemeris transit engines
+fonttools  # fetch_fonts.py: instantiate static Regular/Bold from Noto TC variable font
