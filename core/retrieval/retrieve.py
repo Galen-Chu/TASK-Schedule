@@ -236,7 +236,7 @@ def trending_keywords(store, now=None, top_k=8):
         if target is None:
             continue
         for t in tokens:
-            if len(t) >= 3 and t not in _STOP_WORDS:
+            if len(t) >= 3 and t not in _STOP_WORDS and not t.isdigit():
                 target[t] = target.get(t, 0) + 1
 
     trending = []

@@ -73,10 +73,10 @@ def trend_lines(trends):
         arrow = "↑" if chg > 0 else "↓" if chg < 0 else "→"
         out.append(f"- {zh}聲量週比 {arrow}{abs(chg):.0f}%"
                    f"（本週 {st.get('this_week', 0)} 則 / 上週 {st.get('last_week', 0)} 則）")
-    for kw_row in (trends or {}).get("keywords") or []:
-        kw, hits, chg = kw_row[0], kw_row[1], kw_row[2]
+    for k in (trends or {}).get("keywords") or []:
+        kw, hits, chg = k["keyword"], k.get("this_week", 0), k.get("change", 0)
         if hits >= 3:
-            out.append(f"- 發燒詞：「{kw}」本週 {hits} 則（+{chg}%）")
+            out.append(f"- 發燒詞：「{kw}」本週 {hits} 則（+{chg}）")
     return out
 
 

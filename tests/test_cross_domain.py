@@ -42,17 +42,21 @@ def test_signal_lines_includes_core_fields():
 
 
 def test_trend_lines_arrows_and_keywords():
+    """Keywords arrive as dicts from retrieve.trending_keywords (the tuple
+    shape originally coded here raised TypeError in production and silently
+    killed the whole briefing — this test pins the dict contract)."""
     trends = {
         "domains": {"it_ai": {"this_week": 30, "last_week": 12, "change_pct": 150.0},
                     "geopolitics": {"this_week": 5, "last_week": 10, "change_pct": -50.0}},
-        "keywords": [("tariff", 6, 200.0), ("minor word", 1, 300.0)],
+        "keywords": [{"keyword": "tariff", "this_week": 6, "last_week": 2, "change": 4},
+                     {"keyword": "minor", "this_week": 1, "last_week": 0, "change": 1}],
     }
     lines = trend_lines(trends)
     joined = "\n".join(lines)
     assert "AI/半導體聲量週比 ↑150%" in joined
     assert "地緣政治聲量週比 ↓50%" in joined
     assert "「tariff」本週 6 則" in joined
-    assert "minor word" not in joined  # below the 3-hit floor
+    assert "minor" not in joined  # below the 3-hit floor
 
 
 # ---- LLM fallback + happy path --------------------------------------------

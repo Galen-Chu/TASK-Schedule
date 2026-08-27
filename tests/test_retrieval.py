@@ -119,3 +119,31 @@ def test_compact_drops_old(tmp_path):
     assert len(store.all()) == 1
     assert store.compact(keep_days=30) == 1
     assert len(store.all()) == 0
+
+
+# ---- trending keywords ------------------------------------------------------
+def test_trending_keywords_shape_and_digit_filter(tmp_path):
+    """Keywords are dicts (keyword/this_week/last_week/change), and pure-number
+    noise like '2026' is excluded even when it surges."""
+    from core.retrieval.retrieve import trending_keywords
+    store = CorpusStore(str(tmp_path / "c.jsonl"))
+    # Headlines share only the token "quantum" — anything closer gets merged
+    # by the near-dup title filter in CorpusStore.add.
+    week_now = [
+        {"title": "Quantum error correction advance", "link": "q1",
+         "summary": "qubit", "fetched_at": _iso(1)},
+        {"title": "Quantum computing milestone reached", "link": "q2",
+         "summary": "qubit", "fetched_at": _iso(2)},
+        {"title": "Quantum algorithm beats classical rival", "link": "q3",
+         "summary": "qubit", "fetched_at": _iso(3)},
+        {"title": "Quantum sensing startup raises funding 2026", "link": "q4",
+         "summary": "qubit", "fetched_at": _iso(1)},
+    ]
+    week_old = [{"title": f"Quantum lab expansion phase {i}", "link": f"o{i}",
+                 "summary": "qubit", "fetched_at": _iso(10)} for i in range(2)]
+    store.add(week_now + week_old)
+    out = trending_keywords(store)
+    assert isinstance(out, list) and out and isinstance(out[0], dict)
+    assert out[0]["keyword"] == "quantum"
+    assert out[0]["this_week"] >= 3 and out[0]["change"] > 0
+    assert all(not k["keyword"].isdigit() for k in out), "pure-number keywords leaked"

@@ -355,18 +355,35 @@ def build_global_pdf(filename, data=None, date_str=None):
             story.append(bar)
         story.append(Spacer(1, 6))
 
-        # Trending keywords
+        # Trending keywords — two-column list (emoji glyphs like 🔥/📈 render
+        # as .notdef boxes in the bundled CJK fonts, so use colored ▲/● text
+        # markers instead).
         kw_list = trends.get("keywords") or []
         if kw_list:
-            kw_str = " · ".join(
-                f"{'🔥' if k['change'] >= 5 else '📈'} {k['keyword']} (+{k['change']})"
-                for k in kw_list[:8]
-            )
-            story.append(Paragraph(en("<b>🔥 發燒關鍵字</b>"), s["h1"]))
-            story.append(Paragraph(
-                en(kw_str),
-                ParagraphStyle("gkw", fontName=FONT_CJK, fontSize=8.0,
-                               leading=11, textColor=T.TEXT_BODY)))
+            kw_style = ParagraphStyle("gkw", fontName=FONT_CJK, fontSize=8.2,
+                                      leading=11.5, textColor=T.TEXT_BODY)
+            kw_cells = []
+            for k in kw_list[:8]:
+                hot = k.get("change", 0) >= 8
+                mark_color = "#EF6F53" if hot else "#0E7C86"
+                mark = "▲" if hot else "●"
+                kw_cells.append(
+                    f'<font color="{mark_color}"><b>{mark}</b></font> '
+                    f"<b>{k['keyword']}</b>　本週 {k.get('this_week', '?')} 則"
+                    f'（<font color="{mark_color}">+{k.get("change", 0)}</font>）')
+            half = (len(kw_cells) + 1) // 2
+            rows = [[Paragraph(en(kw_cells[i]), kw_style),
+                     Paragraph(en(kw_cells[i + half]), kw_style) if i + half < len(kw_cells) else ""]
+                    for i in range(half)]
+            kw_table = Table(rows, colWidths=[T.PRINTABLE_WIDTH / 2] * 2)
+            kw_table.setStyle(TableStyle([
+                ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.4, T.RULE),
+            ]))
+            story.append(Paragraph(en("<b>發燒關鍵字（本週 vs 上週）</b>"), s["h1"]))
+            story.append(kw_table)
 
     # ============ P2-P7: Domain pages (6 compact cards each) ============
     for idx, (domain_tag, domain_zh, domain_en, category, ramp) in enumerate(DOMAINS):
