@@ -19,18 +19,47 @@ _TAG_RE = r'(</?(?:b|i|br|font|a|u)\b[^>]*>)'
 _LATIN_RUN_RE = r'([A-Za-z0-9%.,+\-\$/:_&><]+(?:\s+[A-Za-z0-9%.,+\-\$/:_&><]+)*)'
 
 
+# Emoji → CJK-font-safe glyphs. The static Noto TC subset (and Droid before
+# it) lacks emoji codepoints — they render as .notdef boxes (☒). Lights map
+# to signal-colored ●, arrows to plain ▲▼→; cosmetic prefixes are dropped.
+_LIGHT_HEX = {"🟢": "#2E8B4F", "🟡": "#B9791C", "🔴": "#D64545"}
+_EMOJI_MAP = {
+    "⬆️": "▲", "⬆": "▲", "⬇️": "▼", "⬇": "▼",
+    "➡️": "→", "➡": "→", "⬅️": "◀", "⬅": "◀",
+    "☑️": "✓", "✅": "✓", "✔️": "✓",
+    "📊": "▤", "📈": "▲", "📉": "▼",
+    "🕒": "", "📡": "", "📍": "", "💡": "", "🎯": "", "🔥": "",
+    "🧭": "", "🤖": "", "📰": "", "◎️": "◎",
+}
+_VS16 = "️"
+
+
+def _map_emoji(text):
+    """Replace emoji with font-safe glyphs; returns markup-safe fragments."""
+    text = text.replace(_VS16, "")
+    for ch in ("🟢", "🟡", "🔴"):
+        text = text.replace(
+            ch + " ", f'<font color="{_LIGHT_HEX[ch]}"><b>●</b></font> ')
+        text = text.replace(ch, f'<font color="{_LIGHT_HEX[ch]}"><b>●</b></font>')
+    for k, v in _EMOJI_MAP.items():
+        text = text.replace(k, v)
+    return text
+
+
 def en(text, bold=False, color=None):
     """Wrap Latin/digit runs in the Latin font and XML-escape ``& < >``.
 
-    Existing ``<b>``/``<i>``/``<br>``/``<font>`` tags are preserved. The result
-    is safe to embed inside a ReportLab ``<para>``.
+    Existing ``<b>``/``<i>``/``<br>``/``<font>`` tags are preserved. Emoji are
+    mapped to CJK-font-safe glyphs first (missing codepoints would render as
+    .notdef boxes). The result is safe to embed inside a ReportLab ``<para>``.
     """
     ensure_fonts()
     font = FONT_EN_BOLD if bold else FONT_EN
     color_attr = f' color="{color}"' if color else ''
 
+    text = _map_emoji(str(text))
     wrapped = []
-    for tok in re.split(_TAG_RE, str(text), flags=re.IGNORECASE):
+    for tok in re.split(_TAG_RE, text, flags=re.IGNORECASE):
         if re.match(_TAG_RE, tok, flags=re.IGNORECASE):
             wrapped.append(tok)
         else:

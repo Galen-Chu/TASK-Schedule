@@ -48,16 +48,19 @@ def system_emblem(index, primary, highlight, size=40):
         d.add(Line(x1 * u, y1 * u, x2 * u, y2 * u,
                    strokeColor=color, strokeWidth=sw))
 
-    if index == 0:      # 人類圖 — abstract bodygraph
-        rect(3.2, 7.6, 1.6, 1.6, stroke=primary)
-        d.add(Polygon([3.4, 7.4, 4.6, 7.4, 4.0, 6.3],
-                      fillColor=None, strokeColor=primary, strokeWidth=1.3))
-        circle(4.0, 4.9, 1.0, stroke=primary)
-        circle(4.0, 2.6, 0.85, stroke=highlight)
-        circle(6.4, 5.6, 0.75, stroke=highlight)
-        line(4.0, 6.3, 4.0, 5.9, highlight)
-        line(4.0, 3.9, 4.0, 3.45, highlight)
-        line(4.85, 5.3, 5.65, 5.55, highlight)
+    if index == 0:      # 人類圖 — abstract bodygraph spine (connected, symmetric)
+        rect(3.2, 8.3, 1.6, 1.3, stroke=primary)             # 頭頂方形
+        line(4.0, 8.3, 4.0, 7.9, primary)                    # 頭→心智
+        d.add(Polygon([3.3, 7.9, 4.7, 7.9, 4.0, 6.9],
+                      fillColor=None, strokeColor=primary, strokeWidth=1.3))  # 心智三角
+        line(4.0, 6.9, 4.0, 6.4, primary)                    # 心智→G中心
+        circle(4.0, 5.4, 1.0, stroke=primary)                # G 中心
+        line(4.0, 4.4, 4.0, 3.6, highlight)                  # G→根部
+        rect(3.4, 2.3, 1.2, 1.3, stroke=highlight)           # 根部方形
+        circle(2.2, 5.4, 0.55, stroke=highlight)             # 喉嚨側點
+        line(2.75, 5.4, 3.0, 5.4, highlight)
+        circle(5.8, 5.4, 0.55, stroke=highlight)
+        line(5.0, 5.4, 5.25, 5.4, highlight)
     elif index == 1:    # 西洋占星 — sun
         circle(5.0, 5.0, 2.0, stroke=primary)
         circle(5.0, 5.0, 0.45, fill=primary)
