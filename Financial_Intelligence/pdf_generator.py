@@ -470,14 +470,17 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             link = item.get("link", "")
             inner = T.PRINTABLE_WIDTH - 16
             safe_link = (link or "").replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
-            badge_html = f"<b>{org}</b>"
+            # 來源徽章＝超連結：墨藍底＋白粗體底線（原本白字橘底對比不足，
+            # 小字號下底線幾乎不可見，看起來像純標籤）。
+            badge_html = (f'<a href="{safe_link}" color="#FFFFFF"><u><b>{org}</b></u></a>'
+                          if link else f"<b>{org}</b>")
             badge = Table(
                 [[Paragraph(badge_html,
                              _PS("fmi_badge", fontName=_FONT_CJK, fontSize=8.2,
                                  leading=10, textColor=T.WHITE))]],
                 colWidths=[inner - 140])
             badge.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), T.CORAL),
+                ("BACKGROUND", (0, 0), (-1, -1), T.INK),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ]))
@@ -492,25 +495,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                 ("TOPPADDING", (0, 0), (-1, 0), 0), ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
                 ("TOPPADDING", (0, 1), (-1, 1), 2),
             ]))
-            # 明確的可點擊連結列——徽章（白字橘底）純當來源標籤用，
-            # 連結改以青色底線文字呈現，在 PDF 閱讀器中一眼可辨識。
-            link_row = ""
-            if link:
-                try:
-                    nl = _urlparse(link).netloc.replace("www.", "")
-                except ValueError:
-                    nl = "原文"
-                link_row = (
-                    f'<a href="{safe_link}"><font color="#0E7C86">'
-                    f"<u><b>原文連結｜{nl} →</b></u></font></a>")
-
-            mi_card = Table([[hdr],
-                             [Paragraph(en(summary), card_body)],
-                             [Paragraph(en(link_row),
-                                        _PS("fmi_link", fontName=_FONT_CJK,
-                                            fontSize=8.0, leading=10.5,
-                                            textColor=T.TEAL, alignment=2))]],
-                            colWidths=[T.PRINTABLE_WIDTH])
+            mi_card = Table([[hdr], [Paragraph(en(summary), card_body)]],
+                             colWidths=[T.PRINTABLE_WIDTH])
             mi_card.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FDE7E1")),
                 ("BOX", (0, 0), (-1, -1), 0.5, T.BORDER),
