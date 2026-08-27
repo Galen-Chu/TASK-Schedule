@@ -72,18 +72,26 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     )
     story.append(Spacer(1, 6))
 
-    # 2. Motto card
-    motto = Table([[Paragraph(en(f"<b>【意識定錨座右銘】</b> {cfg['motto']}"), motto_st)]], colWidths=[T.PRINTABLE_WIDTH])
+    # 2. Motto card — with the system's vector emblem (font-independent icon;
+    #    emoji glyphs render as .notdef boxes under the CI CJK font)
+    from Spiritual_Intelligence.icons import system_emblem
+    emblem = system_emblem(page_num - 1, cfg["color_primary"], cfg["color_highlight"],
+                           size=40)
+    motto = Table([[emblem,
+                    Paragraph(en(f"<b>【意識定錨座右銘】</b> {cfg['motto']}"), motto_st)]],
+                  colWidths=[48, T.PRINTABLE_WIDTH - 48])
     motto.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), cfg["color_bg"]),
         ('BOX', (0, 0), (-1, -1), 0.5, cfg["color_secondary"]),
         ('LINELEFT', (0, 0), (0, 0), 4, cfg["color_primary"]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('PADDING', (0, 0), (-1, -1), 7),
     ]))
     story += [motto, Spacer(1, 8)]
 
-    # 3. Spotlight card
-    spotlight = Table([[Paragraph(en(f"<b>{cfg['spotlight']}</b>"), spot_st)]], colWidths=[T.PRINTABLE_WIDTH])
+    # 3. Spotlight card (📍 emoji stripped — renders as .notdef under CI font)
+    spot_text = cfg["spotlight"].replace("📍 ", "")
+    spotlight = Table([[Paragraph(en(f"<b>{spot_text}</b>"), spot_st)]], colWidths=[T.PRINTABLE_WIDTH])
     spotlight.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FFFDF5")),
         ('BOX', (0, 0), (-1, -1), 0.8, cfg["color_primary"]),
@@ -101,11 +109,17 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     ]))
     story += [params, Spacer(1, 10)]
 
-    # 5. Five dimensions cards
+    # 5. Five dimensions cards — each with its own colored shape marker
+    _DIM_GLYPHS = ["●", "■", "▲", "◆", "★"]
+    _p_hex = "#" + cfg["color_primary"].hexval()[2:]
+    _h_hex = "#" + cfg["color_highlight"].hexval()[2:]
     story.append(Paragraph(en("<b>五大維度深度覺察 (5-Dimensional Analysis)</b>"), heading_st))
-    for dim_title, dim_content in cfg["dimensions"]:
+    for di, (dim_title, dim_content) in enumerate(cfg["dimensions"]):
+        glyph = _DIM_GLYPHS[di % len(_DIM_GLYPHS)]
+        gcol = _p_hex if di % 2 == 0 else _h_hex
         card = Table(
-            [[Paragraph(en(f"<b>{dim_title}</b>"), dim_h_st)],
+            [[Paragraph(en(f'<font color="{gcol}"><b>{glyph}</b></font> '
+                           f"<b>{dim_title}</b>"), dim_h_st)],
              [Paragraph(en(dim_content), dim_b_st)]],
             colWidths=[T.PRINTABLE_WIDTH],
         )
@@ -122,9 +136,9 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     story.append(Paragraph(en("<b>三段式結構導引 (Structured Guidance: What / Why / So What)</b>"), heading_st))
     action_str = "<br/>".join(cfg["action"])
     guidance = Table(
-        [[Paragraph(en(f"<b>📍 覺察觀察 (What)：</b> {cfg['what']}"), dim_b_st)],
-         [Paragraph(en(f"<b>💡 轉化思維 (Why)：</b> {cfg['why']}"), dim_b_st)],
-         [Paragraph(en(f"<b>🎯 定錨行動 (So What)：</b><br/>{action_str}"), dim_b_st)]],
+        [[Paragraph(en(f'<font color="{_p_hex}"><b>◎</b></font> <b>覺察觀察 (What)：</b> {cfg["what"]}'), dim_b_st)],
+         [Paragraph(en(f'<font color="{_h_hex}"><b>◆</b></font> <b>轉化思維 (Why)：</b> {cfg["why"]}'), dim_b_st)],
+         [Paragraph(en(f'<font color="{_p_hex}"><b>★</b></font> <b>定錨行動 (So What)：</b><br/>{action_str}'), dim_b_st)]],
         colWidths=[T.PRINTABLE_WIDTH],
     )
     guidance.setStyle(TableStyle([
