@@ -9,10 +9,11 @@ name: Daily Reports
 
 on:
   schedule:
-    # 22:30 UTC = 06:30 Asia/Taipei (next day) — covers the earliest daily slot.
-    # (The old separate monthly macro cron was retired: the macro dashboard is
-    # now page 6 of the daily Financial report, served from a TTL cache.)
-    - cron: '30 22 * * *'
+    # 23:30 UTC = 07:30 Asia/Taipei (next day). Moved from 22:30 (06:30) after
+    # GitHub dropped/delayed that slot two days running (2026-08-25 delayed 21
+    # min; 2026-08-26 never fired). Watch a few days — if drops persist, also
+    # shift off the :30 minute.
+    - cron: '30 23 * * *'
   workflow_dispatch:        # manual run from the Actions tab
     inputs:
       date:

@@ -36,7 +36,7 @@ CORPUS_PATH = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl
 class SpiritualReportScheduler(BaseReportScheduler):
     report_id = "spiritual"
     report_title = "Spiritual Intelligence 每日覺察運勢報告"
-    default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
+    default_cron = "30 7 * * *"             # 07:30 Asia/Taipei
     page_count = 7
 
     # ---- config (no PII in source) ----------------------------------------

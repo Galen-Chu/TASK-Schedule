@@ -60,7 +60,7 @@ CORPUS_PATH = os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl
 class GlobalReportScheduler(BaseReportScheduler):
     report_id = "global"
     report_title = "Global Intelligence 每日產業局勢報告"
-    default_cron = "30 6 * * *"             # 06:30 Asia/Taipei
+    default_cron = "30 7 * * *"             # 07:30 Asia/Taipei
     page_count = 7
 
     def sample_data(self):
