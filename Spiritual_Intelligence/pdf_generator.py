@@ -65,7 +65,7 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     # restatement; the weekday label is derived inside make_title_row.
     story += make_title_row(
         cfg["title"],
-        subtitle_text=f"地點：{location}　·　五術 {page_num}/{page_total}（{cfg['subtitle']}）",
+        subtitle_text=f"地點：{location}　·　七術 {page_num}/{page_total}（{cfg['subtitle']}）",
         date_str=date_str,
         accent_color=cfg["color_primary"],
         eyebrow_text="Spiritual Intelligence 每日覺察運勢報告",
