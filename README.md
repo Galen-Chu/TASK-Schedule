@@ -196,8 +196,47 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | PDF metadata（author/subject/keywords） | ✅ 已開發（2026-08-26，`core/pdf_engine.new_doc`） |
 | 跨域情報關聯（G）：Financial 訊號 × Global 語料趨勢 →「今日情報摘要」 | ✅ 已開發（2026-08-26，`core/cross_domain.py`；Financial P1 頭版 WHAT/WHY/SO_WHAT 卡＋Obsidian callout，需 `GEMINI_API_KEY`，缺 key 靜默略過） |
 | Financial 方案 C「主題歸堆」分頁重整 | ✅ 已開發（2026-08-27：P2 決策總覽收總經 live 表、利差計算表入債匯頁、配置矩陣入標的頁、四張總經圖集中 P7；P2 統一標準頁首+信號色評級卡） |
+| Financial P1 新聞卡多樣化＋摘要去重、P5 六商品＋走勢圖 | ✅ 已開發（2026-08-27：`_pick_diverse`＋`_dedup_summary`；白銀/銅/天然氣即時報價＋黃金/BTC 三月走勢圖；徽章墨藍底超連結） |
 | remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
+
+---
+
+## 未來評估開發項目（2026-08-27 專案收尾盤點）
+
+### A. 僅需設定即可啟用（程式已就緒，零開發）
+
+| 項目 | 動作 | 效益 |
+|---|---|---|
+| Drive 自動上傳／Gmail（F） | GitHub Secrets 加 `GCP_SA_KEY`＋`DRIVE_FOLDER_ID`（資料夾須在共用雲端硬碟） | 每日 PDF 自動歸檔，突破 artifact 14 天保留限制 |
+| BLS 高額度 | Secret 加 `BLS_API_KEY`（[免費註冊](https://data.bls.gov/registration_engine.htm)） | NFP/CPI 請求額度 25→500/日，降低快取失敗風險 |
+| 本機 LLM 內容 | 本機設 User 級 `GEMINI_API_KEY` | 本機也能看跨域摘要卡與三段式動態卡 |
+
+### B. 中期優化候選（小～中工作量）
+
+| 項目 | 說明 | 前置 |
+|---|---|---|
+| H 報表歷史對比 | 昨日 vs 今日 PDF 自動 diff：關鍵指標變化標注、頁面差異摘要（`main.py --diff` 或報表新區塊；本機已裝 pymupdf 可直接做文字層比對） | artifact 需保留兩日，或 Drive 歸檔後取歷史檔 |
+| Global 徽章對比統一 | 部分領域徽章白字對比不足（琥珀底 ~1.9:1、抹茶綠 ~3.4:1），可比照 Financial 改墨藍 chip | 無 |
+| 域分類持續調校 | `--stats` 的未分類樣本引導關鍵字擴充（目前 ~12%）；Global P1 趨勢表可考慮排除「未分類」列 | 無 |
+| Spiritual 卦象大圖 | 易經頁下半空間可放當日卦象向量大圖＋動爻標記（視覺分析建議） | `systems_data` 需提供動爻結構化欄位 |
+| P5 走勢圖擴充 | 白銀/銅歷史圖（`commodity_*` TTL 快取機制已就緒，加 fetcher 呼叫即可） | 無 |
+
+### C. 長期／大工程（原評估路線）
+
+| 項目 | 說明 |
+|---|---|
+| I 互動式 Dashboard | Web UI 取代/補充 PDF——指標即時查看、歷史趨勢互動圖（Streamlit/Gradio 或靜態 HTML＋JSON 資料，可掛 GitHub Pages） |
+| J 多租戶／個人化 | 不同使用者→不同報表組合與內容（`config/spark.yaml`＋`birth-profile.yaml` 已有個人化雛形，需多設定檔路由） |
+| 檢索層 remote store（GCP） | 語料從 commit-back 換成遠端 vector store；介面已預留（`CorpusStore` 合約） |
+
+### D. 維運觀察項（不需開發，持續留意）
+
+- **排程可靠性**：cron 已改 23:30 UTC（07:30 台北）；GitHub 尖峰時段仍可能延遲——觀察數天，若再整班跳票，改非整半點分鐘（如 `37 23`）。
+- **LLM 額度**：每日約 17–25 次呼叫（守門上限 60）；三段式＋跨域摘要上線後重新觀察分佈。
+- **CI artifact**：保留 14 天；長期歸檔依賴 A 項的 Drive 啟用。
+
+---
 
 ---
 
