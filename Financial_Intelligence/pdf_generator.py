@@ -128,15 +128,21 @@ def _market_verdicts(data):
     if fg is None:
         out["cmdty"] = ("商品", "neutral", "數據待補", "恐貪指數未取得")
         out["crypto"] = ("加密", "neutral", "數據待補", "恐貪指數未取得")
-    elif fg <= 25:
-        out["cmdty"] = ("商品", "buy", "極端恐慌・逆向布局", f"恐貪指數 {fg} 落於極度恐慌區")
-        out["crypto"] = ("加密", "buy", "極端恐慌・逆向布局", f"恐貪指數 {fg} 落於極度恐慌區")
-    elif fg >= 75:
-        out["cmdty"] = ("商品", "hold", "極端貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區")
-        out["crypto"] = ("加密", "hold", "極端貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區")
+    elif fg <= 24:
+        out["cmdty"] = ("商品", "buy", "極度恐慌・逆向買點", f"恐貪指數 {fg} 落於極度恐慌區（0–24）")
+        out["crypto"] = ("加密", "buy", "極度恐慌・逆向買點", f"恐貪指數 {fg} 落於極度恐慌區（0–24）")
+    elif fg <= 44:
+        out["cmdty"] = ("商品", "buy", "恐慌區・分批布局", f"恐貪指數 {fg} 落於恐慌區（25–44）")
+        out["crypto"] = ("加密", "buy", "恐慌區・分批布局", f"恐貪指數 {fg} 落於恐慌區（25–44）")
+    elif fg <= 55:
+        out["cmdty"] = ("商品", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區（45–55）")
+        out["crypto"] = ("加密", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區（45–55）")
+    elif fg <= 75:
+        out["cmdty"] = ("商品", "hold", "貪婪區・居高思危", f"恐貪指數 {fg} 落於貪婪區（56–75）")
+        out["crypto"] = ("加密", "hold", "貪婪區・居高思危", f"恐貪指數 {fg} 落於貪婪區（56–75）")
     else:
-        out["cmdty"] = ("商品", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區")
-        out["crypto"] = ("加密", "hold", "中性區間", f"恐貪指數 {fg} 位於中性區")
+        out["cmdty"] = ("商品", "sell", "極度貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區（76–100）")
+        out["crypto"] = ("加密", "sell", "極度貪婪・逢高減碼", f"恐貪指數 {fg} 落於極度貪婪區（76–100）")
 
     score = calculate_signal_score(data)
     light = "buy" if score >= 65 else ("hold" if score >= 45 else "sell")
@@ -186,6 +192,34 @@ def _verdict_banner(verdicts, s):
 
 def _g(data, key, default):
     return (data or {}).get(key, default)
+
+
+def _dedup_summary(title, summary):
+    """Drop leading summary sentences that merely restate the headline.
+
+    RSS blurbs often open with the headline reworded, which made the news
+    cards read as title + title. A sentence goes when its token overlap
+    with the title is >= 0.6 or it contains the headline verbatim; if that
+    would empty the summary, the original is kept (repeat > empty card).
+    """
+    import re as _re
+    if not summary:
+        return ""
+    tokens = lambda s: {w for w in _re.split(r"[^a-z0-9一-鿿]+", s.lower())
+                        if len(w) > 2}
+    t_tokens = tokens(title or "")
+    sentences = [s.strip() for s in _re.split(r"(?<=[.!?。！？])\s+", summary) if s.strip()]
+    if not t_tokens or len(sentences) <= 1:
+        return summary
+    kept = []
+    for sent in sentences:
+        if (title and len(title) >= 8 and title[:20] in sent):
+            continue
+        s_tokens = tokens(sent)
+        if s_tokens and len(t_tokens & s_tokens) / min(len(t_tokens), len(s_tokens)) >= 0.6:
+            continue
+        kept.append(sent)
+    return " ".join(kept) if kept else summary
 
 
 _MON = {m: i + 1 for i, m in enumerate(
@@ -432,7 +466,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             org = _fsrc(item.get("source", ""))
             focus = _fclean(item.get("title", ""))[:80]
             when = _ftime(item)
-            summary = _fclean(item.get("summary", ""))[:200] or focus
+            summary = _dedup_summary(focus, _fclean(item.get("summary", ""))[:220]) or focus
             link = item.get("link", "")
             inner = T.PRINTABLE_WIDTH - 16
             safe_link = (link or "").replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
@@ -795,15 +829,44 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         date_str, COLOR_CRYPTO, s, eyebrow_text="Financial Intelligence"))
 
     story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑</b>"), s["h1"]))
+    silver = _g(data, "silver", 29.5)
+    copper = _g(data, "copper", 4.35)
+    natgas = _g(data, "natgas", 2.85)
+    wti = _g(data, "wti", 76.5)
+    def _band(price, lo_pct, hi_pct, dec=0):
+        """技術支撐/壓力區間 — 依現價動態推導（取代過時的靜態模板水位）。"""
+        return f"支撐: ${price * (1 - lo_pct):,.{dec}f} / 壓力: ${price * (1 + hi_pct):,.{dec}f}"
+
     story.append(_detail_table(
         ["資產標的", "當前價格", "關鍵支撐/壓力", "鏈上/市場籌碼與觀點分析"],
         [
-            ["黃金 (Gold)", f"${gold:,} / oz", "支撐: $2,400 / 壓力: $2,500", "🟢 央行持續購金與避險需求支撐，高位高姿態震盪"],
-            ["紐約原油 (WTI)", "$76.5 / bbl", "支撐: $72.0 / 壓力: $82.0", "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
-            ["比特幣 (BTC)", f"${btc:,}", "支撐: $55,000 / 壓力: $64,000", "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
+            ["黃金 (Gold)", f"${gold:,.0f} / oz", _band(gold, 0.05, 0.05), "🟢 央行持續購金與避險需求支撐，高位高姿態震盪"],
+            ["白銀 (Silver)", f"${silver:,.2f} / oz", _band(silver, 0.08, 0.08, 2), "🟡 工業需求（太陽能/電子）與避險雙引擎，波動大於黃金"],
+            ["銅 (Copper)", f"${copper:,.2f} / lb", _band(copper, 0.08, 0.08, 2), "🟢 全球電網與 AI 數據中心用銅需求強勁，庫存偏低"],
+            ["紐約原油 (WTI)", f"${wti:,.1f} / bbl", _band(wti, 0.08, 0.08, 1), "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
+            ["天然氣 (NatGas)", f"${natgas:,.2f} / MMBtu", _band(natgas, 0.15, 0.15, 2), "🟡 季節性需求波動大，LNG 出口產能持續擴張"],
+            ["比特幣 (BTC)", f"${btc:,.0f}", _band(btc, 0.12, 0.12), "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
         ],
         header_bg=COLOR_CRYPTO, grid_color=colors.HexColor('#EEF0F4'), styles=s,
     ))
+    story.append(Paragraph(en("<i>支撐/壓力為現價 ±5–15% 之技術參考區間（依商品波動度調整），非投資建議</i>"),
+                           ParagraphStyle("cmd_note", fontName=FONT_CJK, fontSize=7.5,
+                                          leading=10, textColor=T.TEXT_MUTED, alignment=2)))
+
+    # 價格走勢圖（近三個月收盤，Yahoo v8 keyless；無資料時整塊略過）
+    commodity_hist = data.get("commodity_hist") or {}
+    for hkey, hlabel in (("gold", "黃金"), ("btc", "比特幣")):
+        series = commodity_hist.get(hkey) or []
+        if len(series) >= 20:
+            step = max(1, len(series) // 8)
+            hlabels = [p["date"] if i % step == 0 else ""
+                       for i, p in enumerate(series)]
+            hvals = [p["v"] for p in series]
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(
+                en(f"<b>{hlabel}價格走勢（近 {len(series)} 個交易日）</b>"), s["h1"]))
+            story.append(_line_chart(hlabels, [hvals], height=118,
+                                     y_unit="USD", y_fmt="{:,.0f}", x_unit="日期"))
     # 本頁交易提示(置於頁尾)
     story.append(Spacer(1, 16))
     story.extend(_verdict_banner([verdicts["cmdty"], verdicts["crypto"]], s))

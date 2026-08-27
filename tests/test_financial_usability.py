@@ -78,6 +78,18 @@ def test_market_verdicts_bearish_and_mid_inputs():
     assert v["overall"][1] == "hold" or v["overall"][1] == "sell"
 
 
+def test_market_verdicts_fg_official_bands():
+    """F&G bands follow CNN's official cut-points (25/45/56/76)."""
+    v71 = _market_verdicts({"fear_and_greed": 71})
+    assert v71["cmdty"][2] == "貪婪區・居高思危"
+    v80 = _market_verdicts({"fear_and_greed": 80})
+    assert v80["crypto"][1] == "sell"
+    v30 = _market_verdicts({"fear_and_greed": 30})
+    assert v30["cmdty"][1] == "buy"
+    v50 = _market_verdicts({"fear_and_greed": 50})
+    assert v50["cmdty"][2] == "中性區間"
+
+
 def test_market_verdicts_missing_data_all_neutral():
     v = _market_verdicts({})
     for key in ("tw", "us", "bond", "forex", "cmdty", "crypto"):
@@ -115,7 +127,14 @@ def _full_macro():
 def test_financial_pdf_full_charts_and_banners_stay_7_pages(tmp_path):
     data = {"tw_margin_balance": 8_894_000, "vix": 15.2, "fear_and_greed": 71,
             "spread_10y2y": 0.47, "dxy": 102.4, "treasury_10y": 3.9,
-            "treasury_2y": 3.43, "macro": _full_macro(),
+            "treasury_2y": 3.43, "silver": 29.4, "copper": 4.4, "natgas": 2.9,
+            "wti": 76.2, "macro": _full_macro(),
+            "commodity_hist": {
+                "gold": [{"date": f"{(i % 12) + 1:02d}/15", "v": 2400 + 9 * i}
+                         for i in range(26)],
+                "btc": [{"date": f"{(i % 12) + 1:02d}/15", "v": 58000 + 500 * i}
+                        for i in range(26)],
+            },
             "market_intel": [
                 {"title": f"Market headline number {i}", "summary": "summary " * 8,
                  "source": "https://finance.yahoo.com/news/rss.xml", "link": "https://x.org",
@@ -127,3 +146,57 @@ def test_financial_pdf_full_charts_and_banners_stay_7_pages(tmp_path):
     raw = open(out, "rb").read()
     pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
     assert pages == 7, f"banners/charts overflowed: {pages} pages"
+
+
+# ---- news-card diversity + summary de-overlap (2026-08-27 follow-up) -------
+def test_pick_diverse_caps_domain_and_source():
+    from Financial_Intelligence.cloud_daily_financial_report_scheduler import _pick_diverse
+    pools = {
+        "macro": [
+            {"title": f"m{i}", "source": f"https://s{i}.com/rss"} for i in range(4)
+        ] + [{"title": "m-same-host", "source": "https://s0.com/rss"}],
+        "geopolitics": [
+            {"title": f"g{i}", "source": f"https://g{i}.com/rss"} for i in range(2)
+        ],
+        "it_ai": [{"title": "t0", "source": "https://t0.com/rss"}],
+    }
+    picked = _pick_diverse(pools, k=5)
+    assert len(picked) == 5
+    from urllib.parse import urlparse
+    hosts = [urlparse(p["source"]).netloc for p in picked]
+    assert len(hosts) == len(set(hosts)), "same source host picked twice"
+    # per-domain cap 2 holds when pools can fill k without it (3 domains)
+    titles = [p["title"] for p in picked]
+    assert sum(1 for t in titles if t.startswith("m")) <= 2
+    assert "t0" in titles and "m-same-host" not in titles
+
+
+def test_pick_diverse_fills_when_pools_are_thin():
+    from Financial_Intelligence.cloud_daily_financial_report_scheduler import _pick_diverse
+    pools = {"macro": [{"title": "only", "source": "https://a.com/rss"}]}
+    assert _pick_diverse(pools, k=5) == pools["macro"]
+
+
+def test_dedup_summary_drops_restatement():
+    from Financial_Intelligence.pdf_generator import _dedup_summary
+    title = "Fed holds rates steady in September meeting"
+    summary = ("Fed holds rates steady in September meeting. Policymakers "
+               "signalled two cuts by year-end as inflation cools further.")
+    out = _dedup_summary(title, summary)
+    assert "Policymakers" in out and "Fed holds rates steady" not in out
+
+
+def test_dedup_summary_keeps_non_redundant_text():
+    from Financial_Intelligence.pdf_generator import _dedup_summary
+    summary = "Gold surged after the jobs report missed expectations badly."
+    assert _dedup_summary("Oil prices slip", summary) == summary
+    # single-sentence summaries are never dropped (repeat > empty card)
+    dup = "Oil prices slip on demand concerns"
+    assert _dedup_summary("Oil prices slip", dup) == dup
+
+
+def test_new_commodity_symbols_registered():
+    from core.data.fetchers import _YAHOO_SYMBOLS
+    for key, sym in (("silver", "SI=F"), ("copper", "HG=F"),
+                     ("natgas", "NG=F"), ("dxy", "DX-Y.NYB")):
+        assert _YAHOO_SYMBOLS[key] == sym

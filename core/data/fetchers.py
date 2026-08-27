@@ -93,6 +93,9 @@ _YAHOO_SYMBOLS = {
     "gold": "GC=F",         # 黃金 (USD/oz)
     "btc": "BTC-USD",       # 比特幣
     "wti": "CL=F",          # 紐約原油
+    "silver": "SI=F",       # 白銀 (USD/oz)
+    "copper": "HG=F",       # 銅 (USD/lb)
+    "natgas": "NG=F",       # 天然氣 (USD/MMBtu)
 }
 
 
@@ -104,6 +107,34 @@ def fetch_yahoo_quote(symbol):
         return float(data["chart"]["result"][0]["meta"]["regularMarketPrice"])
     except (KeyError, IndexError, TypeError, ValueError):
         return None
+
+
+def fetch_yahoo_history(symbol, months=3):
+    """Keyless daily close history from the Yahoo v8 chart endpoint.
+
+    Returns [{"date": "MM/DD", "v": close}, ...] oldest→newest (nulls
+    skipped), or None on any failure. ~63 sessions for 3 months.
+    """
+    import datetime as _dt
+    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+           f"?interval=1d&range={months}mo")
+    data = _get_json(url)
+    try:
+        result = data["chart"]["result"][0]
+        ts = result["timestamp"]
+        closes = result["indicators"]["quote"][0]["close"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    out = []
+    for t, c in zip(ts, closes):
+        if c is None:
+            continue
+        try:
+            d = _dt.datetime.fromtimestamp(t).strftime("%m/%d")
+        except (ValueError, OSError, OverflowError):
+            continue
+        out.append({"date": d, "v": round(float(c), 2)})
+    return out or None
 
 
 def fetch_market_snapshot():

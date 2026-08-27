@@ -25,6 +25,49 @@ from core.data.fetchers import (
 from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve
 
+
+def _pick_diverse(pools, k=5, per_domain=2):
+    """Pick k retrieval items across domains/sources for the news page.
+
+    ``pools`` = {domain: [items]} ranked by relevance. Round-robin greedy
+    pick with two diversity constraints — at most ``per_domain`` items per
+    domain and at most one per source host — so five cards never read as
+    five versions of the same story. A final unconstrained pass fills any
+    remaining slots when the pools are too thin to satisfy the caps.
+    """
+    from urllib.parse import urlparse as _up
+    picked, dom_count, seen_hosts = [], {}, set()
+
+    def _host(it):
+        try:
+            return _up(it.get("source", "") or it.get("link", "")).netloc
+        except ValueError:
+            return ""
+
+    for constrained in (True, False):
+        progress = True
+        while progress and len(picked) < k:
+            progress = False
+            for dom, items in pools.items():
+                if len(picked) >= k:
+                    break
+                for it in items:
+                    if any(it is p for p in picked):
+                        continue
+                    h = _host(it)
+                    if constrained:
+                        if dom_count.get(dom, 0) >= per_domain:
+                            break              # domain exhausted → next domain
+                        if h and h in seen_hosts:
+                            continue           # source already on the page
+                    picked.append(it)
+                    dom_count[dom] = dom_count.get(dom, 0) + 1
+                    if h:
+                        seen_hosts.add(h)
+                    progress = True
+                    break                      # next domain, keep balance
+    return picked
+
 # Financial news RSS feeds — ingested into the same retrieval corpus as Global,
 # but tagged with "financial" domain keywords via the classify_domain logic.
 FINANCIAL_FEEDS = [
@@ -64,6 +107,17 @@ class FinancialReportScheduler(BaseReportScheduler):
             "usdtwd": 32.15,
             "gold": 2450,
             "btc": 58500,
+            "silver": 29.5,
+            "copper": 4.35,
+            "natgas": 2.85,
+            "commodity_hist": {
+                "gold": [{"date": f"{(i % 12) + 1:02d}/15",
+                          "v": round(2400 + 30 * i + (25 if i % 7 == 0 else -12), 2)}
+                         for i in range(24)],
+                "btc": [{"date": f"{(i % 12) + 1:02d}/15",
+                         "v": round(58000 + 600 * i - (2500 if i % 5 == 0 else 800), 2)}
+                        for i in range(24)],
+            },
             "macro": {
                 "yield_curve": {
                     "date": "08/13/2026",
@@ -124,11 +178,25 @@ class FinancialReportScheduler(BaseReportScheduler):
         # 1) Yahoo Finance headline quotes (keyless)
         snap = fetch_market_snapshot()
         if snap:
-            keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc", "wti": "wti"}
+            keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc",
+                      "wti": "wti", "silver": "silver", "copper": "copper",
+                      "natgas": "natgas"}
             for k, dk in keymap.items():
                 if k in snap:
                     data[dk] = snap[k]
             sources.append("Yahoo")
+
+        # 1b) Commodity price history for the P5 trend charts (1-day TTL
+        #     cache — daily closes don't change intraday for our purpose)
+        from core.data.macro_cache import cached as _cached
+        from core.data.fetchers import fetch_yahoo_history
+        hist = {}
+        for key, sym in (("gold", "GC=F"), ("btc", "BTC-USD")):
+            series = _cached(f"commodity_{key}", 1, lambda s=sym: fetch_yahoo_history(s))
+            if series and len(series) >= 20:
+                hist[key] = series
+        if hist:
+            data["commodity_hist"] = hist
 
         # 2) U.S. Treasury daily yield curve — 2Y / 10Y / spread (keyless)
         tyc = fetch_treasury_yields()
@@ -202,23 +270,27 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["signal_score"] = calculate_signal_score(data)
         data["signal_rating"] = rating_from_score(data["signal_score"])
 
-        # Pull financial news for the Market Intelligence page
-        # Phase 3 H2: also query geopolitics domain for cross-domain context
-        # (e.g. Middle East tension → oil price impact)
+        # Pull financial news for the Market Intelligence page. Wider pools
+        # per domain, then _pick_diverse caps 2/domain + 1/source so the
+        # five cards don't read as five versions of one story.
         try:
             store = CorpusStore(CORPUS_PATH)
-            # Macro domain: core financial news
-            items = retrieve(store, query="market stocks bonds federal reserve "
-                              "inflation earnings economy finance",
-                              domain="macro", k=3, days=3)
-            # Geopolitics domain: events that drive markets
-            geo = retrieve(store, query="tariff war sanctions oil energy "
+            pools = {}
+            pools["macro"] = retrieve(
+                store, query="market stocks bonds federal reserve "
+                             "inflation earnings economy finance",
+                domain="macro", k=8, days=3) or []
+            pools["geopolitics"] = retrieve(
+                store, query="tariff war sanctions oil energy "
                              "trade conflict supply chain",
-                             domain="geopolitics", k=2, days=3)
-            if geo:
-                items = (items or []) + geo
+                domain="geopolitics", k=4, days=3) or []
+            pools["it_ai"] = retrieve(
+                store, query="nvidia tsmc semiconductor ai chip earnings "
+                             "datacenter",
+                domain="it_ai", k=3, days=3) or []
+            items = _pick_diverse(pools, k=5)
             if items:
-                data["market_intel"] = items[:5]
+                data["market_intel"] = items
 
             # (G) Cross-domain briefing: fuse this report's quantitative
             # signals with the shared corpus' week-over-week trends into one
