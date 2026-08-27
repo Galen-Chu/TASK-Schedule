@@ -477,28 +477,49 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                                     leading=10, textColor=T.TEXT_MUTED, alignment=2)))
         story.append(PageBreak())
 
-    # ======================= P1b — Signal Summary + KPI (was P1) ===========
+    # ======================= P2 — Signal Summary + KPI =====================
+    # Standard page header like every other page (the old dark-navy rating
+    # banner was a P1-era leftover — the only page without a title row).
+    story.extend(make_title_row("今日市場總覽與訊號",
+        "量化評級・關鍵指標・五大市場監控｜資料：TWSE・Yahoo Finance・美國財政部",
+        date_str, T.NAVY, s, eyebrow_text="Financial Intelligence"))
 
-    rating_rows = [
-        [Paragraph(en("<b>【本日全球資產綜合評級】</b>", color="#FFFFFF"),
-                   ParagraphStyle_local("RHead", 10.5, T.WHITE)),
-         Paragraph(en(f"<b>{rating} (Signal Score: {score}/100)</b>", bold=True, color="#86EFAC"),
-                   ParagraphStyle_local("RBody", 10.5, colors.HexColor('#86EFAC'), align=2))],
-        [Paragraph(en(
-            f"<b>核心決策摘要：</b>台股融資餘額 {twm/10000:.1f} 萬張，美股 VIX {vix}，"
-            f"美債 10Y-2Y 利差 {'+' if spread >= 0 else ''}{spread}%。"
-            "量化模型綜合評估當前資產配置之風險報酬比。", color="#FFFFFF"),
-            ParagraphStyle_local("RDesc", 9, T.WHITE, leading=13))],
+    # Rating hero card — same visual family as the verdict banners:
+    # signal-color left bar on the light tint, rating text colored by light.
+    _light = "buy" if score >= 65 else ("hold" if score >= 45 else "sell")
+    _rfg, _rbg = _VERDICT_STYLE[_light]
+    _rfg_hex = "#" + _rfg.hexval()[2:]
+    rating_stripped = rating.split(" ", 1)[1] if " " in rating else rating
+    hero_rows = [
+        [Paragraph(en("<b>【本日全球資產綜合評級】</b>"),
+                   ParagraphStyle_local("RHead", 10.5, T.INK)),
+         Paragraph(en(f'<font color="{_rfg_hex}"><b>{rating_stripped}'
+                      f"　Signal Score {score}/100</b></font>"),
+                   ParagraphStyle_local("RBody", 10.5, _rfg, align=2))],
     ]
-    t_rating = Table(rating_rows, colWidths=[200, 347])
+    t_rating = Table(hero_rows, colWidths=[200, T.PRINTABLE_WIDTH - 200])
     t_rating.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), T.NAVY),
-        ('SPAN', (0, 1), (1, 1)),
+        ('BACKGROUND', (0, 0), (-1, -1), _rbg),
+        ('BOX', (0, 0), (-1, -1), 0.5, T.BORDER),
+        ('LINEBEFORE', (0, 0), (0, -1), 4, _rfg),
         ('PADDING', (0, 0), (-1, -1), 8),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
     ]))
     story.append(t_rating)
+
+    # Decision summary as its own body card (was crammed into the banner).
+    summary_card = Table([[Paragraph(en(
+        f"<b>核心決策摘要：</b>台股融資餘額 {twm/10000:.1f} 萬張，美股 VIX {vix}，"
+        f"美債 10Y-2Y 利差 {'+' if spread >= 0 else ''}{spread}%。"
+        "量化模型綜合評估當前資產配置之風險報酬比。"),
+        ParagraphStyle_local("RDesc", 9, T.TEXT_BODY, leading=13))]],
+        colWidths=[T.PRINTABLE_WIDTH])
+    summary_card.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), T.BG_CARD),
+        ('BOX', (0, 0), (-1, -1), 0.5, T.BORDER),
+        ('PADDING', (0, 0), (-1, -1), 7),
+    ]))
+    story.append(summary_card)
     story.append(Spacer(1, 8))
 
     story.append(Paragraph(en("關鍵進出場數據指標高亮 (Key Decision Metrics)"), s["h1"]))
