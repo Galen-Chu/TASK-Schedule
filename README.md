@@ -197,6 +197,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | 跨域情報關聯（G）：Financial 訊號 × Global 語料趨勢 →「今日情報摘要」 | ✅ 已開發（2026-08-26，`core/cross_domain.py`；Financial P1 頭版 WHAT/WHY/SO_WHAT 卡＋Obsidian callout，需 `GEMINI_API_KEY`，缺 key 靜默略過） |
 | Financial 方案 C「主題歸堆」分頁重整 | ✅ 已開發（2026-08-27：P2 決策總覽收總經 live 表、利差計算表入債匯頁、配置矩陣入標的頁、四張總經圖集中 P7；P2 統一標準頁首+信號色評級卡） |
 | Financial P1 新聞卡多樣化＋摘要去重、P5 六商品＋走勢圖 | ✅ 已開發（2026-08-27：`_pick_diverse`＋`_dedup_summary`；白銀/銅/天然氣即時報價＋黃金/BTC 三月走勢圖；徽章墨藍底超連結） |
+| 字型靜態化（可變字型 Thin 隱形字修復） | ✅ 已修復（2026-08-27，`fetch_fonts.py` 以 fonttools instancer 產靜態 wght 400/700＋註冊真粗體＋CI 統一用靜態 Noto；小字白字徽章重見天日） |
+| Emoji 缺字映射（☒ 消除） | ✅ 已修復（2026-08-27，`core/pdf_engine.en()` 單一通道映射：燈號→信號色 ●、箭頭→▲▼→、勾→✓；fontTools cmap 掃描三份 PDF 零缺字） |
 | remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 
