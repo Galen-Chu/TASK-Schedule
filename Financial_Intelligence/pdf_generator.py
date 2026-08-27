@@ -272,10 +272,10 @@ def _line_chart(labels, series, height=175, y_unit="", y_fmt="{:.2f}", x_unit=""
     annotated at the axis top, with the category-axis unit bottom-right.
     """
     from reportlab.graphics.shapes import Drawing, String
-    from reportlab.graphics.charts.linecharts import VerticalLineChart
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
     width = T.PRINTABLE_WIDTH
     d = Drawing(width, height)
-    ch = VerticalLineChart()
+    ch = HorizontalLineChart()
     ch.x, ch.y = 44, 30
     ch.width, ch.height = width - 66, height - 60
     ch.data = series
@@ -604,7 +604,6 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         "資料：TWSE MI_MARGN・Yahoo Finance｜籌碼數據截至前一交易日",
         date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
     verdicts = _market_verdicts(data)
-    story.extend(_verdict_banner([verdicts["tw"], verdicts["us"]], s))
 
     story.append(Paragraph(en("<b>【台股市場專題】活力橘紅 —— 融資/融券餘額與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
@@ -636,13 +635,15 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         header_bg=COLOR_US_STOCK, grid_color=colors.HexColor('#E3F3F4'), styles=s,
     )
     story.append(us_rows)
+    # 本頁交易提示(置於頁尾,閱讀完內文後收束結論)
+    story.append(Spacer(1, 16))
+    story.extend(_verdict_banner([verdicts["tw"], verdicts["us"]], s))
 
     # ======================= PAGE 3 — Bonds / Forex / Macro ================
     story.append(PageBreak())
     story.extend(make_title_row("全球債券、外匯與總經數據趨勢",
         "資料：美國財政部・BLS｜殖利率每日、總經月度（TTL 快取）",
         date_str, COLOR_BOND, s, eyebrow_text="Financial Intelligence"))
-    story.extend(_verdict_banner([verdicts["bond"], verdicts["forex"]], s))
 
     story.append(Paragraph(en("<b>【全球債券專題】暖琥珀 —— 利率與殖利率曲線</b>"), s["h1"]))
     story.append(_detail_table(
@@ -733,13 +734,15 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     t_macro = Table(macro, colWidths=[110, 70, 95, 65, 207])
     t_macro.setStyle(_detail_style(T.NAVY, T.BORDER, s))
     story.append(t_macro)
+    # 本頁交易提示(置於頁尾)
+    story.append(Spacer(1, 16))
+    story.extend(_verdict_banner([verdicts["bond"], verdicts["forex"]], s))
 
     # ======================= PAGE 4 — Commodities / Allocation =============
     story.append(PageBreak())
     story.extend(make_title_row("大宗商品、數位資產與動態資產配置",
         "資料：Yahoo Finance｜商品與數位資產報價即時",
         date_str, COLOR_CRYPTO, s, eyebrow_text="Financial Intelligence"))
-    story.extend(_verdict_banner([verdicts["cmdty"], verdicts["crypto"]], s))
 
     story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑</b>"), s["h1"]))
     story.append(_detail_table(
@@ -771,13 +774,15 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     t_alloc = Table(alloc, colWidths=T.COLS_DETAIL)
     t_alloc.setStyle(_detail_style(T.NAVY, T.BORDER, s))
     story.append(t_alloc)
+    # 本頁交易提示(置於頁尾)
+    story.append(Spacer(1, 16))
+    story.extend(_verdict_banner([verdicts["cmdty"], verdicts["crypto"]], s))
 
     # ======================= PAGE 5 — Entry / Exit targets =================
     story.append(PageBreak())
     story.extend(make_title_row("各領域進場與退場投資標的整合追蹤",
         "綜合前述指標之精選清單｜非投資建議",
         date_str, T.SIGNAL_BUY, s, eyebrow_text="Financial Intelligence"))
-    story.extend(_verdict_banner([verdicts["overall"]], s))
 
     story.append(Paragraph(en("<b>🟢 適合進場 / 分批加碼投資標的 (Recommended Entry Targets)</b>"), s["h1"]))
     story.append(_detail_table(
@@ -805,6 +810,9 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         ],
         header_bg=T.SIGNAL_SELL, grid_color=colors.HexColor('#FDE7E1'), styles=s,
     ))
+    # 本頁交易提示(置於頁尾——全報告的收束結論)
+    story.append(Spacer(1, 16))
+    story.extend(_verdict_banner([verdicts["overall"]], s))
 
     # ======================= PAGE 6 — Macro Dashboard =========================
     story.append(PageBreak())
