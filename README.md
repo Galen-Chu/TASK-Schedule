@@ -10,9 +10,9 @@
 
 | 報告 | 內容 | 排程（Asia/Taipei） | 版面風格 |
 |---|---|---|---|
-| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含 NFP/CPI 總經頁、進出場訊號與資產配置矩陣；P1 頭版為「今日情報摘要」跨域卡（需 key）＋5 則市場情報動態卡 | `30 6 * * *`（06:30） | Bloomberg 風格量化儀表板（7 頁：P1 Market Intelligence 動態卡＋6 量化頁） |
-| **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太與量子科技）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 6 * * *`（06:30） | 智庫級主題卡版面（7 頁：P1 趨勢速覽＋6 領域頁） |
-| **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數，加易經六爻與塔羅，含五維度 AI 導引 | `30 6 * * *`（06:30） | 戰情卡片式編輯排版（7 頁：五術＋易經＋塔羅） |
+| **Financial Intelligence** | 每日投資趨勢：台股全市場融資/融券餘額、美股 VIX、美債殖利率、外匯、商品/加密，含 NFP/CPI 總經頁、進出場訊號與資產配置矩陣；P1 頭版為「今日情報摘要」跨域卡（需 key）＋5 則市場情報動態卡 | `30 7 * * *`（07:30） | Bloomberg 風格量化儀表板（7 頁：P1 Market Intelligence 動態卡＋6 量化頁） |
+| **Global Intelligence** | 每日全球情報：6 大領域即時情報速讀（地緣、總經、AI/半導體、生技、硬體/能源、航太與量子科技）——每頁 5 張動態 RSS 小卡（即時語料庫檢索）＋編輯精選 fallback | `30 7 * * *`（07:30） | 智庫級主題卡版面（7 頁：P1 趨勢速覽＋6 領域頁） |
+| **Spiritual Intelligence** | 每日靈性覺察：人類圖、西洋占星、紫微斗數、八字、梅花易數，加易經六爻與塔羅，含五維度 AI 導引 | `30 7 * * *`（07:30） | 戰情卡片式編輯排版（7 頁：七術——五術＋易經＋塔羅） |
 
 ---
 
@@ -26,12 +26,12 @@ Gemini-Spark-Schedule/
 │   ├── pdf_engine.py             #   雙字型 en()、標準樣式、表頭、頁尾、A4 文件工廠
 │   ├── scheduler_base.py         #   BaseReportScheduler：階段化 pipeline + 優雅退回
 │   ├── obsidian_writer.py        #   泛用 Markdown 寫檔
-│   ├── data/                     #   fetchers（TWSE/RSS/Yahoo/財政部/BLS）＋ divination/astro（五術）
+│   ├── data/                     #   fetchers（TWSE/RSS/Yahoo/財政部/BLS）＋ divination/astro（七術）
 │   ├── retrieval/                #   統一檢索層：ingest→dedup→rank→retrieve（Phase 1 已開發）
 │   ├── llm.py                    #   Gemini 敘事增強（缺 key 自動退回樣板）
 │   └── dispatch/                 #   Drive 上傳 / Gmail 寄送（介面已定義，待接憑證）
 ├── Financial_Intelligence/       # 各報告：scheduler + pdf_generator + obsidian_writer
-├── Global_Intelligence/          #   （＋ Spiritual 的 systems_data.py 為五術單一資料源）
+├── Global_Intelligence/          #   （＋ Spiritual 的 systems_data.py 為七術單一資料源）
 ├── Spiritual_Intelligence/
 ├── config/                       # 設定（含範本；真實設定已 gitignore）
 ├── data/                         # 檢索語料庫＋LLM 用量＋macro 快取（commit 進 repo 跨 CI run 持久）
@@ -88,7 +88,7 @@ PDF 與 Obsidian 筆記會輸出到 `output/`。
 
 `.github/workflows/daily_reports.yml` 提供：
 
-- **排程觸發**：每日 22:30 UTC（= 隔日 06:30 Asia/Taipei，三份報告的最早時段）自動跑 `main.py all`。
+- **排程觸發**：每日 23:30 UTC（= 隔日 07:30 Asia/Taipei；2026-08-27 起，避開 GitHub 尖峰時段跳票）自動跑 `main.py all`。
 - **手動 / push 觸發**：`workflow_dispatch` 可在 Actions 頁面手動執行；push 時也會跑一次驗收。
 - **步驟**：安裝 reportlab/PyYAML/feedparser → `apt-get install fonts-droid-fallback` → `python main.py all` → 把產出的 PDF 上傳為 artifact（保留 14 天）。
 
@@ -146,7 +146,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 - **燈號**：🟢 進場 `#2E8B4F` / 🟡 觀望 `#B9791C` / 🔴 減碼 `#D64545`
 - **網格**：A4、左右邊距 24pt、可列印寬 **547pt**；標準 4 欄表格 `[65,125,100,257]`
 - **字型**：CJK（Noto Sans TC）為主，拉丁/數字可選用 Liberation Sans（`en()` 雙字型切換 + XML 跳脫）
-- 各報告的「分節色」（市場/領域/五術）皆由上述同一組品牌色階衍生，部分保留各報告身分（例：Spiritual 保留暖色卡片底、紫微用品牌 plum `#7A4B6B`）。
+- 各報告的「分節色」（市場/領域/七術）皆由上述同一組品牌色階衍生，部分保留各報告身分（例：Spiritual 保留暖色卡片底、紫微用品牌 plum `#7A4B6B`）。
 
 ### 統一頁首規範（2026-08-18 起，三報告所有頁面一致）
 每頁頁首由 `core.pdf_engine.make_title_row()` 統一產生，解剖順序：
@@ -154,7 +154,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 2. **主標題列**：章節/頁面名（16pt 墨藍）靠左；**發布日期＋星期**（`2026-08-18（二）`）以 11pt 分節色靠右——日期是標題帶的一部分，不再是頁尾小字。
 3. **副標題**：單行淡色**脈絡資訊**（資料來源／範圍），**不得重述內文**（例：`資料：美國財政部・BLS｜殖利率每日、總經月度`）。
 4. **分隔線**：全寬 1.5pt 分節色細線，間距全報告一致。
-輔助規則：內文小標不顯示開發用色碼（`#hex`）；Global 每頁只有一個標題列（摘要卡與領域 1 共享第 1 頁，領域標記改為色字行）；Spiritual 副標題只放地點與頁次，五術內容留在內文卡片。
+輔助規則：內文小標不顯示開發用色碼（`#hex`）；Global 每頁只有一個標題列（摘要卡與領域 1 共享第 1 頁，領域標記改為色字行）；Spiritual 副標題只放地點與頁次，七術內容留在內文卡片。
 
 ---
 
@@ -169,7 +169,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | **Financial** | Fear & Greed 指數（alternative.me） | ✅ | 退回 sample |
 | **Financial** | TWSE 全市場融資/融券餘額（MI_MARGN 加總） | ✅ | 退回 sample |
 | **Global** | 18 條跨領域 RSS（含 NASA/SpaceNews/Quantum Insider/Physics World）（含 NASA/SpaceNews/Ars Technica Space/Aviation Week/Reuters 航太源）（BBC/半島/聯合國/CNBC/經濟學人/TechCrunch/TechNews/iThome/ScienceDaily/IEEE Spectrum/Electrek）→ 檢索語料庫＋即時補充 | ✅（需 `feedparser`） | 退回編輯樣板 |
-| **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 五術資料 |
+| **Spiritual** | Swiss Ephemeris（`pyswisseph`）算當日太陽/月亮/水星真實位置 | ✅（需 `pyswisseph`） | 退回 sample 七術資料 |
 
 > 三份報告現在 **完全零 key**——沒有任何欄位需要 API key，CI 無 secret 即可跑真實資料。
 
@@ -202,8 +202,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ## 進階資料層（已實作）
 
-### Spiritual — 五術真實計算
-`core/data/divination.py` 每日計算全部五術（皆免 key）：
+### Spiritual — 七術真實計算
+`core/data/divination.py` 每日計算全部七術（皆免 key；前五術為即時計算，易經/塔羅為排程生成）：
 - **西洋占星**：Swiss Ephemeris（`pyswisseph`）算太陽/月亮/水星黃道位置與相位 orb。
 - **人類圖**：太陽黃經 → 64 閘門 Mandala 對應 + 動爻。
 - **紫微斗數**：`lunar_python` 日支定位流日命宮 + 干支輪轉四化。
