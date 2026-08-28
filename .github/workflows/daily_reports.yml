@@ -9,11 +9,17 @@ name: Daily Reports
 
 on:
   schedule:
-    # 23:30 UTC = 07:30 Asia/Taipei (next day). Moved from 22:30 (06:30) after
-    # GitHub dropped/delayed that slot two days running (2026-08-25 delayed 21
-    # min; 2026-08-26 never fired). Watch a few days — if drops persist, also
-    # shift off the :30 minute.
-    - cron: '30 23 * * *'
+    # 22:18 UTC = 06:18 Asia/Taipei (next day). Slot history: born at 22:30
+    # (06:30) — delayed 13–21 min daily, dropped entirely 2026-08-26; moved to
+    # 23:30 (07:30) — first slot sat 7.5 h in the queue (landed
+    # 2026-08-28T07:00Z) in the backlog behind the Aug 24–27 Actions incidents.
+    # Both failures sat on the :30 minute, and 23:xx also leans against the
+    # 00:00-UTC cron flood (the platform's most congested minute). 22:18
+    # clears both zones with ~100 min of midnight buffer. The omen: 0+6+1+8 =
+    # 15 — I Ching hexagram 15, Modesty, the only hexagram with all six lines
+    # auspicious — reducing to numerology 6 (rhythm, devoted service). A daily
+    # job could ask for no better.
+    - cron: '18 22 * * *'
   workflow_dispatch:        # manual run from the Actions tab
     inputs:
       date:

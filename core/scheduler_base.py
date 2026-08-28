@@ -27,8 +27,8 @@ except Exception:  # noqa: BLE001 — Py<3.9 or missing TZDB -> fixed +08:00
 def today_str():
     """Today's date in Asia/Taipei (the report audience's timezone).
 
-    The CI runner clock is UTC, so without rebasing, a 22:30 UTC schedule
-    (= 06:30 next-day Taipei) would be stamped with the prior calendar day.
+    The CI runner clock is UTC, so without rebasing, a 22:18 UTC schedule
+    (= 06:18 next-day Taipei) would be stamped with the prior calendar day.
     """
     return datetime.datetime.now(_TAIPEI).date().strftime("%Y-%m-%d")
 
