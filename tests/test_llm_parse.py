@@ -5,9 +5,14 @@ These cover the two 2026-08-17 production failures:
    broke the strict "[N]/WHAT:" parser (LLM calls themselves were 200 OK).
 2. Financial page 6 missing the CPI chart — real BLS rows contain '-' for
    missing months, which crashed float() and made the whole series None.
+And the 2026-08-28 recurrence of (1) in the OTHER parser: the 08-17 fix
+hardened parse_topic_blocks (topic cards) but left the P1 digest parser in
+summarize_news_what_why_sowhat strict, so one decorated reply again erased
+the WHAT/WHY/SO WHAT table while CI stayed green.
 """
 import pytest
 
+from core import llm
 from core.llm import parse_topic_blocks
 from Financial_Intelligence.pdf_generator import _yoy_series
 
@@ -39,6 +44,38 @@ def test_parse_numbered_header():
 
 def test_parse_garbage_returns_none():
     assert parse_topic_blocks("no structure here", 3) is None
+
+
+# ---- P1 digest parser (summarize_news_what_why_sowhat) — the 08-28 recurrence
+_ITEMS = [{"title": "台積電法說", "summary": "資本支出上修"}]
+
+
+def _digest(monkeypatch, reply):
+    monkeypatch.setattr(llm, "_AVAILABLE", True)
+    monkeypatch.setattr(llm, "generate", lambda p, max_tokens=600: reply)
+    return llm.summarize_news_what_why_sowhat(_ITEMS, domain_label="全球產業情報")
+
+
+@pytest.mark.parametrize("reply", [
+    "WHAT: 台積電上修資本支出\nWHY: AI 需求強勁\nSO_WHAT: 供應鏈受惠",
+    "**WHAT:** 台積電上修資本支出\n**WHY:** AI 需求強勁\n**SO_WHAT:** 供應鏈受惠",
+    "1. WHAT: 台積電上修資本支出\n2. WHY: AI 需求強勁\n3. SO_WHAT: 供應鏈受惠",
+    "WHAT：台積電上修資本支出\nWHY：AI 需求強勁\nSO_WHAT：供應鏈受惠",
+    "WHAT: 台積電上修資本支出\nWHY: AI 需求強勁\nSO WHAT: 供應鏈受惠",
+])
+def test_digest_parse_tolerates_decoration(monkeypatch, reply):
+    out = _digest(monkeypatch, reply)
+    assert out and out["what"] == "台積電上修資本支出"
+    assert out["why"] == "AI 需求強勁" and out["so_what"] == "供應鏈受惠"
+
+
+def test_digest_parse_garbage_returns_none(monkeypatch):
+    assert _digest(monkeypatch, "以下是今日摘要：\n- 標題一") is None
+
+
+def test_digest_truncates_to_60_chars(monkeypatch):
+    out = _digest(monkeypatch, "WHAT: " + "長" * 200)
+    assert out and len(out["what"]) == 61 and out["what"].endswith("…")
 
 
 def test_yoy_skips_missing_dash_values():

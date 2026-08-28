@@ -215,13 +215,27 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     text = generate(prompt)
     if not text:
         return None
+    # Tolerant parse (same lesson as parse_topic_blocks): flash-class models
+    # decorate replies with **bold**, numbering prefixes, or the full-width
+    # colon even when told not to. The old strict prefix match threw the whole
+    # digest away on the first stray character — and the Global report silently
+    # lost its WHAT/WHY/SO WHAT brief while CI stayed green (2026-08-28).
+    import re as _re
     out = {"what": "", "why": "", "so_what": ""}
-    for line in text.splitlines():
-        low = line.strip()
+    deco = "*_#`>~ \t·•"
+    for raw in text.splitlines():
+        line = raw.strip().strip(deco).strip()
+        if not line:
+            continue
+        up = _re.sub(r"^[\[\(（]?\d{1,2}[\]\).、．:：\-]*\s*", "", line.upper())
+        up = up.replace(" ", "_")
         for key in out:
-            if low.upper().startswith(key):
-                v = low.split(":", 1)[-1].strip()
-                out[key] = v[:60] + "…" if len(v) > 60 else v
+            if up.startswith(key.upper()):
+                v = _re.split(r"[:：]", line, maxsplit=1)[-1].strip().strip(deco).strip()
+                if v:
+                    out[key] = v[:60] + "…" if len(v) > 60 else v
+    if not out["what"]:
+        log.info("digest reply unparsed; head: %.300s", text.replace("\n", " | "))
     return out if out["what"] else None
 
 

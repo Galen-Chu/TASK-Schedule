@@ -301,6 +301,21 @@ def build_global_pdf(filename, data=None, date_str=None):
             ('PADDING', (0, 0), (-1, -1), 4),
         ]))
         story += [t_ai, Spacer(1, 8)]
+    elif use_llm:
+        # Gemini is keyed but no digest came back — RSS empty, the API call
+        # failed, or the reply didn't parse. Show the degradation instead of
+        # letting the three-part brief vanish silently (it did exactly that on
+        # 2026-08-28 while CI stayed green).
+        had_rss = bool((data or {}).get("rss_items"))
+        reason = ("今日 RSS 未取得，無素材可摘要" if not had_rss
+                  else "Gemini 未回應或回覆格式未解析")
+        miss_st = ParagraphStyle("gdigestmiss", fontName=FONT_CJK, fontSize=7.5,
+                                 leading=10, textColor=T.TEXT_MUTED)
+        story.append(Paragraph(en("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
+        story.append(Paragraph(en(
+            f"本次未生成（{reason}）——三段式論述暫缺，請參閱下方各領域卡片；"
+            "下次排程將自動重試。"), miss_st))
+        story.append(Spacer(1, 8))
 
     # Trend table with (單位) labels
     if trends.get("domains"):

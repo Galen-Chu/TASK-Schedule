@@ -30,6 +30,9 @@ _EMOJI_MAP = {
     "📊": "▤", "📈": "▲", "📉": "▼",
     "🕒": "", "📡": "", "📍": "", "💡": "", "🎯": "", "🔥": "",
     "🧭": "", "🤖": "", "📰": "", "◎️": "◎",
+    # ☯ (U+262F) and ◆ are verified present in the static Noto TC subset
+    # (fonts/); ☾ ✦ ✧ are NOT — re-check coverage before adding those.
+    "🌙": "☯", "🆕": "◆", "📚": "▤",
 }
 _VS16 = "️"
 
