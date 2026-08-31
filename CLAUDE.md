@@ -5,11 +5,13 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-08-27 收尾）
+## 當前狀態（2026-08-31 更新）
 
 - 原路線圖 A~H+E 全數完成（檢索層 Phase 1-3、NFP、跨域摘要 G、方案 C 分頁、
   P1 新聞多樣化、P5 六商品+走勢圖、七術向量圖示、交易判斷橫幅）。
-- 77 tests / CI 全綠 / 三份日報頁數斷言 7-7-7（macro 1）。
+- 2026-08-31：修復 LLM 空回應根因（flash-lite 思考預算吃掉 max_output_tokens，
+  見地雷 5）＋ Global 新聞卡與 P1 摘要改 GIVEN-WHEN-THEN 三欄帶標籤呈現
+  （Financial/Spiritual 不變）；92 tests 全綠、7-7-7 驗證通過。
 - 未來候選項盤點在 **README.md「未來評估開發項目」**（A 設定即用／B 中期／
   C 長期／D 維運觀察）——接續開發先讀那一節。
 
@@ -41,7 +43,11 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    本機已裝 pymupdf；宣稱「已完成」必須有本輪真實工具輸出佐證。
 5. **LLM**：CI 有 GEMINI_API_KEY（gemini-flash-lite-latest，每日額度守門
    60 於 `data/llm_usage.json`）；本機未設 → 本機跑是無 LLM fallback 路徑。
-   LLM 相關功能（三段式、跨域摘要卡）要看效果請看 CI artifact。
+   LLM 相關功能（Global GIVEN-WHEN-THEN 卡、跨域摘要卡）要看效果請看
+   CI artifact；`generate()` 的 `max_tokens` **必須 > 思考下限 512＋內容**
+   （flash-lite 思考 token 計入 max_output_tokens，2026-08-31 前上限
+   420/600 太低 → 每次回空、功能從未渲染而 CI 全綠；已釘
+   thinking_budget=512 並在空回應時 log.warning，新增呼叫點照此辦理）。
 6. **開發流程**：feature branch → 測試+產出驗證 → 邏輯分層 commit →
    fast-forward merge main → push → 等 CI 綠 → 回報。使用者偏好繁中回報、
    重大變更先提方案。

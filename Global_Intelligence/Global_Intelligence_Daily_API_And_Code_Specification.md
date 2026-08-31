@@ -5,7 +5,7 @@
 
   "type": "object",
 
-  "required": ["type_label", "title", "source_name", "pub_time", "url", "what", "why", "so_what"],
+  "required": ["type_label", "title", "source_name", "pub_time", "url", "given", "when", "then"],
 
   "properties": {
 
@@ -27,11 +27,11 @@
 
     "url": { "type": "string", "format": "uri" },
 
-    "what": { "type": "string" },
+    "given": { "type": "string" },
 
-    "why": { "type": "string" },
+    "when": { "type": "string" },
 
-    "so_what": { "type": "string" }
+    "then": { "type": "string" }
 
   }
 

@@ -107,7 +107,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 | 想啟用的功能 | 設定方式 |
 |---|---|
-| LLM 摘要/導引（Global 三段式、Spiritual 導引） | 環境變數 `GEMINI_API_KEY`（CI 用同名 Secret） |
+| LLM 摘要/導引（Global GIVEN-WHEN-THEN、Spiritual 導引） | 環境變數 `GEMINI_API_KEY`（CI 用同名 Secret） |
 | Google Drive 上傳 | 環境變數 `GOOGLE_APPLICATION_CREDENTIALS`（指向 service-account JSON）＋ `DRIVE_FOLDER_ID`（或 config 的 `drive_folder_id`） |
 | Gmail 寄送 | 同上憑證 ＋ `config/spark.yaml` → `spiritual.notify_email` |
 | Spiritual 本命資料 | `config/birth-profile.yaml`（已 gitignore） |
@@ -199,6 +199,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 | Financial P1 新聞卡多樣化＋摘要去重、P5 六商品＋走勢圖 | ✅ 已開發（2026-08-27：`_pick_diverse`＋`_dedup_summary`；白銀/銅/天然氣即時報價＋黃金/BTC 三月走勢圖；徽章墨藍底超連結） |
 | 字型靜態化（可變字型 Thin 隱形字修復） | ✅ 已修復（2026-08-27，`fetch_fonts.py` 以 fonttools instancer 產靜態 wght 400/700＋註冊真粗體＋CI 統一用靜態 Noto；小字白字徽章重見天日） |
 | Emoji 缺字映射（☒ 消除） | ✅ 已修復（2026-08-27，`core/pdf_engine.en()` 單一通道映射：燈號→信號色 ●、箭頭→▲▼→、勾→✓；fontTools cmap 掃描三份 PDF 零缺字） |
+| LLM 空回應根因修復（思考預算） | ✅ 已修復（2026-08-31：flash-lite 強制思考 ≥512 token 且計入 `max_output_tokens`，舊上限 420/600/250+320N 全數低於或貼近下限 → 每次回空、三段式/跨域卡從未真正渲染；改釘 `thinking_budget=512`＋上限 1600/800+320N＋空回應 log.warning 帶 finish_reason） |
+| Global 新聞卡改 GIVEN-WHEN-THEN | ✅ 已開發（2026-08-31：每則新聞卡顯示「GIVEN 前提／WHEN 事件／THEN 影響」三行帶標籤欄位（舊版只放 WHAT 且無標籤）；P1 智庫摘要同步改 GIVEN/WHEN/THEN；Financial/Spiritual 呈現不變；每頁解析健康度印在 CI log `GWT[domain] n/6`） |
 | remote store（GCP） | ⏸ 暫緩（先用語料 commit-back 機制觀察） |
 | Drive 上傳 / Gmail（`core/dispatch/`） | 🔧 已實作，待接 GCP service account 認證 |
 
@@ -212,7 +214,7 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 |---|---|---|
 | Drive 自動上傳／Gmail（F） | GitHub Secrets 加 `GCP_SA_KEY`＋`DRIVE_FOLDER_ID`（資料夾須在共用雲端硬碟） | 每日 PDF 自動歸檔，突破 artifact 14 天保留限制 |
 | BLS 高額度 | Secret 加 `BLS_API_KEY`（[免費註冊](https://data.bls.gov/registration_engine.htm)） | NFP/CPI 請求額度 25→500/日，降低快取失敗風險 |
-| 本機 LLM 內容 | 本機設 User 級 `GEMINI_API_KEY` | 本機也能看跨域摘要卡與三段式動態卡 |
+| 本機 LLM 內容 | 本機設 User 級 `GEMINI_API_KEY` | 本機也能看跨域摘要卡與 GIVEN-WHEN-THEN 動態卡 |
 
 ### B. 中期優化候選（小～中工作量）
 
@@ -234,8 +236,8 @@ cp config/birth-profile.yaml.example config/birth-profile.yaml   # Spiritual 本
 
 ### D. 維運觀察項（不需開發，持續留意）
 
-- **排程可靠性**：cron 已改 23:30 UTC（07:30 台北）；GitHub 尖峰時段仍可能延遲——觀察數天，若再整班跳票，改非整半點分鐘（如 `37 23`）。
-- **LLM 額度**：每日約 17–25 次呼叫（守門上限 60）；三段式＋跨域摘要上線後重新觀察分佈。
+- **排程可靠性**：cron 已改 22:18 UTC（06:18 台北，避開 :00/:30 尖峰）；持續觀察延遲情況。
+- **LLM 額度**：每日約 17–25 次呼叫（守門上限 60）；G-W-T 卡＋跨域摘要上線後重新觀察分佈，CI log 的 `GWT[domain] n/6` 與空回應 warning 是解析健康度指標。
 - **CI artifact**：保留 14 天；長期歸檔依賴 A 項的 Drive 啟用。
 
 ---
