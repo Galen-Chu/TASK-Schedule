@@ -100,11 +100,17 @@ def test_briefing_unparsable_reply_returns_none(monkeypatch):
 # ---- PDF: card renders, page count stays 7 --------------------------------
 def test_financial_pdf_with_briefing_stays_7_pages(tmp_path):
     from Financial_Intelligence.pdf_generator import generate_daily_pdf
+    # Worst case: every field at the parser's 140-char cap (the 2026-08-31
+    # fix finally lets real replies arrive — guard the page budget at max
+    # length, not just typical length).
+    long_field = ("VIX 15.2、恐貪指數 61：風險偏好回暖，與 AI 語料聲量週比 +150% 同步，"
+                  "美元指數回落至 101.2、美債十年期殖利率 3.9%，量化訊號全面轉趨中性偏多，"
+                  "半導體新聞熱度與評價面修復互相印證，市場進入震盪上行結構，波段行情啟動。")
     data = {
         "cross_domain_briefing": {
-            "what": "VIX 15.2、恐貪指數 61：風險偏好回暖，與 AI 語料聲量週比 +150% 同步。",
-            "why": "量化訊號與新聞趨勢互相印證——半導體新聞熱度領先評價面修復。",
-            "so_what": "台股科技 ETF 可分批布局；留意週五非農數據對利率路徑的定價。",
+            "what": long_field[:140] + "…",
+            "why": long_field[:140] + "…",
+            "so_what": long_field[:140] + "…",
         },
         "market_intel": [
             {"title": f"Market headline number {i}", "summary": "summary " * 8,
