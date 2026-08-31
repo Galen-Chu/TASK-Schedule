@@ -31,4 +31,4 @@ def test_llm_noop_without_key(monkeypatch):
     monkeypatch.setattr(llm, "_AVAILABLE", False)
     assert llm.is_available() is False
     assert llm.generate("anything") is None
-    assert llm.summarize_news_what_why_sowhat([{"title": "x"}]) is None
+    assert llm.summarize_news_given_when_then([{"title": "x"}]) is None

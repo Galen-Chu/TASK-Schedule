@@ -119,7 +119,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if items:
             from core import llm
             if llm.is_available():
-                digest = llm.summarize_news_what_why_sowhat(items, domain_label="全球產業情報")
+                digest = llm.summarize_news_given_when_then(items, domain_label="全球產業情報")
                 if digest:
                     data["llm_digest"] = digest
                     data["_source"] = (data.get("_source") or "") + "+Gemini"

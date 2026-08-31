@@ -6,12 +6,20 @@ at three levels so the pipeline runs identically with or without an LLM:
 
   1. ``GEMINI_API_KEY`` not set  -> functions return None (caller uses template)
   2. ``google-genai`` not installed -> same
-  3. API call fails / times out   -> same
+  3. API call fails / times out / reply comes back empty -> same
 
-The CI workflow does NOT set the key, so it exercises the no-LLM path; locally
-or in production the key unlocks real summaries.
+CI sets the key; local runs without it exercise the no-LLM path.
 
-Model: Gemini 2.5 Flash (fast, cheap). Override with ``GEMINI_MODEL``.
+Model: auto-picked flash variant (resolves to gemini-flash-lite-latest today).
+Override with ``GEMINI_MODEL``.
+
+THINKING-BUDGET LANDMINE (found 2026-08-31): flash-lite models cannot turn
+thinking off (floor: 512 tokens) and thinking tokens are counted inside
+``max_output_tokens``. Every call ceiling must exceed thinking floor + the
+visible reply, or generate() returns None on every single run while CI stays
+green — that is what silently erased the three-part briefs for weeks while
+parser fixes chased the wrong cause. generate() therefore pins the lite
+budget to 512 and warns (with finish_reason/thoughts count) on empty replies.
 """
 import os
 import logging
@@ -150,34 +158,82 @@ def is_available():
     return _AVAILABLE
 
 
-def generate(prompt, max_tokens=600):
+def _gen_configs(max_tokens, temperature):
+    """GenerateContentConfig candidates, best first.
+
+    Flash-lite can't disable thinking (floor 512) and dynamic thinking on a
+    multi-block task can balloon past 1k tokens, all counted inside
+    max_output_tokens. Pinning lite to its floor makes the visible reply's
+    share deterministic; a plain config follows in case the pin is rejected
+    (older SDK or a model whose budget semantics differ).
+    """
+    from google.genai import types
+    base = dict(max_output_tokens=max_tokens, temperature=temperature)
+    plain = types.GenerateContentConfig(**base)
+    try:
+        if "lite" in _MODEL_NAME.lower():
+            pinned = types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=512),
+                **base)
+            return [pinned, plain]
+    except Exception:  # noqa: BLE001 — SDK without ThinkingConfig
+        pass
+    return [plain]
+
+
+def _warn_empty(resp, max_tokens):
+    """Say WHY a reply is empty — finish reason + thinking spend vs the cap."""
+    try:
+        cand = (resp.candidates or [None])[0]
+        fr = getattr(cand, "finish_reason", None)
+        um = getattr(resp, "usage_metadata", None)
+        thoughts = getattr(um, "thoughts_token_count", None)
+        log.warning("Gemini 回應為空（finish_reason=%s, thoughts=%s tokens, "
+                    "max_output_tokens=%d）— 思考預算吃掉上限，請調高 max_tokens。",
+                    fr, thoughts, max_tokens)
+    except Exception:  # noqa: BLE001
+        log.warning("Gemini 回應為空（max_output_tokens=%d）。", max_tokens)
+
+
+def generate(prompt, max_tokens=1600):
     """Run a single completion. Returns the text, or None on any failure.
 
     Retries once on a 429 (free-tier rate limit) after a short backoff.
+    ``max_tokens`` must cover thinking (512 floor on flash-lite) plus the
+    visible reply — see the module docstring's thinking-budget landmine.
     """
     if not _AVAILABLE:
         return None
     if not _allow_call(tick=True):
         return None
-    from google.genai import types
-    for attempt in range(2):
-        try:
-            resp = _CLIENT.models.generate_content(
-                model=_MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=max_tokens, temperature=0.4,
-                ),
-            )
-            return (resp.text or "").strip() or None
-        except Exception as exc:  # noqa: BLE001
-            if attempt == 0 and "429" in str(exc):
-                import time as _t
-                log.info("Gemini 429 限流，20 秒後重試一次。")
-                _t.sleep(20)
-                continue
-            log.warning("Gemini 生成失敗 (%s)；退回樣板。", exc)
-            return None
+    configs = _gen_configs(max_tokens, 0.4)
+    last = configs[-1]
+    for config in configs:
+        for attempt in range(2):
+            try:
+                resp = _CLIENT.models.generate_content(
+                    model=_MODEL_NAME,
+                    contents=prompt,
+                    config=config,
+                )
+                try:
+                    text = (resp.text or "").strip() or None
+                except ValueError:  # thought-only candidate: no text part
+                    text = None
+                if text is None:
+                    _warn_empty(resp, max_tokens)
+                return text
+            except Exception as exc:  # noqa: BLE001
+                if attempt == 0 and "429" in str(exc):
+                    import time as _t
+                    log.info("Gemini 429 限流，20 秒後重試一次。")
+                    _t.sleep(20)
+                    continue
+                if config is not last and "thinking" in str(exc).lower():
+                    log.info("thinking 設定被拒（%s）；改用未釘選設定重試。", exc)
+                    break  # fall through to the plain config
+                log.warning("Gemini 生成失敗 (%s)；退回樣板。", exc)
+                return None
     return None
 
 
@@ -196,10 +252,10 @@ def _item_bullet(it, max_summary=200):
     return f"- {title}"
 
 
-def summarize_news_what_why_sowhat(items, domain_label=""):
-    """Turn a list of {title, summary} dicts into a What/Why/So-What digest.
+def summarize_news_given_when_then(items, domain_label=""):
+    """Turn a list of {title, summary} dicts into a GIVEN/WHEN/THEN digest.
 
-    Returns a dict {what, why, so_what} of strings, or None to signal the
+    Returns a dict {given, when, then} of strings, or None to signal the
     caller to use its template fallback.
     """
     if not items or not _AVAILABLE:
@@ -208,9 +264,9 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     prompt = (
         f"你是智庫級情報分析師。以下為「{domain_label}」領域今日快訊：\n{bullets}\n\n"
         "請用繁體中文，各以一到兩句產出三個欄位，嚴格用下列格式：\n"
-        "WHAT: ...（事實概要）\n"
-        "WHY: ...（脈絡與影響）\n"
-        "SO_WHAT: ...（對台灣產業的啟示）"
+        "GIVEN: ...（前提態勢：既有格局與背景）\n"
+        "WHEN: ...（關鍵觸發事件：今日最重要的變化）\n"
+        "THEN: ...（後續影響：對台灣產業的推演與啟示）"
     )
     text = generate(prompt)
     if not text:
@@ -219,9 +275,9 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
     # decorate replies with **bold**, numbering prefixes, or the full-width
     # colon even when told not to. The old strict prefix match threw the whole
     # digest away on the first stray character — and the Global report silently
-    # lost its WHAT/WHY/SO WHAT brief while CI stayed green (2026-08-28).
+    # lost its three-part brief while CI stayed green (2026-08-28).
     import re as _re
-    out = {"what": "", "why": "", "so_what": ""}
+    out = {"given": "", "when": "", "then": ""}
     deco = "*_#`>~ \t·•"
     for raw in text.splitlines():
         line = raw.strip().strip(deco).strip()
@@ -234,19 +290,19 @@ def summarize_news_what_why_sowhat(items, domain_label=""):
                 v = _re.split(r"[:：]", line, maxsplit=1)[-1].strip().strip(deco).strip()
                 if v:
                     out[key] = v[:60] + "…" if len(v) > 60 else v
-    if not out["what"]:
+    if not out["given"]:
         log.info("digest reply unparsed; head: %.300s", text.replace("\n", " | "))
-    return out if out["what"] else None
+    return out if out["given"] else None
 
 
 def parse_topic_blocks(text, n):
-    """Parse "[N] WHAT:/WHY:/SO_WHAT:" blocks out of an LLM reply.
+    """Parse "[N] GIVEN:/WHEN:/THEN:" blocks out of an LLM reply.
 
     Tolerates markdown decoration (asterisks, backticks, headers, `>` quotes)
-    and SO WHAT / SO_WHAT variants — flash-class models often add `**` bold
-    even when told not to, which broke the earlier strict parser. Returns a
-    list of length n (None where a block failed to parse), or None when
-    nothing parsed at all.
+    and full-width colons — flash-class models often add `**` bold even when
+    told not to, which broke the earlier strict parser. Returns a list of
+    length n (None where a block failed to parse), or None when nothing
+    parsed at all.
     """
     import re as _re
     strip = "*_#`>~ \t"
@@ -254,7 +310,7 @@ def parse_topic_blocks(text, n):
     idx, cur = None, None
 
     def flush():
-        if cur is not None and cur["what"] and idx is not None and 0 <= idx < n:
+        if cur is not None and cur["given"] and idx is not None and 0 <= idx < n:
             out[idx] = cur
 
     for raw in (text or "").splitlines():
@@ -263,30 +319,30 @@ def parse_topic_blocks(text, n):
             continue
         up = line.upper()
         header = _re.match(r"^[\[(]?(\d{1,2})[\]\).:\-]*$", up)
-        if header and not up.startswith(("WHAT", "WHY", "SO")):
+        if header and not up.startswith(("GIVEN", "WHEN", "THEN")):
             flush()
             i = int(header.group(1)) - 1
-            idx, cur = (i, {"what": "", "why": "", "so_what": ""}) if 0 <= i < n else (None, None)
+            idx, cur = (i, {"given": "", "when": "", "then": ""}) if 0 <= i < n else (None, None)
             continue
         if cur is None:
             continue
         key = up.replace(" ", "_")
 
         def _val(ln):
-            v = ln.split(":", 1)[-1].strip().strip(strip)
+            v = _re.split(r"[:：]", ln, maxsplit=1)[-1].strip().strip(strip)
             return v[:110] + "…" if len(v) > 110 else v
-        if key.startswith("WHAT"):
-            cur["what"] = _val(line)
-        elif key.startswith("WHY"):
-            cur["why"] = _val(line)
-        elif key.startswith("SO"):
-            cur["so_what"] = _val(line)
+        if key.startswith("GIVEN"):
+            cur["given"] = _val(line)
+        elif key.startswith("WHEN"):
+            cur["when"] = _val(line)
+        elif key.startswith("THEN"):
+            cur["then"] = _val(line)
     flush()
     return out if any(out) else None
 
 
-def summarize_topics_what_why_sowhat(topics, domain_label=""):
-    """Batch N topics into N {what,why,so_what} dicts in a SINGLE Gemini call.
+def summarize_topics_given_when_then(topics, domain_label=""):
+    """Batch N topics into N {given,when,then} dicts in a SINGLE Gemini call.
 
     ``topics`` = list of (org, focus, analysis). Returns a list aligned to the
     input (None where a block didn't parse). One call instead of N keeps the
@@ -299,18 +355,20 @@ def summarize_topics_what_why_sowhat(topics, domain_label=""):
     prompt = (
         f"你是智庫級情報分析師。以下為「{domain_label}」領域的數則報告：\n"
         + "\n".join(lines) + "\n\n"
-        "請用繁體中文，為「每一則」各產出 WHAT / WHY / SO_WHAT 三欄。"
-        "每欄一到兩句、合計 60 字以內，需引用具體數字或機構名。\n"
+        "請用繁體中文，為「每一則」各產出 GIVEN / WHEN / THEN 三欄。"
+        "GIVEN 是該則新聞的背景脈絡、WHEN 是觸發事件本身、THEN 是後續影響"
+        "（聚焦對台灣產業）。每欄一句、40 字以內，需引用具體數字或機構名。\n"
         "嚴格依下列純文字格式（不要使用任何 Markdown 符號，不要 **、#、`）：\n"
-        "[1]\nWHAT: ...（事實概要）\nWHY: ...（脈絡與影響）\nSO_WHAT: ...（對台灣產業的啟示）\n"
-        "[2]\nWHAT: ...\nWHY: ...\nSO_WHAT: ...\n"
+        "[1]\nGIVEN: ...（背景脈絡）\nWHEN: ...（觸發事件）\nTHEN: ...（後續影響）\n"
+        "[2]\nGIVEN: ...\nWHEN: ...\nTHEN: ...\n"
     )
-    text = generate(prompt, max_tokens=250 + 320 * len(topics))
+    # 800 thinking headroom (lite floor 512) + ~320 tokens per topic block.
+    text = generate(prompt, max_tokens=800 + 320 * len(topics))
     if not text:
         return None
     parsed = parse_topic_blocks(text, len(topics))
     n_ok = sum(1 for x in parsed or [] if x)
-    log.info("three-part parsed %d/%d topics", n_ok, len(topics))
+    log.info("GWT parsed %d/%d topics", n_ok, len(topics))
     if not n_ok:
         log.info("unparsed reply head: %.300s", text.replace("\n", " | "))
     return parsed

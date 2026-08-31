@@ -130,7 +130,10 @@ def daily_briefing(fin, trends, headlines=None):
         "WHY: ...（訊號與新聞趨勢的關聯與解讀）\n"
         "SO_WHAT: ...（對台灣投資人的具體啟示）"
     )
-    text = llm.generate(prompt, max_tokens=420)
+    # 1600 = flash-lite's 512-token thinking floor + the three-field reply.
+    # The old 420 cap sat BELOW the floor, so every call returned an empty
+    # reply and the briefing card was silently omitted day after day.
+    text = llm.generate(prompt, max_tokens=1600)
     if not text:
         return None
     parsed = parse_what_why_sowhat(text)

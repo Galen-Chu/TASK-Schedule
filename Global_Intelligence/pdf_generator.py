@@ -210,14 +210,36 @@ def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None, compac
     return card
 
 
-def _rss_card(item, ramp, styles, three_part=None, compact=False):
-    """Dynamic RSS card."""
+def _clip(text, limit):
+    """Trim to `limit` chars, ellipsis-marked when cut."""
+    text = (text or "").strip()
+    return text[:limit - 1] + "…" if len(text) > limit else text
+
+
+def _gwt_body(gwt, ramp, limit=52):
+    """Labeled single-line GIVEN/WHEN/THEN rows for an RSS card.
+
+    Each field is capped so it stays on ONE line at compact font size — the
+    three rows replace the old bare-summary body and make the Gemini brief
+    visible as structure (labels), not just prose.
+    """
+    rows = []
+    for label, key in (("GIVEN 前提", "given"), ("WHEN 事件", "when"),
+                       ("THEN 影響", "then")):
+        val = _clip(_strip_html((gwt or {}).get(key) or ""), limit)
+        if val:
+            rows.append(f'<font color="{ramp[3]}"><b>{label}</b></font>｜{val}')
+    return rows
+
+
+def _rss_card(item, ramp, styles, gwt=None, compact=False):
+    """Dynamic RSS card; a parsed Gemini brief shows as GIVEN/WHEN/THEN rows."""
     org_display = _source_display(item.get("source", ""))
     focus = _strip_html(item.get("title", ""))[:80]
     when = _fmt_time(item)
     summary = _strip_html(item.get("summary", ""))[:200] or focus
     link = item.get("link", "")
-    body = [_strip_html(three_part["what"])[:110]] if three_part else [summary]
+    body = _gwt_body(gwt, ramp) or [summary]
     return _topic_card(org_display, focus, when, body, ramp, styles, url=link, compact=compact)
 
 
@@ -285,12 +307,12 @@ def build_global_pdf(filename, data=None, date_str=None):
                                    leading=10.4, textColor=T.TEXT_BODY)
         story.append(Paragraph(en("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
         digest_rows = [
-            [Paragraph(en("<b>WHAT（事實概要）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("what", ""), bold=True), digest_st)],
-            [Paragraph(en("<b>WHY（脈絡影響）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("why", "")), digest_st)],
-            [Paragraph(en("<b>SO WHAT（台灣啟示）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("so_what", "")), digest_st)],
+            [Paragraph(en("<b>GIVEN（前提態勢）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("given", ""), bold=True), digest_st)],
+            [Paragraph(en("<b>WHEN（關鍵事件）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("when", "")), digest_st)],
+            [Paragraph(en("<b>THEN（台灣啟示）</b>", color="#FFFFFF"), s["th"]),
+             Paragraph(en(digest.get("then", "")), digest_st)],
         ]
         t_ai = Table(digest_rows, colWidths=[110, T.PRINTABLE_WIDTH - 110])
         t_ai.setStyle(TableStyle([
@@ -313,8 +335,8 @@ def build_global_pdf(filename, data=None, date_str=None):
                                  leading=10, textColor=T.TEXT_MUTED)
         story.append(Paragraph(en("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
         story.append(Paragraph(en(
-            f"本次未生成（{reason}）——三段式論述暫缺，請參閱下方各領域卡片；"
-            "下次排程將自動重試。"), miss_st))
+            f"本次未生成（{reason}）——GIVEN-WHEN-THEN 論述暫缺，請參閱下方各領域卡片；"
+            "下次排程將自���重試。"), miss_st))
         story.append(Spacer(1, 8))
 
     # Trend table with (單位) labels
@@ -410,7 +432,7 @@ def build_global_pdf(filename, data=None, date_str=None):
 
         live_items = retrieval_data.get(domain_tag, [])
 
-        # LLM three-part (one batched call per page)
+        # LLM GIVEN/WHEN/THEN briefs (one batched call per page)
         dynamic_tp = None
         if use_llm and live_items:
             topics_for_llm = [
@@ -419,13 +441,16 @@ def build_global_pdf(filename, data=None, date_str=None):
                  _strip_html(it.get("summary", ""))[:200])
                 for it in live_items[:6]
             ]
-            dynamic_tp = llm.summarize_topics_what_why_sowhat(
+            dynamic_tp = llm.summarize_topics_given_when_then(
                 topics_for_llm, domain_label=domain_zh)
+            if dynamic_tp is not None:
+                n_ok = sum(1 for x in dynamic_tp if x)
+                print(f"GWT[{domain_tag}] {n_ok}/{len(topics_for_llm)} cards parsed")
 
         cards_shown = 0
         for i, item in enumerate(live_items[:6]):
             tp = dynamic_tp[i] if dynamic_tp and i < len(dynamic_tp) else None
-            story.append(_rss_card(item, ramp, s, three_part=tp, compact=True))
+            story.append(_rss_card(item, ramp, s, gwt=tp, compact=True))
             story.append(Spacer(1, 2))
             cards_shown += 1
 
