@@ -15,7 +15,7 @@ import logging
 log = logging.getLogger("astro")
 
 _SIGNS_EN = ["ARI", "TAU", "GEM", "CAN", "LEO", "VIR", "LIB", "SCO", "SAG", "CAP", "AQU", "PIS"]
-_SIGNS_ZH = ["白羊", "金牛", "双子", "巨蟹", "狮子", "处女", "天秤", "天蝎", "射手", "摩羯", "水瓶", "双鱼"]
+_SIGNS_ZH = ["白羊", "金牛", "雙子", "巨蟹", "獅子", "處女", "天秤", "天蠍", "射手", "摩羯", "水瓶", "雙魚"]
 
 _HAS_SWISSEPH = True
 try:
