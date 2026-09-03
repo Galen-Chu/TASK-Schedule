@@ -388,6 +388,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             "seekingalpha.com": "SEEKING ALPHA",
             "feeds.bbci.co.uk": "BBC",
             "www.reuters.com": "REUTERS",
+            "news.un.org": "UN NEWS",
         }
 
         def _fsrc(url):
@@ -395,7 +396,14 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                 nl = _urlparse(url).netloc.lower()
             except Exception:
                 return "RSS"
-            return _fin_src.get(nl, nl.split(".")[0].upper() if nl else "RSS")
+            if nl in _fin_src:
+                return _fin_src[nl]
+            # Mirror Global's _source_display: skip generic host labels
+            # (www./feeds./news./…) so unknown sources badge as a real name,
+            # not "WWW" or "NEWS".
+            parts = [p for p in nl.split(".") if p and p not in
+                     ("www", "feeds", "search", "news", "rss", "feed")]
+            return parts[0].upper() if parts else "RSS"
 
         def _fclean(text):
             if not text:
