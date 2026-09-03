@@ -133,7 +133,7 @@ class GlobalReportScheduler(BaseReportScheduler):
             # Trend comparison (G): week-over-week domain heat + trending keywords
             data["trends"] = {
                 "domains": domain_trends(store),
-                "keywords": trending_keywords(store),
+                "keywords": trending_keywords(store, top_k=20),
             }
         return data
 

@@ -422,7 +422,7 @@ def build_global_pdf(filename, data=None, date_str=None):
             kw_style = ParagraphStyle("gkw", fontName=FONT_CJK, fontSize=8.2,
                                       leading=11.5, textColor=T.TEXT_BODY)
             kw_cells = []
-            for k in kw_list[:8]:
+            for k in kw_list[:20]:
                 hot = k.get("change", 0) >= 8
                 mark_color = "#EF6F53" if hot else "#0E7C86"
                 mark = "▲" if hot else "●"
