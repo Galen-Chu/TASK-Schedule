@@ -462,7 +462,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         card_title = _PS("fmi_title", fontName=_FONT_CJK, fontSize=9.2,
                            leading=12.0, textColor=T.CORAL, spaceBefore=1, spaceAfter=1)
 
-        for item in market_intel[:5]:
+        for item in market_intel[:8]:
             org = _fsrc(item.get("source", ""))
             focus = _fclean(item.get("title", ""))[:80]
             when = _ftime(item)

@@ -272,7 +272,7 @@ class FinancialReportScheduler(BaseReportScheduler):
 
         # Pull financial news for the Market Intelligence page. Wider pools
         # per domain, then _pick_diverse caps 2/domain + 1/source so the
-        # five cards don't read as five versions of one story.
+        # cards don't read as multiple versions of one story.
         try:
             store = CorpusStore(CORPUS_PATH)
             pools = {}
@@ -288,7 +288,7 @@ class FinancialReportScheduler(BaseReportScheduler):
                 store, query="nvidia tsmc semiconductor ai chip earnings "
                              "datacenter",
                 domain="it_ai", k=3, days=3) or []
-            items = _pick_diverse(pools, k=5)
+            items = _pick_diverse(pools, k=8)
             if items:
                 data["market_intel"] = items
 
