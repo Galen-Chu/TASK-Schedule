@@ -137,9 +137,10 @@ def test_global_with_maxlen_gwt_fits_and_labels_visible(tmp_path, monkeypatch):
 
     Guards the 08-17 overflow (pages blew past 7 once three-part parsing was
     fixed) — the layout must stay within the CI page assertion even with
-    full-length LLM text on all six cards. Also verifies (via pymupdf when
-    installed locally) that the GIVEN/WHEN/THEN labels actually render, on
-    P1's digest table and on every live domain card.
+    full-length LLM text on all eight cards (8/page since 09-03; measured
+    worst case ends at y≈693, ~107pt above the margin). Also verifies (via
+    pymupdf when installed locally) that the GIVEN/WHEN/THEN labels actually
+    render, on P1's digest table and on every live domain card.
     """
     import re
     from core import llm
@@ -165,20 +166,19 @@ def test_global_with_maxlen_gwt_fits_and_labels_visible(tmp_path, monkeypatch):
             "retrieval": {d[0]: [{"fetched_at": "2026-08-17T07:00:00+08:00",
                                   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
                                   "title": "TSMC expands 2nm capacity as AI demand surge continues into 2027",
-                                  "link": "https://x.org"}] * 3
+                                  "link": "https://x.org"}] * 8
                           for d in g.DOMAINS}}
     g.build_global_pdf(out, data=data, date_str="2026-08-17")
     raw = open(out, "rb").read()
     pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
-    # 7 pages (P1 trend + 6 domains), 6 cards/page with full G-W-T bodies.
-    # Guard against 9+ (severe overflow).
-    assert pages <= 8, f"Global overflowed to {pages} pages with full G-W-T bodies"
+    # 7 pages (P1 trend + 6 domains), 8 cards/page with full G-W-T bodies.
+    assert pages == 7, f"Global overflowed to {pages} pages with full G-W-T bodies"
 
     fitz = pytest.importorskip("pymupdf")   # local-only invariant; CI skips
     doc = fitz.open(out)
     p1 = doc[0].get_text()
     assert "GIVEN（前提態勢）" in p1 and "WHEN（關鍵事件）" in p1 and "THEN（台灣啟示）" in p1
     dom_text = doc[1].get_text()
-    assert dom_text.count("GIVEN 前提") == 3     # 3 live cards on P2
-    assert dom_text.count("THEN 影響") == 3
+    assert dom_text.count("GIVEN 前提") == 8     # 8 live cards on P2
+    assert dom_text.count("THEN 影響") == 8
     assert "GIVEN" in dom_text and "WHEN 事件" in dom_text
