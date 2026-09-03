@@ -114,7 +114,7 @@ class GlobalReportScheduler(BaseReportScheduler):
     def synthesize(self, data):
         """Gemini digest of today's RSS (when keyed), then pull recent real
         items per domain from the retrieval corpus — these become the **primary
-        dynamic topic cards** (5 per page). Editorial content is fallback."""
+        dynamic topic cards** (8 per page). Editorial content is fallback."""
         items = (data or {}).get("rss_items") or []
         if items:
             from core import llm
@@ -127,7 +127,7 @@ class GlobalReportScheduler(BaseReportScheduler):
         if store is not None:
             data.setdefault("retrieval", {})
             for dom, kws in DOMAIN_KEYWORDS.items():
-                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=6, days=7)
+                got = retrieve(store, query=" ".join(kws[:8]), domain=dom, k=8, days=7)
                 if got:
                     data["retrieval"][dom] = got
             # Trend comparison (G): week-over-week domain heat + trending keywords

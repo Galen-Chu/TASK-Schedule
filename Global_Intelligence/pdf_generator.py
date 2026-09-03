@@ -73,30 +73,50 @@ EDITORIAL_FALLBACK = {
         ["The Conference Board", "近岸與友岸外包加速", "2026-08-06 18:00 EST", "美國關稅政策新規常態化，製造業供應鏈加速轉移。"],
         ["國防院 (INDSR)", "印太安全與供應鏈保全", "2026-08-08 10:00 TST", "評估紅海航道干擾與台海安全。"],
         ["中經院 (CIER)", "地緣政治對台商投資影響", "2026-08-07 15:30 TST", "分析關稅合規與地緣風險。"],
+        ["布魯金斯 (Brookings)", "印太聯盟供應鏈韌性報告", "2026-08-09 15:00 EST", "美日韓協調機制擴及關鍵礦物。"],
+        ["蘭德公司 (RAND)", "台海威懾態勢評估", "2026-08-06 10:00 EST", "建議強化不對稱防衛與後備動員。"],
+        ["IISS", "全球軍力平衡年鑑", "2026-08-05 12:00 GMT", "國防開支向印太傾斜趨勢明確。"],
+        ["外交部 (MOFA)", "友邦經貿合作深化", "2026-08-10 09:30 TST", "與友邦供應鏈合作備忘錄簽署。"],
     ],
     "macro": [
         ["歐洲央行 (ECB)", "最新貨幣通報與通膨警告", "2026-08-06 10:00 CEST", "ECB 指出歐元區通膨雖受控制，但能源波動仍存。"],
         ["Mohamed El-Erian", "全球央行政策分化分析", "2026-08-09 21:00 EST", "成熟與新興市場復甦步調不一。"],
         ["台經院 (TIER)", "台灣宏觀經濟與出口展望", "2026-08-08 11:00 TST", "受惠 AI 拉貨強勁，出口動能維持高檔。"],
         ["中央銀行 (CBC)", "貨幣政策與流動性分析", "2026-08-07 16:30 TST", "維持適度緊縮貨幣立場。"],
+        ["IMF", "世界經濟展望更新", "2026-08-07 10:00 EST", "上修亞太成長預期並警示債務風險。"],
+        ["聯準會 (Fed)", "FOMC 會議紀要", "2026-08-06 14:00 EST", "官員對降息步調分歧，通膨路徑是關鍵。"],
+        ["亞銀 (ADB)", "亞洲開發展望", "2026-08-08 11:00 TST", "半導體出口支撐東亞成長動能。"],
+        ["WTO", "全球貿易展望與統計", "2026-08-05 15:00 GMT", "貨品貿易量溫和復甦，服務貿易暢旺。"],
     ],
     "it_ai": [
         ["TSMC / Motley Fool", "超預期算力帶動 640 億 Capex", "2026-08-09 08:30 EST", "台積電擴大 640 億美元資本支出。"],
         ["NVIDIA / Design&Reuse", "AI 演算法深入晶圓廠", "2026-08-08 11:00 EST", "NVIDIA 與台積電合作 AI 檢測。"],
         ["工研院 (ITRI ISTI)", "3D Chiplet 與 HBM4 封裝", "2026-08-08 14:00 TST", "晶片競賽轉向 3D 堆疊與 SiP。"],
         ["資策會 (MIC)", "AI Agent 商業落地", "2026-08-07 10:30 TST", "企業 AI 從 PoC 轉向 ROI 驗證。"],
+        ["OpenAI / Reuters", "推理模型成本下降", "2026-08-09 09:00 EST", "推理 API 價格調降加速企業導入。"],
+        ["Google DeepMind", "AlphaFold 生技應用", "2026-08-08 08:00 GMT", "結構預測切入藥物設計流程。"],
+        ["微軟 (Microsoft)", "Copilot 企業落地報告", "2026-08-07 13:00 EST", "生產力工具 AI 滲透率倍增。"],
+        ["Meta AI", "開源模型生態擴張", "2026-08-06 16:00 EST", "Llama 系列下載量創新高。"],
     ],
     "biotech": [
         ["U.S. FDA / Endpoints", "Pilot Plan 試點加速", "2026-08-07 06:38 EST", "FDA 啟動試點加速計畫。"],
         ["Eli Lilly / PR Newswire", "Olomorasib 獲認證", "2026-08-03 09:00 EST", "禮來 KRAS G12C 新藥獲 FDA 認證。"],
         ["國衛院 (NHRI)", "ADC 研發進展", "2026-08-08 10:00 TST", "精準腫瘤學標靶藥物突破。"],
         ["生技中心 (DCB)", "CDMO 量能", "2026-08-07 14:30 TST", "推動核酸藥物 CDMO 國際認證。"],
+        ["WHO", "全球疫苗市場展望", "2026-08-06 10:00 GMT", "mRNA 平台技術轉向癌症疫苗。"],
+        ["輝瑞 (Pfizer)", "減重藥臨床進度", "2026-08-08 07:00 EST", "口服 GLP-1 二期數據樂觀。"],
+        ["國衛院 (NHRI)", "細胞治療國家隊", "2026-08-09 10:00 TST", "CAR-T 人才與 GTP 廠房擴編。"],
+        ["麥肯錫 (McKinsey)", "亞太生醫投資趨勢", "2026-08-05 09:00 EST", "資金流向放射性藥物與 AI 藥發。"],
     ],
     "hardware": [
         ["U.S. DOE / NCSL", "SMR 核能創新園區", "2026-08-08 12:00 EST", "美國能源部啟動 SMR 商業化。"],
         ["Cambridge EnerTech", "固態電池與機器人", "2026-08-09 09:00 EST", "固態電池聚焦高能量密度。"],
         ["國研院 (NARLabs)", "工業 4.0 智慧感測", "2026-08-08 11:30 TST", "研發次世代感測器。"],
         ["工研院綠能所 (GEL)", "智慧電網與 LDES", "2026-08-07 16:00 TST", "數據中心倒逼電網升級。"],
+        ["Intel / AnandTech", "先進封裝產能擴張", "2026-08-09 11:00 EST", "EMIB 產能倍增應對 AI 需求。"],
+        ["特斯拉 (Tesla)", "儲能與機器人布局", "2026-08-07 16:00 EST", "Megapack 出貨年增逾五成。"],
+        ["經濟部 (MOEA)", "半導體供應鏈本土化", "2026-08-08 10:00 TST", "材料與設備國產化比例提升。"],
+        ["SEMI", "全球晶圓廠設備支出", "2026-08-06 12:00 TST", "先進邏輯與 HBM 支撐資本支出高峰。"],
     ],
     "aerospace": [
         ["NASA", "Artemis II 月球任務", "2026-08-20 10:00 EST", "NASA 載人繞月任務持續推進。"],
@@ -105,6 +125,8 @@ EDITORIAL_FALLBACK = {
         ["The Quantum Insider", "後量子密碼學標準化", "2026-08-19 11:00 EST", "NIST 後量子密碼學標準定案。"],
         ["Ars Technica", "量子網際網路原型", "2026-08-18 14:00 EST", "量子糾纏分發距離突破。"],
         ["Aviation Week", "電動航空 eVTOL 變局", "2026-08-21 09:00 EST", "電動垂直起降認證加速。"],
+        ["ESA", "阿里安 6 商業首飛", "2026-08-20 11:00 GMT", "歐洲自主發射能量補位。"],
+        ["SpaceX / NASA", "商用太空站過渡計畫", "2026-08-19 13:00 EST", "ISS 退場時程與商業接替評估。"],
     ],
 }
 
@@ -155,7 +177,7 @@ def _fmt_time(item):
 
 
 def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None, compact=False):
-    """Topic card with optional compact mode (6/page)."""
+    """Topic card with optional compact mode (8/page)."""
     base = colors.HexColor(ramp[2])
     tint = colors.HexColor(ramp[0])
     dark = colors.HexColor(ramp[3])
@@ -422,7 +444,7 @@ def build_global_pdf(filename, data=None, date_str=None):
             story.append(Paragraph(en("<b>發燒關鍵字（本週 vs 上週）</b>"), s["h1"]))
             story.append(kw_table)
 
-    # ============ P2-P7: Domain pages (6 compact cards each) ============
+    # ============ P2-P7: Domain pages (8 compact cards each) ============
     for idx, (domain_tag, domain_zh, domain_en, category, ramp) in enumerate(DOMAINS):
         story.append(PageBreak())
         base = colors.HexColor(ramp[2])
@@ -439,7 +461,7 @@ def build_global_pdf(filename, data=None, date_str=None):
                 (_source_display(it.get("source", "")),
                  _strip_html(it.get("title", ""))[:60],
                  _strip_html(it.get("summary", ""))[:200])
-                for it in live_items[:6]
+                for it in live_items[:8]
             ]
             dynamic_tp = llm.summarize_topics_given_when_then(
                 topics_for_llm, domain_label=domain_zh)
@@ -448,22 +470,22 @@ def build_global_pdf(filename, data=None, date_str=None):
                 print(f"GWT[{domain_tag}] {n_ok}/{len(topics_for_llm)} cards parsed")
 
         cards_shown = 0
-        for i, item in enumerate(live_items[:6]):
+        for i, item in enumerate(live_items[:8]):
             tp = dynamic_tp[i] if dynamic_tp and i < len(dynamic_tp) else None
             story.append(_rss_card(item, ramp, s, gwt=tp, compact=True))
             story.append(Spacer(1, 2))
             cards_shown += 1
 
-        if cards_shown < 6:
+        if cards_shown < 8:
             fallback = EDITORIAL_FALLBACK.get(domain_tag, [])
-            for org, focus, when, analysis in fallback[:6 - cards_shown]:
+            for org, focus, when, analysis in fallback[:8 - cards_shown]:
                 story.append(_topic_card(org, focus, when, [analysis], ramp, s, compact=True))
                 story.append(Spacer(1, 2))
                 cards_shown += 1
 
-        n_live = min(len(live_items), 6)
+        n_live = min(len(live_items), 8)
         src_note = (f"📡 {n_live} 則即時 RSS" +
-                    (f" + {6 - n_live} 則編輯精選" if n_live < 6 else "")) if live_items else "📚 編輯精選"
+                    (f" + {8 - n_live} 則編輯精選" if n_live < 8 else "")) if live_items else "📚 編輯精選"
         story.append(Spacer(1, 3))
         story.append(Paragraph(en(f"<i>{src_note}</i>"),
                                ParagraphStyle("gsrcnote", fontName=FONT_CJK, fontSize=7.5,
