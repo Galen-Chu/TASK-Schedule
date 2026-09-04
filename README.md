@@ -1,4 +1,4 @@
-# TASK-Schedule
+# TASK-Schedule 排程
 
 雲端排程每日報告系統 —— 每天清晨自動產生三份 A4 PDF 戰情報表（搭配 Obsidian 筆記與雲端分派），以 ReportLab 排版、由共用核心驅動，可在本機或 GitHub Actions 雲端排程執行。
 
