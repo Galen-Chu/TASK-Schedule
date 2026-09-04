@@ -99,10 +99,31 @@ _YAHOO_SYMBOLS = {
 }
 
 
+_YAHOO_HOSTS = ("query1", "query2")
+
+
+def _yahoo_chart(symbol, query):
+    """v8 chart JSON with mirror-host fallback and a short backoff.
+
+    Yahoo's keyless endpoint intermittently throttles individual requests
+    (429/401) from shared runner IPs — 2026-09-04 ^VIX alone failed for a
+    whole CI run while the 7 other symbols resolved. A 200 whose body is a
+    chart error ({"chart": {"result": null}}) also counts as a failure so
+    the mirror host gets tried too.
+    """
+    import time as _time
+    for i, host in enumerate(_YAHOO_HOSTS):
+        if i:
+            _time.sleep(1.5)
+        data = _get_json(f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}?{query}")
+        if data and (data.get("chart") or {}).get("result"):
+            return data
+    return None
+
+
 def fetch_yahoo_quote(symbol):
     """Keyless Yahoo Finance v8 chart quote. Returns float price or None."""
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
-    data = _get_json(url)
+    data = _yahoo_chart(symbol, "interval=1d&range=1d")
     try:
         return float(data["chart"]["result"][0]["meta"]["regularMarketPrice"])
     except (KeyError, IndexError, TypeError, ValueError):
@@ -116,9 +137,7 @@ def fetch_yahoo_history(symbol, months=3):
     skipped), or None on any failure. ~63 sessions for 3 months.
     """
     import datetime as _dt
-    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-           f"?interval=1d&range={months}mo")
-    data = _get_json(url)
+    data = _yahoo_chart(symbol, f"interval=1d&range={months}mo")
     try:
         result = data["chart"]["result"][0]
         ts = result["timestamp"]
