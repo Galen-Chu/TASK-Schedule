@@ -5,13 +5,16 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-08-31 更新）
+## 當前狀態（2026-09-04 更新）
 
 - 原路線圖 A~H+E 全數完成（檢索層 Phase 1-3、NFP、跨域摘要 G、方案 C 分頁、
   P1 新聞多樣化、P5 六商品+走勢圖、七術向量圖示、交易判斷橫幅）。
+- 2026-09-04：修復 Yahoo `^VIX` 限流導致排程失敗——抓取加 query1→query2
+  鏡像備援、決策欄位（vix/dxy/spread/融資/恐貪）缺值改 None→「數據待補」
+  而非靜默沿用樣本（見地雷 7）、快照測試改 ≥5/8 軟門檻。
 - 2026-08-31：修復 LLM 空回應根因（flash-lite 思考預算吃掉 max_output_tokens，
   見地雷 5）＋ Global 新聞卡與 P1 摘要改 GIVEN-WHEN-THEN 三欄帶標籤呈現
-  （Financial/Spiritual 不變）；92 tests 全綠、7-7-7 驗證通過。
+  （Financial/Spiritual 不變）。
 - 未來候選項盤點在 **README.md「未來評估開發項目」**（A 設定即用／B 中期／
   C 長期／D 維運觀察）——接續開發先讀那一節。
 
@@ -51,6 +54,13 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
 6. **開發流程**：feature branch → 測試+產出驗證 → 邏輯分層 commit →
    fast-forward merge main → push → 等 CI 綠 → 回報。使用者偏好繁中回報、
    重大變更先提方案。
+7. **決策欄位缺值要「可見失敗」**：verdict/訊號分的輸入（vix/dxy/
+   spread_10y2y/tw_margin/fear_and_greed）抓不到時 scheduler 一律設 None
+   → 報告顯示「數據待補」，**不可靜默沿用 sample**（2026-09-04 ^VIX 被
+   Yahoo 限流，樣本 28.4 會偽造恐慌買點、當日實值僅 ~14）；展示型欄位
+   （gold/btc/t10/tws…）仍可退回 sample。Yahoo 抓取已加 query1→query2
+   鏡像備援（`_yahoo_chart`），`test_market_snapshot_or_skip` 為 ≥5/8
+   符號軟門檻——單一符號缺席屬正常第三方行為，不是 CI 失敗。
 
 ## 接下來最可能做的事（2026-08-27 盤點摘要）
 
