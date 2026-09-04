@@ -1,6 +1,8 @@
 """Unit tests: chart axis helpers, NFP monthly changes, market verdict banners."""
 import re
 
+import pytest
+
 from Financial_Intelligence.pdf_generator import (
     _nice_ticks, _nfp_monthly_changes, _market_verdicts, _line_chart,
     generate_daily_pdf,
@@ -98,6 +100,25 @@ def test_market_verdicts_missing_data_all_neutral():
     assert v["overall"][1] in ("buy", "hold", "sell")
 
 
+# ---- fail-visible contract (2026-09-04: ^VIX throttled a whole CI run) ------
+def test_market_verdicts_none_valued_inputs_stay_neutral():
+    """The scheduler nulls verdict inputs on fetch failure — keys present,
+    values None (a distinct contract from the absent-key case above)."""
+    v = _market_verdicts({"tw_margin_balance": None, "vix": None,
+                          "spread_10y2y": None, "dxy": None, "fear_and_greed": None})
+    for key in ("tw", "us", "bond", "forex", "cmdty", "crypto"):
+        assert v[key][1] == "neutral", key
+        assert v[key][2] == "數據待補", key
+
+
+def test_signal_score_tolerates_nulled_decision_inputs():
+    from Financial_Intelligence.pdf_generator import calculate_signal_score
+    # base 50 only (OI absent keeps its historical +5 band → 55); none of the
+    # nulled decision inputs may crash the comparison or grant a bonus.
+    assert calculate_signal_score({"vix": None, "spread_10y2y": None,
+                                   "tw_margin_balance": None}) == 55
+
+
 # ---- full PDF with banners + all charts stays 7 pages ----------------------
 def _full_macro():
     def bls(levels):  # newest-first numeric BLS rows
@@ -146,6 +167,45 @@ def test_financial_pdf_full_charts_and_banners_stay_7_pages(tmp_path):
     raw = open(out, "rb").read()
     pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
     assert pages == 7, f"banners/charts overflowed: {pages} pages"
+
+
+def test_financial_pdf_degraded_data_renders_pending_placeholders(tmp_path):
+    """Total live-outage shape: every verdict input None must still render a
+    7-page report whose banners read 數據待補 — and the stale sample vix=28.4
+    must not leak into the output."""
+    data = {"tw_margin_balance": None, "vix": None, "fear_and_greed": None,
+            "spread_10y2y": None, "dxy": None,
+            "macro": _full_macro(),
+            "commodity_hist": {
+                "gold": [{"date": f"{(i % 12) + 1:02d}/15", "v": 2400 + 9 * i}
+                         for i in range(26)],
+                "btc": [{"date": f"{(i % 12) + 1:02d}/15", "v": 58000 + 500 * i}
+                        for i in range(26)],
+            },
+            "market_intel": [
+                {"title": f"Market headline number {i}", "summary": "summary " * 8,
+                 "source": "https://finance.yahoo.com/news/rss.xml", "link": "https://x.org",
+                 "published": "", "fetched_at": "2026-09-04T07:00:00+08:00"}
+                for i in range(5)
+            ]}
+    out = str(tmp_path / "degraded.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-04")
+    fitz = pytest.importorskip("fitz")  # text extraction needs pymupdf (local)
+    doc = fitz.open(out)
+    assert doc.page_count == 7
+    text = "".join(p.get_text() for p in doc)
+    assert "數據待補" in text
+    assert "28.4" not in text
+
+
+def test_obsidian_note_renders_pending_when_inputs_missing():
+    from Financial_Intelligence.obsidian_writer import build_note_content
+    md = build_note_content({"date": "2026-09-04", "tw_margin_balance": None,
+                             "vix": None, "spread_10y2y": None, "dxy": None,
+                             "signal_score": 55}, "2026-09-04")
+    assert "待補" in md
+    assert "28.4" not in md and "8970000" not in md
+    assert "vix: null" in md and "tw_margin_balance_lots: null" in md
 
 
 # ---- news-card diversity + summary de-overlap (2026-08-27 follow-up) -------

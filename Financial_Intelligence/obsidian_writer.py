@@ -33,10 +33,20 @@ def _briefing_md(data):
 
 
 def build_note_content(data, date_str):
-    twm = _g(data, "tw_margin_balance", 8970000)
-    vix = _g(data, "vix", 28.4)
+    twm = _g(data, "tw_margin_balance", None)
+    vix = _g(data, "vix", None)
+    spread = _g(data, "spread_10y2y", None)
+    dxy = _g(data, "dxy", None)
     score = _g(data, "signal_score", 72)
     rating = _g(data, "signal_rating", "🟢 偏多進場 / 尋找超跌加碼點")
+    # Verdict inputs arrive as None when their live fetch failed — frontmatter
+    # keeps a YAML null and the body shows 待補 instead of the stale sample.
+    twm_d = f"{twm/10000:.1f} 萬張" if twm is not None else "待補"
+    vix_d = f"{vix}" if vix is not None else "待補"
+    spread_d = (f"{'+' if spread >= 0 else ''}{spread}%" if spread is not None else "待補")
+    dxy_d = f"{dxy}" if dxy is not None else "待補"
+    us_note = ("恐慌指數攀升至買點，科技巨頭區間築底" if vix is not None
+               else "VIX 未取得，情緒訊號待補")
     return f"""---
 title: "Financial Intelligence 每日投資趨勢 ({date_str})"
 date: {date_str}
@@ -46,8 +56,8 @@ tags:
   - market-trends
   - quant-indicators
   - asset-allocation
-tw_margin_balance_lots: {twm}
-vix: {vix}
+tw_margin_balance_lots: {twm if twm is not None else 'null'}
+vix: {vix if vix is not None else 'null'}
 signal_rating: "{rating}"
 ---
 
@@ -56,7 +66,7 @@ signal_rating: "{rating}"
 > [!abstract] 核心決策與資產評級
 > **本日綜合評級**：`{rating}` (Signal Score: {score}/100)
 >
-> 台股全市場融資餘額 **{twm/10000:.1f} 萬張**（TWSE MI_MARGN 即時加總），美股 VIX **{vix}**。量化模型綜合評估多數市場進入中長線高勝率分批佈局點。
+> 台股全市場融資餘額 **{twm_d}**（TWSE MI_MARGN 即時加總），美股 VIX **{vix_d}**。量化模型綜合評估多數市場進入中長線高勝率分批佈局點。
 {_briefing_md(data)}
 ---
 
@@ -66,10 +76,10 @@ signal_rating: "{rating}"
 
 | 市場類別 | 當前關鍵指標 | 風險評級 | 進出場訊號 | 短線趨勢與籌碼觀察 |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. 台股市場** | 融資餘額 {twm/10000:.1f} 萬張 | 中等偏低 | 🟢 分批進場 | 融資洗盤完畢，台積電先進封裝支撐強 |
-| **2. 美股市場** | VIX {vix} | 中等 | 🟢 分批進場 | 恐慌指數攀升至買點，科技巨頭區間築底 |
-| **3. 全球債券** | 10Y {_g(data, "treasury_10y", 3.85)}% (利差 +{_g(data, "spread_10y2y", 0.12)}%) | 低 | 🟢 鎖利加碼 | 倒掛結束，鎖定降息前高殖利率票息 |
-| **4. 外匯與美元** | DXY {_g(data, "dxy", 102.4)} / TWD {_g(data, "usdtwd", 32.15)} | 中等 | 🟡 觀望升值 | 美元高位震盪，亞幣匯率止跌回升 |
+| **1. 台股市場** | 融資餘額 {twm_d} | 中等偏低 | 🟢 分批進場 | 融資洗盤完畢，台積電先進封裝支撐強 |
+| **2. 美股市場** | VIX {vix_d} | 中等 | 🟢 分批進場 | {us_note} |
+| **3. 全球債券** | 10Y {_g(data, "treasury_10y", 3.85)}% (利差 {spread_d}) | 低 | 🟢 鎖利加碼 | 倒掛結束，鎖定降息前高殖利率票息 |
+| **4. 外匯與美元** | DXY {dxy_d} / TWD {_g(data, "usdtwd", 32.15)} | 中等 | 🟡 觀望升值 | 美元高位震盪，亞幣匯率止跌回升 |
 | **5. 商品與加密** | 黃金 ${_g(data, "gold", 2450):,} / BTC ${_g(data, "btc", 58500):,} | 偏高 | 🟡 觀望布局 | 黃金避險高位震盪，BTC 槓桿清理完畢 |
 
 ---

@@ -48,11 +48,14 @@ def calculate_signal_score(data):
     """
     score = 50
     ceiling = data.get("tw_margin_ceiling", 9_000_000)
-    if data.get("tw_margin_balance", ceiling) < ceiling:
+    twm = data.get("tw_margin_balance")
+    if twm is not None and twm < ceiling:
         score += 15
-    if data.get("vix", 0) > 25:
+    vix = data.get("vix")
+    if vix is not None and vix > 25:
         score += 10
-    if data.get("spread_10y2y", 0) > 0:
+    spread = data.get("spread_10y2y")
+    if spread is not None and spread > 0:
         score += 10
     oi = data.get("futures_net_oi", 0)
     if oi > -10000:
@@ -347,18 +350,30 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     score = calculate_signal_score(data)
     rating = rating_from_score(score)
 
-    twm   = _g(data, "tw_margin_balance", 8970000)
+    twm   = _g(data, "tw_margin_balance", None)
     tws   = _g(data, "tw_short_balance", 214000)
     oi    = _g(data, "futures_net_oi", -18500)
-    vix   = _g(data, "vix", 28.4)
-    fg    = _g(data, "fear_and_greed", 24)
+    vix   = _g(data, "vix", None)
+    fg    = _g(data, "fear_and_greed", None)
     t10   = _g(data, "treasury_10y", 3.85)
     t2    = _g(data, "treasury_2y", 3.73)
-    spread= _g(data, "spread_10y2y", 0.12)
-    dxy   = _g(data, "dxy", 102.4)
+    spread= _g(data, "spread_10y2y", None)
+    dxy   = _g(data, "dxy", None)
     twd   = _g(data, "usdtwd", 32.15)
     gold  = _g(data, "gold", 2450)
     btc   = _g(data, "btc", 58500)
+
+    # Verdict inputs arrive as None when their live fetch failed (the
+    # scheduler's fail-visible contract) — render 「待補」 instead of letting
+    # the sample value fabricate a verdict the data doesn't support.
+    twm_d = f"{twm/10000:.1f} 萬張" if twm is not None else "待補"
+    vix_d = f"{vix}" if vix is not None else "待補"
+    fg_d  = f"{fg}" if fg is not None else "待補"
+    dxy_d = f"{dxy}" if dxy is not None else "待補"
+    if spread is None:
+        spread_d = "待補"
+    else:
+        spread_d = f"{'+' if spread >= 0 else ''}{spread}%"
 
     s = standard_styles()
     story = []
@@ -553,8 +568,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
 
     # Decision summary as its own body card (was crammed into the banner).
     summary_card = Table([[Paragraph(en(
-        f"<b>核心決策摘要：</b>台股融資餘額 {twm/10000:.1f} 萬張，美股 VIX {vix}，"
-        f"美債 10Y-2Y 利差 {'+' if spread >= 0 else ''}{spread}%。"
+        f"<b>核心決策摘要：</b>台股融資餘額 {twm_d}，美股 VIX {vix_d}，"
+        f"美債 10Y-2Y 利差 {spread_d}。"
         "量化模型綜合評估當前資產配置之風險報酬比。"),
         ParagraphStyle_local("RDesc", 9, T.TEXT_BODY, leading=13))]],
         colWidths=[T.PRINTABLE_WIDTH])
@@ -579,7 +594,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     cards = [
         (COLOR_TW_STOCK, kpi_card(
             "全市場融資餘額（TWSE 即時）",
-            f"<font color='#EF6F53' size=13><b>{twm/10000:.1f} 萬張</b></font> <font color='#2E8B4F'><b>(低於門檻 900 萬張)</b></font>",
+            f"<font color='#EF6F53' size=13><b>{twm_d}</b></font> <font color='#2E8B4F'><b>"
+            f"{('(低於門檻 900 萬張)' if twm is not None else '(未取得)')}</b></font>",
             f"融券餘額: {tws/10000:.1f} 萬張 | 來源: MI_MARGN 加總<br/>數值每日即時重抓，門檻可日後校準。")),
         (COLOR_US_STOCK, kpi_card(
             "外資台指期淨未平倉",
@@ -587,11 +603,14 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             "警戒線: -30,000 口<br/>空單單週回補 8,000 口，顯示期貨避險賣壓衰竭。")),
         (COLOR_BOND, kpi_card(
             "美股 VIX &amp; 恐懼貪婪指數",
-            f"<font color='#E8A33D' size=13><b>VIX {vix} / F&amp;G {fg}</b></font> <font color='#2E8B4F'><b>(極度恐慌)</b></font>",
-            "極度恐慌區間 (F&amp;G &lt; 25)，歷史數據顯示分批進場勝率 &gt; 82%。")),
+            f"<font color='#E8A33D' size=13><b>VIX {vix_d} / F&amp;G {fg_d}</b></font>"
+            + ("" if fg is None else " <font color='#2E8B4F'><b>(極度恐慌)</b></font>"),
+            ("極度恐慌區間 (F&amp;G &lt; 25)，歷史數據顯示分批進場勝率 &gt; 82%。"
+             if fg is not None else "情緒指標未取得，待補後確認進場時機。"))),
         (COLOR_FOREX, kpi_card(
             "美債 10Y-2Y 殖利率利差",
-            f"<font color='#6B8F71' size=13><b>{'+' if spread >= 0 else ''}{spread}%</b></font> <font color='#B9791C'><b>(倒掛結束)</b></font>",
+            f"<font color='#6B8F71' size=13><b>{spread_d}</b></font>"
+            + ("" if spread is None else " <font color='#B9791C'><b>(倒掛結束)</b></font>"),
             f"10 年期 {t10}% / 2 年期 {t2}%<br/>曲線陡峭化，市場預期 Fed 年底前啟動降息。")),
     ]
     grid = [[Table(cards[0][1], colWidths=[260]), Table(cards[1][1], colWidths=[260])],
@@ -617,16 +636,16 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en("<b>進出場訊號燈號</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>短線趨勢說明</b>", color="#FFFFFF"), s["th"])],
         [Paragraph(en("1. 台股市場"), s["body"]), Paragraph(en("活力橘紅", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"融資餘額 {twm/10000:.1f} 萬張"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
+         Paragraph(en(f"融資餘額 {twm_d}"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
          Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("融資清洗完畢，台積電先進封裝支撐強健"), s["body"])],
         [Paragraph(en("2. 美股市場"), s["body"]), Paragraph(en("科技青", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"S&P 500: 5,420 (VIX {vix})"), s["body"]), Paragraph(en("中等"), s["body"]),
+         Paragraph(en(f"S&P 500: 5,420 (VIX {vix_d})"), s["body"]), Paragraph(en("中等"), s["body"]),
          Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("恐慌指數攀升至買點，科技巨頭區間築底"), s["body"])],
         [Paragraph(en("3. 全球債券"), s["body"]), Paragraph(en("暖琥珀", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"美債 10Y: {t10}% (利差 {'+' if spread >= 0 else ''}{spread}%)"), s["body"]), Paragraph(en("低"), s["body"]),
+         Paragraph(en(f"美債 10Y: {t10}% (利差 {spread_d})"), s["body"]), Paragraph(en("低"), s["body"]),
          Paragraph(en("🟢 鎖利加碼"), s["body"]), Paragraph(en("倒掛結束，鎖定降息前高殖利率票息"), s["body"])],
         [Paragraph(en("4. 外匯與美元"), s["body"]), Paragraph(en("抹茶綠", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"DXY: {dxy} / TWD: {twd}"), s["body"]), Paragraph(en("中等"), s["body"]),
+         Paragraph(en(f"DXY: {dxy_d} / TWD: {twd}"), s["body"]), Paragraph(en("中等"), s["body"]),
          Paragraph(en("🟡 觀望升值"), s["body"]), Paragraph(en("美元高位震盪，亞幣匯率止跌回升"), s["body"])],
         [Paragraph(en("5. 商品與加密"), s["body"]), Paragraph(en("墨藍黑", color="#FFFFFF"), s["th"]),
          Paragraph(en(f"黃金 ${gold:,} / BTC ${btc:,}"), s["body"]), Paragraph(en("偏高"), s["body"]),
@@ -712,7 +731,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                   Paragraph(en(f"{t10}%", bold=True), s["body"]),
                   Paragraph(en("2Y 殖利率 " + f"{t2}%"), s["body"]),
                   Paragraph(en("當日"), s["body"]),
-                  Paragraph(en("🟢 曲線正常化（未倒掛）" if spread >= 0 else "🔴 曲線倒掛"), s["body"])])
+                  Paragraph(en("🟢 曲線正常化（未倒掛）" if spread is not None and spread >= 0
+                               else "🔴 曲線倒掛" if spread is not None else "待補"), s["body"])])
     if len(macro) > 1:
         t_macro = Table(macro, colWidths=[110, 70, 95, 65, 207])
         t_macro.setStyle(_detail_style(T.NAVY, T.BORDER, s))
@@ -729,7 +749,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
-            ["全市場融資餘額", f"{twm/10000:.1f} 萬張", "門檻 900 萬張（可校準）", "🟢 低於門檻，槓桿未過熱，洗盤接近尾聲，具反彈動能"],
+            ["全市場融資餘額", twm_d, "門檻 900 萬張（可校準）", "🟢 低於門檻，槓桿未過熱，洗盤接近尾聲，具反彈動能"],
             ["全市場融券餘額", f"{tws/10000:.1f} 萬張", "歷史區間 15–40 萬張", "🟢 融券水位中性，無軋空亦無悲觀過度"],
             ["外資現貨買賣超", "+125 億", "單日 > +100 億為轉多", "🟢 外資連續 3 日現貨轉買，資金回流權值股"],
             ["投信現貨買賣超", "+42 億", "持續買超支撐", "🟢 投信連續 15 日買超，內資法人底氣充足"],
@@ -748,8 +768,8 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["S&P 500 指數", "5,420 點", "季線 MA60 (5,400 點)", "🟢 於季線關卡展現強勁支撐，回測不破"],
             ["Nasdaq 指數", "16,950 點", "半年線 MA120 (16,800 點)", "🟢 科技股震盪築底，AI 龍頭自由現金流穩健"],
             ["費城半導體 (SOX)", "4,880 點", "年線 MA200 (4,750 點)", "🟡 受到出口限制與擴產 Capex 震盪，宜分批佈局"],
-            ["VIX 恐慌指數", f"{vix}", "恐慌區 > 25 / 極度恐慌 > 35", "🟢 攀升至恐慌區，顯示情緒極度悲觀，通常為中長線買點"],
-            ["Fear & Greed Index", f"{fg} (Extreme Fear)", "恐慌區 < 25", "🟢 進入極度恐慌區，符合巴菲特「別人恐慌我貪婪」條件"],
+            ["VIX 恐慌指數", vix_d, "恐慌區 > 25 / 極度恐慌 > 35", "🟢 攀升至恐慌區，顯示情緒極度悲觀，通常為中長線買點"],
+            ["Fear & Greed Index", (f"{fg} (Extreme Fear)" if fg is not None else fg_d), "恐慌區 < 25", "🟢 進入極度恐慌區，符合巴菲特「別人恐慌我貪婪」條件"],
             ["MA200 成分股占比", "42.5%", "超賣區 < 30% / 超買區 > 80%", "🟡 市場廣度中性偏低，資金集中於七大巨頭 (Magnificent 7)"],
         ],
         header_bg=COLOR_US_STOCK, grid_color=colors.HexColor('#E3F3F4'), styles=s,
@@ -771,7 +791,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         [
             ["美債 10 年期殖利率", f"{t10}%", "4.15%", "🟢 殖利率顯著回落，長天期公債價格上漲，鎖定高票息"],
             ["美債 2 年期殖利率", f"{t2}%", "4.30%", "🟢 短端利率反映 Fed 年底前降息 2 碼之預期"],
-            ["10Y-2Y 殖利率利差", f"{'+' if spread >= 0 else ''}{spread}%", "-0.15%", "🟢 殖利率倒掛結束並陡峭化，有利於金融機構利差改善"],
+            ["10Y-2Y 殖利率利差", spread_d, "-0.15%", "🟢 殖利率倒掛結束並陡峭化，有利於金融機構利差改善"],
             ["美國高收益債信用利差", "340 bps", "320 bps", "🟡 信用利差微幅擴大但仍低於歷史均值 (450 bps)，無違約危機"],
         ],
         header_bg=COLOR_BOND, grid_color=colors.HexColor('#FCF0DC'), styles=s,
@@ -782,7 +802,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(_detail_table(
         ["外匯指標", "當前數據", "關鍵水位", "資金流向與影響判讀"],
         [
-            ["美元指數 (DXY)", f"{dxy}", "阻力: 104.5 / 支撐: 101.0", "🟢 美元自高點走弱，減輕新興市場資金外流壓力"],
+            ["美元指數 (DXY)", dxy_d, "阻力: 104.5 / 支撐: 101.0", "🟢 美元自高點走弱，減輕新興市場資金外流壓力"],
             ["美元/新台幣 (USD/TWD)", f"{twd}", "阻力: 32.50 / 支撐: 31.80", "🟢 台幣升值預期升溫，有利外資回流台股現貨"],
             ["美元/日圓 (USD/JPY)", "145.2", "警戒: 155.0 (套利平倉)", "🟡 日圓套利交易平倉風險趨緩，金融市場流動性恢復"],
         ],
@@ -913,9 +933,14 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(_detail_table(
         ["投資領域", "標的名稱 / 代碼", "建議進場策略", "核心選股/選債量化理由"],
         [
-            ["台股市場", "市值型 / 半導體 ETF<br/>(如 0050, 0052)", "分批逢低建立核心部位", f"全市場融資餘額 {twm/10000:.1f} 萬張、低於門檻，槓桿未過熱；先進封裝與 CoWoS 產能滿載，評價具吸引力。"],
+            ["台股市場", "市值型 / 半導體 ETF<br/>(如 0050, 0052)", "分批逢低建立核心部位",
+             (f"全市場融資餘額 {twm_d}、低於門檻，槓桿未過熱；先進封裝與 CoWoS 產能滿載，評價具吸引力。"
+              if twm is not None else "融資餘額待補；先進封裝與 CoWoS 產能滿載，評價具吸引力。")],
             ["台股市場", "AI 伺服器水冷與散熱龍頭", "拉回重心支撐線加碼", "AI 伺服器單機功耗暴增，營收月增率持強，法人與投信連續 15 日買超護盤。"],
-            ["美股市場", "標普 500 / 納指 ETF<br/>(如 VOO, QQQ)", "分 3 批定期定額扣款", f"VIX 升至 {vix} + F&amp;G 降至 {fg} 極度恐慌區，歷史回測分批進場勝率 > 82%。"],
+            ["美股市場", "標普 500 / 納指 ETF<br/>(如 VOO, QQQ)", "分 3 批定期定額扣款",
+             (f"VIX 升至 {vix} + F&amp;G 降至 {fg} 極度恐慌區，歷史回測分批進場勝率 > 82%。"
+              if vix is not None and fg is not None
+              else "情緒指標待補（VIX/F&amp;G 未取得），待數據恢復後確認分批時機。")],
             ["美股市場", "雲端 Hyperscaler &amp; AI 巨頭", "分批進場", "科技巨頭 2026 年 Capex 資本支出持續上修，自由現金流非常強健。"],
             ["全球債券", "20年期以上美國公債 ETF<br/>(如 TLT, 00679B)", "單筆搭配定期定額", f"10Y-2Y 倒掛結束，鎖定 {t10}%~{t10 + 0.15:.2f}% 高殖利率，降息啟動享資本利得。"],
             ["數位資產", "比特幣現貨 ETF / BTC", "分批佈局", "永續合約資費歸零、交易所槓桿多單清理完畢，鏈上算力持續創新高。"],

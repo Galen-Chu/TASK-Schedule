@@ -176,14 +176,19 @@ class FinancialReportScheduler(BaseReportScheduler):
             self.logger.warning("financial RSS ingest failed: %s", exc)
 
         # 1) Yahoo Finance headline quotes (keyless)
-        snap = fetch_market_snapshot()
+        snap = fetch_market_snapshot() or {}
+        keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc",
+                  "wti": "wti", "silver": "silver", "copper": "copper",
+                  "natgas": "natgas"}
+        for k, dk in keymap.items():
+            if snap.get(k) is not None:
+                data[dk] = snap[k]
+        # Verdict-banner / signal-score inputs must fail visibly: None →
+        # 「數據待補」. Silently keeping the sample vix=28.4 fabricated a
+        # panic-buy verdict on 2026-09-04 while the real reading was ~14.
+        data["vix"] = snap.get("vix")
+        data["dxy"] = snap.get("dxy")
         if snap:
-            keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc",
-                      "wti": "wti", "silver": "silver", "copper": "copper",
-                      "natgas": "natgas"}
-            for k, dk in keymap.items():
-                if k in snap:
-                    data[dk] = snap[k]
             sources.append("Yahoo")
 
         # 1b) Commodity price history for the P5 trend charts (1-day TTL
@@ -199,28 +204,27 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["commodity_hist"] = hist
 
         # 2) U.S. Treasury daily yield curve — 2Y / 10Y / spread (keyless)
-        tyc = fetch_treasury_yields()
+        tyc = fetch_treasury_yields() or {}
+        if "10y" in tyc:
+            data["treasury_10y"] = tyc["10y"]
+        if "2y" in tyc:
+            data["treasury_2y"] = tyc["2y"]
+        data["spread_10y2y"] = tyc.get("spread_10y2y")  # verdict input → fail visible
         if tyc:
-            if "10y" in tyc:
-                data["treasury_10y"] = tyc["10y"]
-            if "2y" in tyc:
-                data["treasury_2y"] = tyc["2y"]
-            if "spread_10y2y" in tyc:
-                data["spread_10y2y"] = tyc["spread_10y2y"]
             sources.append("Treasury")
 
         # 3) Fear & Greed index (keyless) — replaces the old VIX heuristic
         fg = fetch_fear_greed()
+        data["fear_and_greed"] = fg  # verdict input → fail visible
         if fg is not None:
-            data["fear_and_greed"] = fg
             sources.append("F&G")
 
         # 4) TWSE market-wide margin / short balances (keyless, MI_MARGN sum)
-        twse = fetch_twse_margin(self.date_str)
-        if twse and twse.get("total_margin_balance"):
-            data["tw_margin_balance"] = twse["total_margin_balance"]
-            if twse.get("total_short_balance"):
-                data["tw_short_balance"] = twse["total_short_balance"]
+        twse = fetch_twse_margin(self.date_str) or {}
+        data["tw_margin_balance"] = twse.get("total_margin_balance")  # verdict input
+        if twse.get("total_short_balance"):
+            data["tw_short_balance"] = twse["total_short_balance"]
+        if twse:
             sources.append("TWSE")
 
         # 5) Slow macro series behind a TTL cache (BLS monthly / Treasury daily);
