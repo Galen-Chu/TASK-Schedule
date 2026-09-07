@@ -15,6 +15,8 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 
+from core.text_clean import strip_html
+
 log = logging.getLogger("retrieval.store")
 
 _TZ = timezone(timedelta(hours=8))  # Asia/Taipei
@@ -94,7 +96,10 @@ class CorpusStore:
                 "id": iid,
                 "title": title,
                 "link": link,
-                "summary": (raw.get("summary") or "")[:500],
+                # Strip HTML *before* truncating: a raw [:500] cut can slice a
+                # tag mid-attribute and the unterminated fragment survives
+                # later tag-stripping (2026-09-07 ReportLab crash).
+                "summary": strip_html(raw.get("summary") or "")[:500],
                 "source": raw.get("source", ""),
                 "domain_tag": raw.get("domain_tag", ""),
                 "fetched_at": raw.get("fetched_at") or now_iso(),
@@ -123,9 +128,35 @@ class CorpusStore:
                 f.write(json.dumps(it, ensure_ascii=False) + "\n")
         os.replace(tmp, self.path)
 
+    def sanitize_summaries(self):
+        """Re-clean stored summaries (strip tags/fragments, decode entities).
+
+        Heals entries written before ingest-side sanitizing existed — the
+        truncated-HTML fragments that crashed the 2026-09-07 Global report
+        came from this backlog. Changed items drop their embedding vector so
+        the next embed backfill recomputes it on the clean text.
+
+        Returns the number of changed entries.
+        """
+        items = self.all()
+        changed = 0
+        for it in items:
+            clean = strip_html(it.get("summary") or "")
+            if clean != (it.get("summary") or ""):
+                it["summary"] = clean
+                it.pop("emb", None)
+                changed += 1
+        if changed:
+            self.save_all(items)
+            log.info("corpus summaries sanitized: %d cleaned", changed)
+        return changed
+
     def compact(self, keep_days=30, now=None):
         """Drop items whose fetched_at is older than keep_days. Returns count removed."""
         now = now or datetime.now(_TZ)
+        # Daily self-heal: keep the stored-summaries-are-plain-text invariant
+        # even for entries written by older code paths.
+        self.sanitize_summaries()
         kept, removed = [], 0
         for it in self.all():
             try:
