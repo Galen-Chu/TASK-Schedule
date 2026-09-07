@@ -7,7 +7,6 @@ P2-P7: One domain per page, 6 dynamic topic cards each.
 Cards pull live from the retrieval corpus; editorial fallback fills gaps.
 """
 import os
-import re
 import sys
 from datetime import datetime, timedelta, timezone
 from html import unescape as _html_unescape
@@ -24,12 +23,12 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from core import design_tokens as T
 from core import llm
 from core.pdf_engine import en, standard_styles, make_title_row, footer_factory, new_doc
+from core.text_clean import strip_html
 from core.fonts import FONT_CJK
 
 DISCLAIMER = "本報告由 Global Intelligence 自動化情報系統產生，涵蓋全球與國內權威智庫報告速讀。"
 
 _TZ = timezone(timedelta(hours=8))
-_TAG_RE = re.compile(r"<[^>]+>")
 
 DOMAINS = [
     ("geopolitics", "地緣政治與國際關係", "Geopolitics & International Relations", "Category 01", T.RAMP_INK),
@@ -129,13 +128,6 @@ EDITORIAL_FALLBACK = {
         ["SpaceX / NASA", "商用太空站過渡計畫", "2026-08-19 13:00 EST", "ISS 退場時程與商業接替評估。"],
     ],
 }
-
-
-def _strip_html(text):
-    """Remove HTML tags. Entities stay escaped for ReportLab Paragraph safety."""
-    if not text:
-        return ""
-    return re.sub(r"\s+", " ", _TAG_RE.sub(" ", text)).strip()
 
 
 def _source_display(url_or_domain):
@@ -248,7 +240,7 @@ def _gwt_body(gwt, ramp, limit=52):
     rows = []
     for label, key in (("GIVEN 前提", "given"), ("WHEN 事件", "when"),
                        ("THEN 影響", "then")):
-        val = _clip(_strip_html((gwt or {}).get(key) or ""), limit)
+        val = _clip(strip_html((gwt or {}).get(key) or ""), limit)
         if val:
             rows.append(f'<font color="{ramp[3]}"><b>{label}</b></font>｜{val}')
     return rows
@@ -257,9 +249,9 @@ def _gwt_body(gwt, ramp, limit=52):
 def _rss_card(item, ramp, styles, gwt=None, compact=False):
     """Dynamic RSS card; a parsed Gemini brief shows as GIVEN/WHEN/THEN rows."""
     org_display = _source_display(item.get("source", ""))
-    focus = _strip_html(item.get("title", ""))[:80]
+    focus = strip_html(item.get("title", ""))[:80]
     when = _fmt_time(item)
-    summary = _strip_html(item.get("summary", ""))[:200] or focus
+    summary = strip_html(item.get("summary", ""))[:200] or focus
     link = item.get("link", "")
     body = _gwt_body(gwt, ramp) or [summary]
     return _topic_card(org_display, focus, when, body, ramp, styles, url=link, compact=compact)
@@ -459,8 +451,8 @@ def build_global_pdf(filename, data=None, date_str=None):
         if use_llm and live_items:
             topics_for_llm = [
                 (_source_display(it.get("source", "")),
-                 _strip_html(it.get("title", ""))[:60],
-                 _strip_html(it.get("summary", ""))[:200])
+                 strip_html(it.get("title", ""))[:60],
+                 strip_html(it.get("summary", ""))[:200])
                 for it in live_items[:8]
             ]
             dynamic_tp = llm.summarize_topics_given_when_then(

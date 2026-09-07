@@ -24,6 +24,7 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
 from core import design_tokens as T
 from core.fonts import FONT_CJK
 from core.pdf_engine import en, standard_styles, make_title_row, footer_factory, new_doc
+from core.text_clean import strip_html
 
 # ---- Financial section palette (Typography Guide brand family) -------------
 COLOR_TW_STOCK = T.CORAL    # 台股 — 活力橘紅
@@ -387,13 +388,10 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= P1a — Market Intelligence (news cards) =======
     market_intel = data.get("market_intel") or []
     if market_intel:
-        import re as _re
-        from html import unescape as _html_unescape
         from urllib.parse import urlparse as _urlparse
         from core.fonts import FONT_CJK as _FONT_CJK
         from reportlab.lib.styles import ParagraphStyle as _PS
 
-        _tag_re = _re.compile(r"<[^>]+>")
         _fin_src = {
             "finance.yahoo.com": "YAHOO FINANCE",
             "feeds.content.dowjones.io": "MARKETWATCH",
@@ -421,9 +419,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             return parts[0].upper() if parts else "RSS"
 
         def _fclean(text):
-            if not text:
-                return ""
-            return _re.sub(r"\s+", " ", _tag_re.sub(" ", text)).strip()
+            return strip_html(text)
 
         def _ftime(item):
             pub = item.get("published", "")
