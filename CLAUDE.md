@@ -9,6 +9,9 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 
 - 原路線圖 A~H+E 全數完成（檢索層 Phase 1-3、NFP、跨域摘要 G、方案 C 分頁、
   P1 新聞多樣化、P5 六商品+走勢圖、七術向量圖示、交易判斷橫幅）。
+- 2026-09-07：修復 Electrek 等 WordPress 全文 RSS 的「截斷 HTML 殘骸」炸掉
+  ReportLab（週末潛伏、週一語料排名洗牌才選中引爆；見地雷 8）——文字一律
+  先過 `core.text_clean.strip_html()` 再截斷，語料已全量清理並每日自癒。
 - 2026-09-04：修復 Yahoo `^VIX` 限流導致排程失敗——抓取加 query1→query2
   鏡像備援、決策欄位（vix/dxy/spread/融資/恐貪）缺值改 None→「數據待補」
   而非靜默沿用樣本（見地雷 7）、快照測試改 ≥5/8 軟門檻。
@@ -61,6 +64,15 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    （gold/btc/t10/tws…）仍可退回 sample。Yahoo 抓取已加 query1→query2
    鏡像備援（`_yahoo_chart`），`test_market_snapshot_or_skip` 為 ≥5/8
    符號軟門檻——單一符號缺席屬正常第三方行為，不是 CI 失敗。
+8. **RSS 摘要是原始 HTML，截斷前必先消毒**：WordPress 全文 feed
+   （Electrek/SpaceNews/QuantumInsider）的 summary 帶完整標籤；任何截斷
+   （store 的 `[:500]`、卡片的 `[:200]`）都可能切在標籤中間，未閉合殘骸
+   過得了 `<[^>]+>` 剝除、又被 `en()` 黏進 `<font>` 包裹躲過轉義 →
+   paraparser「invalid attribute name」炸掉整份報告（2026-09-07；地雷在
+   語料躺 5 天、等 BM25 排名洗牌把它選進卡片才引爆）。規則：外部文字
+   一律先 `core.text_clean.strip_html()` 再截斷；`en()` 的 `_LATIN_RUN_RE`
+   字元類別**不可**含 `<`/`>`（會把殘骸黏進 font 標籤內）；語料由
+   `sanitize_summaries()` 維持純文字（`compact()` 每日自癒）。
 
 ## 接下來最可能做的事（2026-08-27 盤點摘要）
 
