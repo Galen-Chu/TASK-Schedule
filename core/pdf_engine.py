@@ -15,8 +15,15 @@ from reportlab.lib.styles import ParagraphStyle
 from core.fonts import FONT_CJK, FONT_EN, FONT_EN_BOLD, ensure_fonts
 from core import design_tokens as T
 
-_TAG_RE = r'(</?(?:b|i|br|font|a|u)\b[^>]*>)'
-_LATIN_RUN_RE = r'([A-Za-z0-9%.,+\-\$/:_&><]+(?:\s+[A-Za-z0-9%.,+\-\$/:_&><]+)*)'
+# Tag tokens are preserved verbatim; everything else gets Latin-wrapped (pass
+# 1) and XML-escaped (pass 2). [^<>]* keeps a stray '<a class=…' fragment from
+# being matched across an injected </font> boundary as a pseudo-tag, which
+# used to smuggle it past the escaping pass (2026-09-07 crash).
+_TAG_RE = r'(</?(?:b|i|br|font|a|u)\b[^<>]*>)'
+# Latin runs must NOT contain < > — a truncated HTML fragment glued into a
+# run ends up *inside* a <font> wrapper, where pass-2 escaping can no longer
+# reach it. Stray brackets stay as bare text and get escaped in pass 2.
+_LATIN_RUN_RE = r'([A-Za-z0-9%.,+\-\$/:_&]+(?:\s+[A-Za-z0-9%.,+\-\$/:_&]+)*)'
 
 
 # Emoji → CJK-font-safe glyphs. The static Noto TC subset (and Droid before
