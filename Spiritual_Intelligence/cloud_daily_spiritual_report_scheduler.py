@@ -121,6 +121,35 @@ class SpiritualReportScheduler(BaseReportScheduler):
             data["transitions"] = divination.transitions(self.date_str)
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("natal/keywords/transitions failed: %s", exc)
+
+        # 五維度論述與三段式導引：LLM 依「流日×本命」生成（無 key / 失敗 /
+        # 解析不全 → 保留編輯樣板，絕不半空渲染——2026-08-31 空回應教訓）。
+        try:
+            from core import llm
+            from core.text_clean import strip_html
+            from Spiritual_Intelligence.systems_data import SYSTEMS_CONFIG
+            if llm.is_available():
+                briefs = {}
+                for cfg in SYSTEMS_CONFIG:
+                    sid = cfg["id"]
+                    systems = (data or {}).get("systems") or {}
+                    spot = strip_html((systems.get(sid) or {}).get("spotlight", cfg["spotlight"]))
+                    nat = (data.get("natal_section") or {}).get(sid) or {}
+                    brief = llm.spiritual_system_brief(
+                        cfg["title"], cfg["subtitle"], spot,
+                        strip_html(nat.get("params", "")),
+                        strip_html(nat.get("compare", "")),
+                        (data.get("motto_keywords") or {}).get(sid, ""))
+                    if brief:
+                        briefs[sid] = brief
+                        self.logger.info("LLM brief ok: %s", sid)
+                    else:
+                        self.logger.warning("LLM brief missing (template kept): %s", sid)
+                if briefs:
+                    data["llm_briefs"] = briefs
+                    data["_source"] = (data.get("_source") or "") + "+Gemini論述"
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("spiritual LLM briefs failed: %s", exc)
         return data
 
     def render_pdf(self, data):
@@ -132,16 +161,33 @@ class SpiritualReportScheduler(BaseReportScheduler):
         location = profile.get("location") or "臺北市"
 
         # Overlay today's computed spotlight/summary onto whichever systems
-        # resolved; the rest keep their static sample entry.
+        # resolved; the rest keep their static sample entry. LLM briefs（流日×
+        # 本命）覆蓋五維度與三段式，缺者保留樣板並標示來源（AI/樣板分明）。
         systems = SYSTEMS_CONFIG
         overlay = (data or {}).get("systems") or {}
-        if overlay:
+        briefs = (data or {}).get("llm_briefs") or {}
+        if overlay or briefs:
             systems = copy.deepcopy(SYSTEMS_CONFIG)
             for cfg in systems:
                 hit = overlay.get(cfg["id"])
                 if hit:
                     cfg["spotlight"] = hit["spotlight"]
                     cfg["system_data_summary"] = hit["system_data_summary"]
+                brief = briefs.get(cfg["id"])
+                if brief:
+                    dims = []
+                    for (title, _old_text), new_text in zip(cfg["dimensions"], brief["dimensions"]):
+                        dims.append((title, new_text))
+                    if len(dims) == len(cfg["dimensions"]):
+                        cfg["dimensions"] = dims
+                    cfg["what"] = brief["what"]
+                    cfg["why"] = brief["why"]
+                    if brief.get("action"):
+                        cfg["action"] = [f"{i}. {t}" for i, t in enumerate(brief["action"], 1)]
+                    cfg["harmony_note"] = brief["harmony_note"]
+                    cfg["content_source"] = "AI"
+                else:
+                    cfg["content_source"] = "template"
 
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
         generate_pdf_report(

@@ -372,3 +372,73 @@ def summarize_topics_given_when_then(topics, domain_label=""):
     if not n_ok:
         log.info("unparsed reply head: %.300s", text.replace("\n", " | "))
     return parsed
+
+
+def spiritual_system_brief(system_title, subtitle, transit_spot, natal_params,
+                           natal_compare, keyword):
+    """Generate one system's 五維度論述＋三段式導引 from 流日×本命.
+
+    Returns {dimensions: [(text×5)], what, why, action: [×3], harmony_note}
+    (dimension titles stay fixed in systems_data — only content is generated),
+    or None to keep the editorial template. 512-token thinking floor +
+    ~1.3k visible tokens; every field re-verified at parse (missing field →
+    keep template for that page, never a half-empty card).
+    """
+    if not _AVAILABLE:
+        return None
+    natal_lines = ""
+    if natal_params:
+        natal_lines += f"示範本命：{natal_params}\n"
+    if natal_compare:
+        natal_lines += f"本命對照：{natal_compare}\n"
+    prompt = (
+        f"你是資深命理諮商師，為繁體中文讀者撰寫「{system_title}」系統的每日覺察內容。\n"
+        f"系統定位：{subtitle}\n"
+        f"當日流日：{transit_spot}\n"
+        + natal_lines +
+        (f"今日錨點：{keyword}\n" if keyword else "") +
+        "\n請以本系統的專業語言，把「大環境流日」與「示範本命」的對照寫成具體、可實踐的覺察內容；"
+        "每一段都要引用當日流日或本命的具體元素（卦名/干支/閘門/宮位/牌名/相位等），不要空泛。"
+        "語氣溫和篤定、避免絕對化斷言，不構成醫療或投資建議。\n\n"
+        "請用繁體中文，嚴格依下列純文字格式輸出（不要任何 Markdown 符號）：\n"
+        "DIM_A: ...（維度A 心理狀態，40-60字）\n"
+        "DIM_B: ...（維度B 生活實踐，40-60字）\n"
+        "DIM_C: ...（維度C 社會網絡，40-60字）\n"
+        "DIM_D: ...（維度D 集體意識，40-60字）\n"
+        "DIM_E: ...（維度E 全面捕捉，40-60字）\n"
+        "WHAT: ...（今日覺察觀察，50-80字）\n"
+        "WHY: ...（轉化思維，50-80字）\n"
+        "ACTION1: ...（具體行動一，30字內）\n"
+        "ACTION2: ...（具體行動二，30字內）\n"
+        "ACTION3: ...（具體行動三，30字內）\n"
+        "HARMONY: ...（系統調和與心流指引，60-80字）\n"
+    )
+    text = generate(prompt, max_tokens=2400)
+    if not text:
+        return None
+    import re as _re
+    fields = {"DIM_A": "", "DIM_B": "", "DIM_C": "", "DIM_D": "", "DIM_E": "",
+              "WHAT": "", "WHY": "", "ACTION1": "", "ACTION2": "",
+              "ACTION3": "", "HARMONY": ""}
+    deco = "*_#`>~ \t"
+    for raw in text.splitlines():
+        line = raw.strip().strip(deco).strip()
+        if not line:
+            continue
+        up = line.upper().replace(" ", "_")
+        for key in fields:
+            if up.startswith(key):
+                v = _re.split(r"[:：]", line, maxsplit=1)[-1].strip().strip(deco).strip()
+                if v:
+                    fields[key] = v[:160]
+                break
+    if not (fields["DIM_A"] and fields["WHAT"] and fields["WHY"] and fields["HARMONY"]):
+        log.info("spiritual brief unparsed for %s; head: %.200s",
+                 system_title, text.replace("\n", " | "))
+        return None
+    return {
+        "dimensions": [fields[k] for k in ("DIM_A", "DIM_B", "DIM_C", "DIM_D", "DIM_E")],
+        "what": fields["WHAT"], "why": fields["WHY"],
+        "action": [fields[k] for k in ("ACTION1", "ACTION2", "ACTION3") if fields[k]],
+        "harmony_note": f"【系統綜合調和與心流指引】{fields['HARMONY']}",
+    }

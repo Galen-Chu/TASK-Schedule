@@ -152,7 +152,10 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     _DIM_GLYPHS = ["●", "■", "▲", "◆", "★"]
     _p_hex = "#" + cfg["color_primary"].hexval()[2:]
     _h_hex = "#" + cfg["color_highlight"].hexval()[2:]
-    story.append(Paragraph(en("<b>五大維度深度覺察（綜合論述）(5-Dimensional Analysis)</b>"), heading_st))
+    _src_label = {"AI": "AI 依流日×本命生成", "template": "編輯樣板"}.get(
+        cfg.get("content_source", "template"), "編輯樣板")
+    story.append(Paragraph(
+        en(f"<b>五大維度深度覺察（{_src_label}）(5-Dimensional Analysis)</b>"), heading_st))
     for di, (dim_title, dim_content) in enumerate(cfg["dimensions"]):
         glyph = _DIM_GLYPHS[di % len(_DIM_GLYPHS)]
         gcol = _p_hex if di % 2 == 0 else _h_hex
