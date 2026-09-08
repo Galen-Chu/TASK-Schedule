@@ -5,21 +5,41 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-09-04 更新）
+## 當前狀態（2026-09-08 更新）
 
 - 原路線圖 A~H+E 全數完成（檢索層 Phase 1-3、NFP、跨域摘要 G、方案 C 分頁、
   P1 新聞多樣化、P5 六商品+走勢圖、七術向量圖示、交易判斷橫幅）。
+- 2026-09-08 內容誠實化五件套：
+  ① **Global published 一條龍**——`fetch_rss_items` 現在帶回 `published/
+  updated`（此前語料 1483 筆全空、時效全靠 fetched_at），`retrieve` 的
+  年齡過濾與 recency 以 published 優先（見地雷 9）。舊語料無 published
+  者依 fetched_at 計齡、7 天窗口自然代謝。
+  ② **Financial B案**——「當前數據」欄全部接真源（^GSPC/^IXIC/^SOX/JPY=X/
+  TWD=X/^TWII、TWSE T86 三大法人、FRED 高收益 OAS、Treasury 上月回溯列）；
+  signal_score 永遠重算（樣本 72 曾與實算 60 同報告矛盾）；KPI 標籤隨值
+  變動；監控表燈號接 `_market_verdicts`；Yahoo 斷線值標「（樣本）」；
+  futures_net_oi 無源→None 不計分；F&G 正名加密市場版；`&amp;` 雙重
+  轉義一併修（顯示層字串一律寫裸 `&`，href 屬性內才手動轉義）。
+  ③ **Spiritual 基準與座右銘**——頁首標流日基準（報告日 12:00 台北）；
+  motto＝固定核心金句＋「今日錨點」關鍵詞（與 spotlight 同源，見
+  `divination.motto_keywords` docstring 的資料流說明）。
+  ④ **轉換點偵測**——`divination.transitions()` 比較 date±1：行星換座／
+  HD 換閘／節氣換月柱，頁面以 ◆ 徽章呈現（紫微四化逐日輪替、梅花六爻
+  塔羅逐日起卦，無跨日連續性，不在偵測列）。
+  ⑤ **本命分區**——每系統頁新增【個人本命對應】卡（示範本命 Galen
+  1995-04-15 12:52 澎湖，`core/data/natal.py`）；七術引擎全面正統化：
+  HD 真實曼陀羅（閘41=寶瓶2°、閘N=易經N卦；Galen 回推 5/1 交叉驗證）、
+  紫微正統十天干四化表、梅花年月日時起卦、六爻通用爻位釋義、卦名改
+  (上卦,下卦) 顯式表。
 - 2026-09-07：修復 Electrek 等 WordPress 全文 RSS 的「截斷 HTML 殘骸」炸掉
   ReportLab（週末潛伏、週一語料排名洗牌才選中引爆；見地雷 8）——文字一律
   先過 `core.text_clean.strip_html()` 再截斷，語料已全量清理並每日自癒。
 - 2026-09-04：修復 Yahoo `^VIX` 限流導致排程失敗——抓取加 query1→query2
   鏡像備援、決策欄位（vix/dxy/spread/融資/恐貪）缺值改 None→「數據待補」
-  而非靜默沿用樣本（見地雷 7）、快照測試改 ≥5/8 軟門檻。
-- 2026-08-31：修復 LLM 空回應根因（flash-lite 思考預算吃掉 max_output_tokens，
-  見地雷 5）＋ Global 新聞卡與 P1 摘要改 GIVEN-WHEN-THEN 三欄帶標籤呈現
-  （Financial/Spiritual 不變）。
+  而非靜默沿用樣本（見地雷 7）、快照測試改 ≥9/14 軟門檻。
 - 未來候選項盤點在 **README.md「未來評估開發項目」**（A 設定即用／B 中期／
-  C 長期／D 維運觀察）——接續開發先讀那一節。
+  C 長期／D 維運觀察）——接續開發先讀那一節。下一步最自然：五維度論述
+  與三段式導引改由 LLM 依「流日×本命」生成（現為通用編輯樣板）。
 
 ## 常用指令
 
@@ -73,6 +93,15 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    一律先 `core.text_clean.strip_html()` 再截斷；`en()` 的 `_LATIN_RUN_RE`
    字元類別**不可**含 `<`/`>`（會把殘骸黏進 font 標籤內）；語料由
    `sanitize_summaries()` 維持純文字（`compact()` 每日自癒）。
+9. **時間基準要同源：顯示用什麼欄位，篩選/排序就用什麼欄位**：2026-09-08
+   前語料的「時效」全靠 `fetched_at`（我們幾時抓到），卡片卻顯示
+   `published`——而 fetcher 根本沒帶 published（1483 筆全空），導致一週
+   前舊文天天以「新鮮」身分入選。規則：`fetch_rss_items` 必帶
+   `published/updated`；`retrieve._age_days` 以 published 優先、無則退
+   fetched_at；新增任何時間欄位時，顯示端與過濾端必須掛同一個來源。
+   另：排程器用到的新 fetcher 記得加進檔頭 import——NameError 會被
+   BaseReportScheduler 的 catch-all 吃掉、整份報告靜默退回全樣本
+   （2026-09-08 fetch_twse_institutional 實例，日志只有一行 WARNING）。
 
 ## 接下來最可能做的事（2026-08-27 盤點摘要）
 
