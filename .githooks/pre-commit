@@ -1,0 +1,8 @@
+#!/bin/sh
+# 編碼防線（2026-09-08 地雷 10）：攔截 U+FFFD 傳輸損毀亂碼進入 commit。
+# 一次性啟用：git config core.hooksPath .githooks
+python scripts/check_encoding.py --staged || {
+    echo ""
+    echo "pre-commit：暫存檔含 U+FFFD 亂碼，commit 已擋下。修復後重新 git add。"
+    exit 1
+}

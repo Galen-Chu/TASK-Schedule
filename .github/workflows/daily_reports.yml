@@ -60,6 +60,9 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Encoding guard (U+FFFD scan)
+        run: python scripts/check_encoding.py
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip

@@ -7,6 +7,15 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 
 ## 當前狀態（2026-09-08 更新）
 
+- 2026-09-08 第四、五波（版面微調＋防線）：
+  * 新聞卡日期統一 ISO YYYY-MM-DD（Financial P1／Global 六域，無時間）。
+  * Spiritual 基準行「流日基準 日期 12:00 Taiwan・台北」；「意識定錨座右銘」
+    →「意識流座右銘」（上色無括號）；motto 卡新增「本日經典」＝當日大環境
+    流日白話註腳 ≤100 字（LLM 主 `llm.spiritual_daily_classic`、
+    `divination.daily_classic` 確定性 fallback）。
+  * 七術座右銘統一為固定金句、版面一律不標出處（來源註記於 systems_data
+    docstring；六爻出《易經・賁卦・彖傳》、塔羅為通行格言）。
+  * 編碼防線上線（見地雷 10）：CI fail-fast＋pre-commit hook。
 - 2026-09-08 第二波（晚）：
   * **紫微本命全盤**——`natal.ziwei_chart()` 十四主星全盤（五行局算術法、
     安紫微訣借數奇退偶進、天府寅申軸鏡像、紫微系逆行/天府系順行；規則
@@ -119,6 +128,13 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    另：排程器用到的新 fetcher 記得加進檔頭 import——NameError 會被
    BaseReportScheduler 的 catch-all 吃掉、整份報告靜默退回全樣本
    （2026-09-08 fetch_twse_institutional 實例，日志只有一行 WARNING）。
+10. **中文字元間歇性傳輸損毀（U+FFFD）**：模型工具呼叫內容在傳輸層偶發
+   單一中文字元壞成替換字元（一個 3-byte 字＝3 個 U+FFFD；同字常在旁邊
+   完好，證與生成無關）。損毀後檔案仍是合法 UTF-8——import/測試/CI 全綠，
+   只在版面或 prompt 露出（2026-09-08 共 10 起：【、權、止、衝、陽…）。
+   防線：`scripts/check_encoding.py` 已掛 CI（checkout 後 fail-fast）與
+   pre-commit（`git config core.hooksPath .githooks` 一次性啟用）；大量
+   寫入中文靜態資料後仍應即時目視。未來報告資料的字串斷言可掛同一入口。
 
 ## 接下來最可能做的事（2026-08-27 盤點摘要）
 
