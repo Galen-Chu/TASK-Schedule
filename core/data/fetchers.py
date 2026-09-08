@@ -63,6 +63,64 @@ def fetch_twse_margin(date_str):
             "total_margin_balance": margin, "total_short_balance": short}
 
 
+def fetch_twse_institutional(date_str, lookback=5):
+    """TWSE 全市場外資/投信買賣超股數加總（legacy T86 JSON，單位：股）。
+
+    openapi.twse.com.tw 沒有對應日報（TWT38U/TWT74U/T86 皆 404），但
+    www.twse.com.tw 的舊版 JSON 介面可用：/fund/T86?response=json。假日
+    回「查無資料」，故由 date_str 起往回最多 ``lookback`` 天找最近交易日。
+    回傳 {"date": 交易日, "foreign_net_shares": int, "trust_net_shares": int}
+    或 None（防呆：任何失敗回 None，版面顯示待補）。
+    """
+    import datetime as _dt
+    for back in range(lookback):
+        day = (_dt.date.fromisoformat(str(date_str)) - _dt.timedelta(days=back))
+        url = ("https://www.twse.com.tw/fund/T86?response=json&date="
+               f"{day.strftime('%Y%m%d')}&selectType=ALL")
+        data = None
+        try:
+            import json as _json
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Mozilla/5.0",
+                              "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                data = _json.loads(resp.read().decode("utf-8", "ignore"))
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError):
+            continue
+        if not isinstance(data, dict) or data.get("stat") != "OK":
+            continue
+        fields = data.get("fields") or []
+        rows = data.get("data") or []
+        if not rows:
+            continue
+
+        def _col(sub):
+            for i, f in enumerate(fields):
+                if sub in str(f):
+                    return i
+            return None
+
+        fi, ti = _col("外陸資買賣超"), _col("投信買賣超")
+        if fi is None or ti is None:
+            return None
+        foreign = trust = 0
+        for r in rows:
+            for idx, acc in ((fi, "foreign"), (ti, "trust")):
+                if idx >= len(r):
+                    continue
+                v = str(r[idx]).replace(",", "").replace(" ", "")
+                if v and (v.lstrip("-").isdigit()):
+                    if acc == "foreign":
+                        foreign += int(v)
+                    else:
+                        trust += int(v)
+        if not (foreign or trust):
+            return None
+        return {"source": "TWSE T86", "date": day.isoformat(),
+                "foreign_net_shares": foreign, "trust_net_shares": trust}
+    return None
+
+
 def _feed_items(feed, limit):
     """Map feedparser entries to plain dicts. Exposed for tests.
 
@@ -110,6 +168,14 @@ _YAHOO_SYMBOLS = {
     "silver": "SI=F",       # 白銀 (USD/oz)
     "copper": "HG=F",       # 銅 (USD/lb)
     "natgas": "NG=F",       # 天然氣 (USD/MMBtu)
+    # 2026-09-08 B案：取代表內寫死的 2024 期樣板指數/匯率（S&P 5,420、
+    # TWD 32.15 等）。全部走同一個 mirror-host 備援通道，缺值由版面「待補」。
+    "spx": "^GSPC",         # S&P 500
+    "ndx": "^IXIC",         # Nasdaq 綜合指數
+    "sox": "^SOX",          # 費城半導體
+    "usdjpy": "JPY=X",      # 美元/日圓
+    "usdtwd": "TWD=X",      # 美元/新台幣
+    "twii": "^TWII",        # 台灣加權指數
 }
 
 
@@ -163,7 +229,9 @@ def fetch_yahoo_history(symbol, months=3):
         if c is None:
             continue
         try:
-            d = _dt.datetime.fromtimestamp(t).strftime("%m/%d")
+            # UTC, not the host's zone: the label must not shift between the
+            # UTC CI runner and a +08:00 local build for the same session.
+            d = _dt.datetime.fromtimestamp(t, tz=_dt.timezone.utc).strftime("%m/%d")
         except (ValueError, OSError, OverflowError):
             continue
         out.append({"date": d, "v": round(float(c), 2)})
@@ -227,16 +295,30 @@ def fetch_treasury_yields(year=None):
         idate = col("Date")
         last = None
         latest_d = _dt.date.min
+        dated_rows = []
         for r in rows[1:]:
             if idate is not None and len(r) > idate:
                 try:
                     d = _dt.datetime.strptime(r[idate].strip(), "%m/%d/%Y").date()
                 except ValueError:
                     continue
+                dated_rows.append((d, r))
                 if d > latest_d:
                     latest_d, last = d, r
         if last is None:
             last = rows[-1]
+        # ~1 month earlier row (for the 債券表「上月數據」欄，取代寫死的 4.15/4.30).
+        # File order is newest-first, so take the max-dated row ≤ cutoff —
+        # not the last one seen (that silently ends on the oldest row).
+        prev_row = None
+        cutoff = latest_d - _dt.timedelta(days=28)
+        for d, r in dated_rows:
+            if d <= cutoff and (prev_row is None or d > prev_row[0]):
+                prev_row = (d, r)
+        if prev_row is not None:
+            prev_row = prev_row[1]
+        elif len(dated_rows) > 1:
+            prev_row = dated_rows[0][1]
 
         # Treasury CSV uses "2 Mo" (no 2 Yr), "10 Yr"
         i2 = col("2 Yr") if "2 Yr" in hdr else col("2 Mo")
@@ -248,6 +330,17 @@ def fetch_treasury_yields(year=None):
             out["10y"] = float(last[i10])
         if "2y" in out and "10y" in out:
             out["spread_10y2y"] = round(out["10y"] - out["2y"], 2)
+        if prev_row is not None:
+            try:
+                if i2 is not None and prev_row[i2]:
+                    out["2y_prev"] = float(prev_row[i2])
+                if i10 is not None and prev_row[i10]:
+                    out["10y_prev"] = float(prev_row[i10])
+                if "2y_prev" in out and "10y_prev" in out:
+                    out["spread_prev"] = round(out["10y_prev"] - out["2y_prev"], 2)
+                out["_prev_date"] = prev_row[0]
+            except (ValueError, IndexError):
+                pass
         out["_date"] = last[0] if last else None
         return out or None
     except (ValueError, IndexError, KeyError) as exc:
@@ -326,6 +419,37 @@ def fetch_macro_snapshot():
         if rec:
             out[key] = rec
     return out or None
+
+
+# ---- FRED keyless CSV (high-yield credit spread) ----------------------------
+def fetch_fred_series(series_id):
+    """Latest + ~1-month-earlier value of a FRED series via the keyless
+    fredgraph.csv endpoint (ascending DATE,VALUE rows; '.' = missing).
+
+    Returns {"value", "date", "prev", "prev_date"} or None. Used for the
+    ICE BofA US high-yield OAS (BAMLH0A0HYM2) that replaced the hardcoded
+    "340 bps" editorial value.
+    """
+    import datetime as _dt
+    text = _get_text(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}")
+    if not text:
+        return None
+    pts = []
+    for line in text.strip().splitlines()[1:]:
+        try:
+            d_str, v_str = line.split(",", 1)
+            d = _dt.date.fromisoformat(d_str)
+            v = float(v_str)
+        except (ValueError, IndexError):
+            continue  # header, '.', or malformed row
+        pts.append((d, v))
+    if len(pts) < 2:
+        return None
+    last_d, last_v = pts[-1]
+    cutoff = last_d - _dt.timedelta(days=28)
+    prev = next(((d, v) for d, v in reversed(pts) if d <= cutoff), pts[0])
+    return {"value": round(last_v, 2), "date": last_d.isoformat(),
+            "prev": round(prev[1], 2), "prev_date": prev[0].isoformat()}
 
 
 # ---- Macro chart data (keyless) --------------------------------------------

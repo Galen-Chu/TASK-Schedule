@@ -113,10 +113,31 @@ def test_market_verdicts_none_valued_inputs_stay_neutral():
 
 def test_signal_score_tolerates_nulled_decision_inputs():
     from Financial_Intelligence.pdf_generator import calculate_signal_score
-    # base 50 only (OI absent keeps its historical +5 band → 55); none of the
-    # nulled decision inputs may crash the comparison or grant a bonus.
+    # Base 50 only: nulled/absent decision inputs must neither crash the
+    # comparison nor grant a bonus (the old default-0 OI handed +5 to a
+    # keyless-unavailable field — 2026-09-08).
     assert calculate_signal_score({"vix": None, "spread_10y2y": None,
-                                   "tw_margin_balance": None}) == 55
+                                   "tw_margin_balance": None,
+                                   "futures_net_oi": None}) == 50
+    assert calculate_signal_score({"vix": None, "spread_10y2y": None,
+                                   "tw_margin_balance": None}) == 50
+
+
+def test_synthesize_always_recomputes_score():
+    """The sample baseline must NOT pin signal_score at 72 — the stale value
+    leaked into the Gemini briefing card and the Obsidian note while the PDF
+    hero showed the live score (2026-09-08: briefing 72 vs hero 60)."""
+    from Financial_Intelligence.cloud_daily_financial_report_scheduler import (
+        FinancialReportScheduler,
+    )
+    from Financial_Intelligence.pdf_generator import calculate_signal_score
+    sched = FinancialReportScheduler(date_str="2026-09-08")
+    data = sched.sample_data()          # carries margin 8.97M, vix 28.4, spread 0.12
+    out = sched.synthesize(dict(data))
+    expected = calculate_signal_score(data)
+    assert out["signal_score"] == expected
+    assert out["signal_score"] != 72 or expected == 72   # recomputed, not pinned
+    assert out["signal_rating"]
 
 
 # ---- full PDF with banners + all charts stays 7 pages ----------------------
@@ -260,3 +281,64 @@ def test_new_commodity_symbols_registered():
     for key, sym in (("silver", "SI=F"), ("copper", "HG=F"),
                      ("natgas", "NG=F"), ("dxy", "DX-Y.NYB")):
         assert _YAHOO_SYMBOLS[key] == sym
+
+
+# ---- 2026-09-08 B案：條件式標籤＋樣本標記＋防呆 -----------------------------
+def test_kpi_labels_derive_from_value_bands(tmp_path):
+    """F&G=69（貪婪區）不得再出現「極度恐慌」；利差為負必須顯示「倒掛」。"""
+    data = {"tw_margin_balance": 9_073_251, "vix": 15.3, "fear_and_greed": 69,
+            "spread_10y2y": -0.2, "dxy": 99.18, "treasury_10y": 4.78,
+            "treasury_2y": 4.37, "_live_keys": ["vix", "dxy", "gold", "btc"],
+            "macro": _full_macro()}
+    out = str(tmp_path / "labels.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-08")
+    fitz = pytest.importorskip("fitz")
+    text = "".join(p.get_text() for p in fitz.open(out))
+    # 標籤（含括號的判讀）必須隨值變動；門檻說明欄（恐慌區 > 25 等）不在此限
+    assert "（加密市場：極度恐慌）" not in text
+    assert "（加密市場：貪婪）" in text and "加密市場恐貪" in text
+    assert "（曲線倒掛）" in text and "（曲線正常）" not in text
+    assert "貼近門檻" in text                       # 融資 907 萬 vs 門檻 900 萬
+    assert "待補" in text                             # OI 無源 → 如實顯示
+
+
+def test_sample_fallback_prices_get_marked(tmp_path):
+    """A Yahoo outage must show sample values AS samples, not as live prices."""
+    data = {"tw_margin_balance": None, "vix": None, "fear_and_greed": None,
+            "spread_10y2y": None, "dxy": None, "gold": 2450, "btc": 58500,
+            "silver": 29.5, "copper": 4.35, "natgas": 2.85, "wti": 76.5,
+            "_live_keys": [], "macro": _full_macro()}
+    out = str(tmp_path / "sample.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-08")
+    fitz = pytest.importorskip("fitz")
+    text = "".join(p.get_text() for p in fitz.open(out))
+    assert "（樣本）" in text
+
+
+def test_institutional_shares_render_as_yi_shares(tmp_path):
+    """T86 股數加總以「億股」呈現，正負號與判讀方向一致。"""
+    data = {"tw_margin_balance": 9_073_251, "vix": 15.3, "fear_and_greed": 69,
+            "spread_10y2y": 0.41, "dxy": 99.18,
+            "tw_foreign_net_shares": 385_161_342, "tw_trust_net_shares": -42_000_000,
+            "tw_institutional_date": "2026-09-07", "_live_keys": ["vix"],
+            "macro": _full_macro()}
+    out = str(tmp_path / "inst.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-08")
+    fitz = pytest.importorskip("fitz")
+    text = "".join(p.get_text() for p in fitz.open(out))
+    assert "+3.85 億股" in text and "-0.42 億股" in text
+    assert "外資現貨淨買超" in text and "投信淨賣超" in text
+
+
+def test_monitor_table_matches_verdicts(tmp_path):
+    """監控表燈號由 _market_verdicts 推導——融資 907 萬張必為「觀望」而非
+    寫死的「分批進場」（2026-09-08 同頁矛盾案例）。"""
+    data = {"tw_margin_balance": 9_073_251, "vix": 15.3, "fear_and_greed": 69,
+            "spread_10y2y": 0.41, "dxy": 99.18, "macro": _full_macro(),
+            "_live_keys": []}
+    out = str(tmp_path / "mon.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-08")
+    fitz = pytest.importorskip("fitz")
+    text = "".join(p.get_text() for p in fitz.open(out))
+    assert "907 萬張貼近門檻" in text          # verdict reason 字串
+    assert "外資台指期淨未平倉" in text

@@ -52,13 +52,34 @@ def test_bls_shape():
 def test_market_snapshot_or_skip():
     """Partial snapshots are legitimate: Yahoo throttles individual symbols
     (2026-09-04 — ^VIX alone failed a scheduled run while 7 resolved), and a
-    missing key must surface as 數據待補 in the report, not a CI failure."""
+    missing key must surface as 數據待補 in the report, not a CI failure.
+    14 symbols registered since 2026-09-08 → soft gate at ≥9/14."""
     snap = fetchers.fetch_market_snapshot()
-    if not snap or len(snap) < 5:
+    if not snap or len(snap) < 9:
         import pytest
-        pytest.skip(f"Yahoo snapshot mostly unreachable ({len(snap or {})}/8)")
+        pytest.skip(f"Yahoo snapshot mostly unreachable ({len(snap or {})}/14)")
     assert set(snap) <= set(fetchers._YAHOO_SYMBOLS)
     assert all(isinstance(v, float) for v in snap.values())
+
+
+def test_treasury_yields_prev_month_row():
+    """The prev-month row must be the NEWEST row ≥28 days old (the first
+    naive loop kept overwriting and ended on the oldest CSV row)."""
+    tyc = fetchers.fetch_treasury_yields()
+    if not tyc or "_prev_date" not in tyc:
+        import pytest
+        pytest.skip("Treasury CSV unreachable")
+    assert tyc["2y_prev"] is not None and tyc["10y_prev"] is not None
+    assert not tyc["_prev_date"].startswith("01/")
+
+
+def test_fred_series_latest_and_prev():
+    rec = fetchers.fetch_fred_series("BAMLH0A0HYM2")
+    if rec is None:
+        import pytest
+        pytest.skip("FRED unreachable")
+    assert 0 < rec["value"] < 25          # OAS in percentage points
+    assert rec["prev_date"] < rec["date"]
 
 
 def test_yahoo_quote_falls_back_to_mirror_host(monkeypatch):

@@ -91,10 +91,14 @@ class FinancialReportScheduler(BaseReportScheduler):
     page_count = 7
 
     def sample_data(self):
-        """Bundled offline dataset (used when the live source is unavailable)."""
+        """Bundled offline dataset (used when the live source is unavailable).
+
+        No ``signal_score``/``signal_rating`` here — the score is ALWAYS
+        recomputed in ``synthesize`` (the stale sample 72 leaked into the
+        Gemini cross-domain briefing and Obsidian note while the PDF showed
+        the live-computed score — 2026-09-08 audit).
+        """
         return {
-            "signal_score": 72,
-            "signal_rating": "🟢 偏多進場 / 尋找超跌加碼點",
             "tw_margin_balance": 8970000,
             "tw_short_balance": 214000,
             "futures_net_oi": -18500,
@@ -110,6 +114,12 @@ class FinancialReportScheduler(BaseReportScheduler):
             "silver": 29.5,
             "copper": 4.35,
             "natgas": 2.85,
+            "wti": 76.5,
+            "spx": 5420,
+            "ndx": 16950,
+            "sox": 4880,
+            "usdjpy": 145.2,
+            "twii": 22100,
             "commodity_hist": {
                 "gold": [{"date": f"{(i % 12) + 1:02d}/15",
                           "v": round(2400 + 30 * i + (25 if i % 7 == 0 else -12), 2)}
@@ -179,7 +189,8 @@ class FinancialReportScheduler(BaseReportScheduler):
         snap = fetch_market_snapshot() or {}
         keymap = {"vix": "vix", "dxy": "dxy", "gold": "gold", "btc": "btc",
                   "wti": "wti", "silver": "silver", "copper": "copper",
-                  "natgas": "natgas"}
+                  "natgas": "natgas", "spx": "spx", "ndx": "ndx", "sox": "sox",
+                  "usdjpy": "usdjpy", "usdtwd": "usdtwd", "twii": "twii"}
         for k, dk in keymap.items():
             if snap.get(k) is not None:
                 data[dk] = snap[k]
@@ -188,6 +199,10 @@ class FinancialReportScheduler(BaseReportScheduler):
         # panic-buy verdict on 2026-09-04 while the real reading was ~14.
         data["vix"] = snap.get("vix")
         data["dxy"] = snap.get("dxy")
+        # Live-marker set: display fields that did NOT resolve live keep the
+        # offline sample value, and the PDF marks them 「(樣本)」 instead of
+        # passing 2024-era numbers off as today's (2026-09-08 B案).
+        data["_live_keys"] = sorted(k for k in keymap if snap.get(k) is not None)
         if snap:
             sources.append("Yahoo")
 
@@ -209,11 +224,15 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["treasury_10y"] = tyc["10y"]
         if "2y" in tyc:
             data["treasury_2y"] = tyc["2y"]
+        for k in ("2y_prev", "10y_prev", "spread_prev"):
+            if tyc.get(k) is not None:
+                data[f"treasury_{k}"] = tyc[k]
         data["spread_10y2y"] = tyc.get("spread_10y2y")  # verdict input → fail visible
         if tyc:
             sources.append("Treasury")
 
-        # 3) Fear & Greed index (keyless) — replaces the old VIX heuristic
+        # 3) Fear & Greed index (keyless) — alternative.me 加密市場版 F&G，
+        #    版面以「加密市場恐貪」如實標示，不冒充全市場情緒。
         fg = fetch_fear_greed()
         data["fear_and_greed"] = fg  # verdict input → fail visible
         if fg is not None:
@@ -222,10 +241,41 @@ class FinancialReportScheduler(BaseReportScheduler):
         # 4) TWSE market-wide margin / short balances (keyless, MI_MARGN sum)
         twse = fetch_twse_margin(self.date_str) or {}
         data["tw_margin_balance"] = twse.get("total_margin_balance")  # verdict input
-        if twse.get("total_short_balance"):
-            data["tw_short_balance"] = twse["total_short_balance"]
+        data["tw_short_balance"] = twse.get("total_short_balance")    # display-honest
         if twse:
             sources.append("TWSE")
+
+        # 4b) TWSE institutional net buy/sell (legacy T86; 單位=股數加總) —
+        #     取代寫死的「外資 +125 億 / 投信 +42 億」樣板。缺值 None → 待補。
+        inst = fetch_twse_institutional(self.date_str) or {}
+        data["tw_foreign_net_shares"] = inst.get("foreign_net_shares")
+        data["tw_trust_net_shares"] = inst.get("trust_net_shares")
+        data["tw_institutional_date"] = inst.get("date")
+        if inst:
+            sources.append("T86")
+
+        # 4c) 高收益債信用利差（FRED keyless CSV）＋台股加權指數 MA 乖離 —
+        #     取代寫死的「340 bps」與「-2.8% / -4.1%」樣板。全部 None-safe。
+        from core.data.macro_cache import cached
+        from core.data.fetchers import fetch_fred_series, fetch_yahoo_history
+        hy = cached("hy_oas", 1, lambda: fetch_fred_series("BAMLH0A0HYM2"))
+        if hy:
+            data["hy_oas"] = hy
+            sources.append("FRED")
+        twii_hist = cached("twii_hist", 1, lambda: fetch_yahoo_history("^TWII", 3))
+        if twii_hist and len(twii_hist) >= 60:
+            closes = [p["v"] for p in twii_hist]
+            last = closes[-1]
+            ma20 = sum(closes[-20:]) / 20
+            ma60 = sum(closes[-60:]) / 60
+            data["twii_bias20"] = round((last - ma20) / ma20 * 100, 2)
+            data["twii_bias60"] = round((last - ma60) / ma60 * 100, 2)
+            data["twii_hist_last_date"] = twii_hist[-1]["date"]
+
+        # 4d) 外資台指期淨未平倉沒有可用的 keyless 資料源（TAIFEX 需另評估）
+        #     → verdict 輸入 fail-visible：None（不計分、版面待補），不再
+        #     用樣本 -18,500 偽造。離線全樣本模式仍保留樣本值。
+        data["futures_net_oi"] = None
 
         # 5) Slow macro series behind a TTL cache (BLS monthly / Treasury daily);
         #    the cache file is committed back by CI so it persists across runs.
@@ -270,8 +320,12 @@ class FinancialReportScheduler(BaseReportScheduler):
 
     def synthesize(self, data):
         from Financial_Intelligence.pdf_generator import calculate_signal_score, rating_from_score
-        if "signal_score" not in data:
-            data["signal_score"] = calculate_signal_score(data)
+        # ALWAYS recompute on the live-overlaid dict. The old sample carried
+        # signal_score=72 and the "if missing" guard skipped the recompute, so
+        # the Gemini briefing card (cross_domain.signal_lines) and the
+        # Obsidian note kept quoting 72/偏多 while the PDF hero showed the
+        # live score (2026-09-08: briefing 72 vs hero 60 on the same page).
+        data["signal_score"] = calculate_signal_score(data)
         data["signal_rating"] = rating_from_score(data["signal_score"])
 
         # Pull financial news for the Market Intelligence page. Wider pools

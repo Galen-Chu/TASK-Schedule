@@ -44,8 +44,9 @@ def calculate_signal_score(data):
     Base 50; +15 if the TW market-wide margin balance (lots) is under the
     ceiling (default 9,000,000 — mid-market calibration, overridable via the
     ``tw_margin_ceiling`` data key); +10 if VIX > 25; +10 if the 10Y-2Y spread
-    is positive (curve un-inverted); foreign-futures OI band.
-    Replaces the old hardcoded ``72`` so the headline always matches the model.
+    is positive (curve un-inverted); foreign-futures OI band. A missing input
+    (None/absent) contributes nothing — no bonus for values we could not
+    fetch (the old default-0 OI handed +5 to a keyless-unavailable field).
     """
     score = 50
     ceiling = data.get("tw_margin_ceiling", 9_000_000)
@@ -58,11 +59,12 @@ def calculate_signal_score(data):
     spread = data.get("spread_10y2y")
     if spread is not None and spread > 0:
         score += 10
-    oi = data.get("futures_net_oi", 0)
-    if oi > -10000:
-        score += 5
-    elif oi < -30000:
-        score -= 10
+    oi = data.get("futures_net_oi")
+    if oi is not None:
+        if oi > -10000:
+            score += 5
+        elif oi < -30000:
+            score -= 10
     return max(0, min(100, score))
 
 
@@ -196,6 +198,43 @@ def _verdict_banner(verdicts, s):
 
 def _g(data, key, default):
     return (data or {}).get(key, default)
+
+
+def _pend(v, text="{:.2f}", unit=""):
+    """Format a live value, or 「待補」 when its fetch failed (fail-visible)."""
+    if v is None:
+        return "待補"
+    return text.format(v) + unit
+
+
+def _px_live(data, key, fmt="{:,.2f}", unit="", default=None):
+    """Display price with a 「（樣本）」 marker when the value did NOT come
+    from a live fetch (``_live_keys`` carries the resolved Yahoo keys; an
+    EMPTY list means a full outage, so everything non-None is sample) — the
+    2026-09-08 audit caught 2024-era sample prices passing as current."""
+    v = _g(data, key, default)
+    if v is None:
+        return "待補"
+    s = fmt.format(v) + unit
+    live_keys = (data or {}).get("_live_keys")
+    if live_keys is not None and key not in set(live_keys):
+        s += "（樣本）"
+    return s
+
+
+def _fg_band_zh(fg):
+    """Crypto F&G band label (CNN-style cut-points 25/45/56/76)."""
+    if fg is None:
+        return None
+    if fg <= 24:
+        return "極度恐慌"
+    if fg <= 44:
+        return "恐慌"
+    if fg <= 55:
+        return "中性"
+    if fg <= 75:
+        return "貪婪"
+    return "極度貪婪"
 
 
 def _dedup_summary(title, summary):
@@ -360,7 +399,6 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     t2    = _g(data, "treasury_2y", 3.73)
     spread= _g(data, "spread_10y2y", None)
     dxy   = _g(data, "dxy", None)
-    twd   = _g(data, "usdtwd", 32.15)
     gold  = _g(data, "gold", 2450)
     btc   = _g(data, "btc", 58500)
 
@@ -587,27 +625,51 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         ]
         return card
 
+    # 條件式標籤：標籤文案由數值區間推導，不再無條件渲染固定字串
+    #（2026-09-08：F&G=69 貪婪區卻顯示「極度恐慌」、融資 907 萬張卻顯示
+    # 「低於門檻」——同一份報告自相矛盾）。
+    _ceiling = _g(data, "tw_margin_ceiling", 9_000_000)
+    if twm is None:
+        _tw_tag = "(未取得)"
+    elif twm < _ceiling:
+        _tw_tag = f"(低於門檻 {_ceiling/10000:.0f} 萬張)"
+    elif twm < _ceiling * 1.05:
+        _tw_tag = "(貼近門檻，槓桿偏熱)"
+    else:
+        _tw_tag = "(超越門檻，斷頭風險升)"
+    _fg_tag = "" if fg is None else f" <font color='#2E8B4F'><b>（加密市場：{_fg_band_zh(fg)}）</b></font>"
+    _sp_tag = ("" if spread is None else
+               f" <font color='#B9791C'><b>{'（曲線正常）' if spread >= 0 else '（曲線倒掛）'}</b></font>")
+    _fg_foot = {
+        "極度恐慌": "加密市場情緒極端悲觀，歷史上常見於循環底部區。",
+        "恐慌": "加密市場情緒偏悲觀，分批布局區間。",
+        "中性": "加密市場情緒中性，觀察方向選擇。",
+        "貪婪": "加密市場情緒偏樂觀，居高思危。",
+        "極度貪婪": "加密市場情緒極端樂觀，逢高減碼思考。",
+    }.get(_fg_band_zh(fg) or "", "情緒指標未取得，待補後確認。")
     cards = [
         (COLOR_TW_STOCK, kpi_card(
             "全市場融資餘額（TWSE 即時）",
             f"<font color='#EF6F53' size=13><b>{twm_d}</b></font> <font color='#2E8B4F'><b>"
-            f"{('(低於門檻 900 萬張)' if twm is not None else '(未取得)')}</b></font>",
-            f"融券餘額: {tws/10000:.1f} 萬張 | 來源: MI_MARGN 加總<br/>數值每日即時重抓，門檻可日後校準。")),
+            f"{_tw_tag}</b></font>",
+            f"融券餘額: {_pend(tws, '{:.1f}', ' 萬張')} | 來源: MI_MARGN 加總<br/>數值每日即時重抓，門檻可日後校準。")),
         (COLOR_US_STOCK, kpi_card(
             "外資台指期淨未平倉",
-            f"<font color='#0E7C86' size=13><b>{oi:,} 口</b></font> <font color='#2E8B4F'><b>(空單大幅回補)</b></font>",
-            "警戒線: -30,000 口<br/>空單單週回補 8,000 口，顯示期貨避險賣壓衰竭。")),
+            (f"<font color='#0E7C86' size=13><b>{oi:,} 口</b></font>"
+             if oi is not None else
+             "<font color='#0E7C86' size=13><b>待補</b></font>"),
+            ("警戒線: -30,000 口<br/>依即時未平倉量判讀避險部位。"
+             if oi is not None else
+             "資料源評估中（TAIFEX 未提供 keyless API）<br/>暫不計入訊號分，版面如實顯示待補。"))),
         (COLOR_BOND, kpi_card(
-            "美股 VIX &amp; 恐懼貪婪指數",
-            f"<font color='#E8A33D' size=13><b>VIX {vix_d} / F&amp;G {fg_d}</b></font>"
-            + ("" if fg is None else " <font color='#2E8B4F'><b>(極度恐慌)</b></font>"),
-            ("極度恐慌區間 (F&amp;G &lt; 25)，歷史數據顯示分批進場勝率 &gt; 82%。"
-             if fg is not None else "情緒指標未取得，待補後確認進場時機。"))),
+            "美股 VIX 與 加密市場恐貪指數",
+            f"<font color='#E8A33D' size=13><b>VIX {vix_d} / F&G {fg_d}</b></font>"
+            + _fg_tag,
+            _fg_foot + "（F&G 來源：alternative.me 加密貨幣版）")),
         (COLOR_FOREX, kpi_card(
             "美債 10Y-2Y 殖利率利差",
-            f"<font color='#6B8F71' size=13><b>{spread_d}</b></font>"
-            + ("" if spread is None else " <font color='#B9791C'><b>(倒掛結束)</b></font>"),
-            f"10 年期 {t10}% / 2 年期 {t2}%<br/>曲線陡峭化，市場預期 Fed 年底前啟動降息。")),
+            f"<font color='#6B8F71' size=13><b>{spread_d}</b></font>" + _sp_tag,
+            f"10 年期 {t10}% / 2 年期 {t2}%<br/>利差為每日實抓（美國財政部），標籤依正負自動判別。")),
     ]
     grid = [[Table(cards[0][1], colWidths=[260]), Table(cards[1][1], colWidths=[260])],
             [Table(cards[2][1], colWidths=[260]), Table(cards[3][1], colWidths=[260])]]
@@ -624,28 +686,37 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     story.append(Spacer(1, 8))
 
     story.append(Paragraph(en("五大投資市場即時狀態監控表"), s["h1"]))
+    # 燈號/風險/說明由 _market_verdicts 即時推導（取代寫死的 🟢 樣板列——
+    # 2026-09-08 監控表「台股🟢分批進場」與同頁 banner「觀望」互相矛盾）。
+    verdicts = _market_verdicts(data)
+    _GLYPH = {"buy": "🟢", "hold": "🟡", "sell": "🔴", "neutral": "⚪"}
+    _RISK = {"buy": "中等偏低", "hold": "中等", "sell": "偏高", "neutral": "待補"}
+    _spx_d = _px_live(data, "spx", "{:,.0f}")
+    _twd_d = _px_live(data, "usdtwd", "{:.2f}")
+    _gold_d = _px_live(data, "gold", "${:,.0f}")
+    _btc_d = _px_live(data, "btc", "${:,.0f}")
+
+    def _vrow(idx, name, color_name, indicator, vkey):
+        name_, light, headline, reason = verdicts[vkey]
+        return [Paragraph(en(f"{idx}. {name}"), s["body"]),
+                Paragraph(en(color_name, color="#FFFFFF"), s["th"]),
+                Paragraph(en(indicator), s["body"]),
+                Paragraph(en(_RISK[light]), s["body"]),
+                Paragraph(en(f"{_GLYPH[light]} {headline}"), s["body"]),
+                Paragraph(en(reason), s["body"])]
+
     monitor = [
         [Paragraph(en("<b>市場類別</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>識別色</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>當前指標/點位</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>風險等級</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>進出場訊號燈號</b>", color="#FFFFFF"), s["th"]),
-         Paragraph(en("<b>短線趨勢說明</b>", color="#FFFFFF"), s["th"])],
-        [Paragraph(en("1. 台股市場"), s["body"]), Paragraph(en("活力橘紅", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"融資餘額 {twm_d}"), s["body"]), Paragraph(en("中等偏低"), s["body"]),
-         Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("融資清洗完畢，台積電先進封裝支撐強健"), s["body"])],
-        [Paragraph(en("2. 美股市場"), s["body"]), Paragraph(en("科技青", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"S&P 500: 5,420 (VIX {vix_d})"), s["body"]), Paragraph(en("中等"), s["body"]),
-         Paragraph(en("🟢 分批進場"), s["body"]), Paragraph(en("恐慌指數攀升至買點，科技巨頭區間築底"), s["body"])],
-        [Paragraph(en("3. 全球債券"), s["body"]), Paragraph(en("暖琥珀", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"美債 10Y: {t10}% (利差 {spread_d})"), s["body"]), Paragraph(en("低"), s["body"]),
-         Paragraph(en("🟢 鎖利加碼"), s["body"]), Paragraph(en("倒掛結束，鎖定降息前高殖利率票息"), s["body"])],
-        [Paragraph(en("4. 外匯與美元"), s["body"]), Paragraph(en("抹茶綠", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"DXY: {dxy_d} / TWD: {twd}"), s["body"]), Paragraph(en("中等"), s["body"]),
-         Paragraph(en("🟡 觀望升值"), s["body"]), Paragraph(en("美元高位震盪，亞幣匯率止跌回升"), s["body"])],
-        [Paragraph(en("5. 商品與加密"), s["body"]), Paragraph(en("墨藍黑", color="#FFFFFF"), s["th"]),
-         Paragraph(en(f"黃金 ${gold:,} / BTC ${btc:,}"), s["body"]), Paragraph(en("偏高"), s["body"]),
-         Paragraph(en("🟡 觀望布局"), s["body"]), Paragraph(en("黃金避險高位震盪，BTC 槓桿清理完畢"), s["body"])],
+         Paragraph(en("<b>短線趨勢說明（即時推導）</b>", color="#FFFFFF"), s["th"])],
+        _vrow(1, "台股市場", "活力橘紅", f"融資餘額 {twm_d}", "tw"),
+        _vrow(2, "美股市場", "科技青", f"S&P 500: {_spx_d}（VIX {vix_d}）", "us"),
+        _vrow(3, "全球債券", "暖琥珀", f"美債 10Y: {t10}%（利差 {spread_d}）", "bond"),
+        _vrow(4, "外匯與美元", "抹茶綠", f"DXY: {dxy_d} / TWD: {_twd_d}", "forex"),
+        _vrow(5, "商品與加密", "墨藍黑", f"黃金 {_gold_d} / BTC {_btc_d}", "cmdty"),
     ]
     t_mon = Table(monitor, colWidths=[75, 50, 125, 55, 75, 167])
     t_mon.setStyle(TableStyle([
@@ -737,36 +808,72 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
-        "資料：TWSE MI_MARGN・Yahoo Finance｜籌碼數據截至前一交易日",
+        "資料：TWSE MI_MARGN・T86��Yahoo Finance｜籌碼數據截至前一交易日",
         date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
-    verdicts = _market_verdicts(data)
+
+    # 台股/美股專題表：當前數據欄一律即時值或「待補」，判讀欄由數值區間
+    # 推導（2026-09-08 前為寫死的 2024 期樣板：+125 億、5,420 點、-2.8%…）。
+    _twm_j = ("待補" if twm is None else
+              "🟢 低於門檻，槓桿未過熱，具反彈動能" if twm < _ceiling else
+              "🟡 貼近門檻，槓桿偏熱，留意斷頭風險" if twm < _ceiling * 1.05 else
+              "🔴 顯著超越門檻，槓桿過熱，斷頭風險升")
+    fg_sh = _g(data, "tw_foreign_net_shares", None)
+    tr_sh = _g(data, "tw_trust_net_shares", None)
+    _inst_date = _g(data, "tw_institutional_date", "") or ""
+    b20 = _g(data, "twii_bias20", None)
+    b60 = _g(data, "twii_bias60", None)
+    if b20 is None or b60 is None:
+        _bias_d, _bias_j = "待補", "待數據（Yahoo ^TWII）補齊後判讀"
+    else:
+        _bias_d = f"{b20:+.1f}% / {b60:+.1f}%"
+        _bias_j = ("🟢 負乖離低於 -5%，短線超賣、具備反彈技術面條件"
+                   if min(b20, b60) < -5 else
+                   "🔴 正乖離高於 +5%，短線過熱、留意獲利了結" if max(b20, b60) > 5 else
+                   "🟡 乖離於 ±5% 內，技術面中性")
 
     story.append(Paragraph(en("<b>【台股市場專題】活力橘紅 —— 融資/融券餘額與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
-            ["全市場融資餘額", twm_d, "門檻 900 萬張（可校準）", "🟢 低於門檻，槓桿未過熱，洗盤接近尾聲，具反彈動能"],
-            ["全市場融券餘額", f"{tws/10000:.1f} 萬張", "歷史區間 15–40 萬張", "🟢 融券水位中性，無軋空亦無悲觀過度"],
-            ["外資現貨買賣超", "+125 億", "單日 > +100 億為轉多", "🟢 外資連續 3 日現貨轉買，資金回流權值股"],
-            ["投信現貨買賣超", "+42 億", "持續買超支撐", "🟢 投信連續 15 日買超，內資法人底氣充足"],
-            ["外資台指期未平倉", f"{oi:,} 口", "警戒線 -30,000 口", "🟢 空單較上週高點回補 8,000 口，避險賣壓大幅減輕"],
-            ["大盤 MA20/60 乖離", "-2.8% / -4.1%", "負乖離 > -5% 為短線超賣", "🟢 短線正處於超賣區，具備急彈技術面條件"],
+            ["全市場融資餘額", twm_d, "門檻 900 萬張（可校準）", _twm_j],
+            ["全市場融券餘額", _pend(tws, "{:.1f}", " 萬張"), "歷史區間 15–40 萬張",
+             ("🟢 融券水位中性，無軋空亦無悲觀過度" if tws is not None else "待補後判讀")],
+            ["外資現貨買賣超",
+             (f"{fg_sh/1e8:+.2f} 億股" + (f"（{_inst_date}）" if _inst_date else "") if fg_sh is not None else "待補"),
+             "轉正為多方訊號（單位：股數加總）",
+             ("🟢 外資現貨淨買超，資金回流" if fg_sh is not None and fg_sh > 0 else
+              "🔴 外資現貨淨賣超，資金外流" if fg_sh is not None else "待補後判讀")],
+            ["投信現貨買賣超",
+             (f"{tr_sh/1e8:+.2f} 億股" + (f"（{_inst_date}）" if _inst_date else "") if tr_sh is not None else "待補"),
+             "持續買超為內資支撐訊號",
+             ("🟢 投信淨買超，內資法人支撐" if tr_sh is not None and tr_sh > 0 else
+              "🟡 投信淨賣超，內資調節" if tr_sh is not None else "待補後判讀")],
+            ["外資台指期未平倉", _pend(oi, "{:,}", " 口"), "警戒線 -30,000 口",
+             ("依即時未平倉量判讀" if oi is not None else "資料源評估中（TAIFEX keyless API 未提供）")],
+            ["大盤 MA20/60 乖離", _bias_d, "負乖離 > -5% 為短線超賣", _bias_j],
         ],
         header_bg=COLOR_TW_STOCK, grid_color=colors.HexColor('#FDE7E1'), styles=s,
     )
     story.append(tw_rows)
     story.append(Spacer(1, 10))
 
+    _vix_j = ("待補後判讀" if vix is None else
+              "🟢 恐慌區（>25），情緒極端通常為中長線買點" if vix > 25 else
+              "🟢 中性偏低（15–25），波動可控" if vix >= 15 else
+              "🟡 低波動（<15），無恐慌財")
+    _fgband = _fg_band_zh(fg)
     story.append(Paragraph(en("<b>【美股市場專題】科技青 —— 恐慌指數與市場廣度</b>"), s["h1"]))
     us_rows = _detail_table(
         ["美股指數/指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
         [
-            ["S&P 500 指數", "5,420 點", "季線 MA60 (5,400 點)", "🟢 於季線關卡展現強勁支撐，回測不破"],
-            ["Nasdaq 指數", "16,950 點", "半年線 MA120 (16,800 點)", "🟢 科技股震盪築底，AI 龍頭自由現金流穩健"],
-            ["費城半導體 (SOX)", "4,880 點", "年線 MA200 (4,750 點)", "🟡 受到出口限制與擴產 Capex 震盪，宜分批佈局"],
-            ["VIX 恐慌指數", vix_d, "恐慌區 > 25 / 極度恐慌 > 35", "🟢 攀升至恐慌區，顯示情緒極度悲觀，通常為中長線買點"],
-            ["Fear & Greed Index", (f"{fg} (Extreme Fear)" if fg is not None else fg_d), "恐慌區 < 25", "🟢 進入極度恐慌區，符合巴菲特「別人恐慌我貪婪」條件"],
-            ["MA200 成分股占比", "42.5%", "超賣區 < 30% / 超買區 > 80%", "🟡 市場廣度中性偏低，資金集中於七大巨頭 (Magnificent 7)"],
+            ["S&P 500 指數", _px_live(data, "spx", "{:,.0f}", " 點"), "季線 MA60 為常見多空分水嶺",
+             "依即時點位對照均線關卡判讀（數值即時）"],
+            ["Nasdaq 指數", _px_live(data, "ndx", "{:,.0f}", " 點"), "半年線 MA120", "依即時點位判讀（數值即時）"],
+            ["費城半導體 (SOX)", _px_live(data, "sox", "{:,.0f}", " 點"), "年線 MA200", "依即時點位判讀；AI 週期敏感指標"],
+            ["VIX 恐慌指數", vix_d, "恐慌區 > 25 / 極度恐慌 > 35", _vix_j],
+            ["加密市場恐貪指數", (f"{fg}（{_fgband}）" if _fgband else fg_d), "恐慌區 < 25",
+             ("情緒區間如標示（來源：alternative.me 加密版，非股市指標）" if _fgband else "待補後判讀")],
+            ["MA200 成分股占比", "待補", "超賣區 < 30% / 超買區 > 80%", "市場廣度資料源評估中，如實標示待補"],
         ],
         header_bg=COLOR_US_STOCK, grid_color=colors.HexColor('#E3F3F4'), styles=s,
     )
@@ -781,26 +888,63 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         "資料：美國財政部・Yahoo Finance｜殖利率每日、利差計算（TTL 快取）",
         date_str, COLOR_BOND, s, eyebrow_text="Financial Intelligence"))
 
+    # 債券/外匯表：上月欄改由 Treasury CSV 回溯列與 FRED 實值計算
+    #（2026-09-08 前寫死 4.15%/4.30%/340bps 樣板）。
+    t10_prev = _g(data, "treasury_10y_prev", None)
+    t2_prev = _g(data, "treasury_2y_prev", None)
+    sp_prev = _g(data, "treasury_spread_prev", None)
+
+    def _chg_j(v, p, down_good=True, down_txt="回落", up_txt="上行"):
+        if v is None or p is None:
+            return "待補後判讀"
+        d = v - p
+        good = (d < 0) == down_good
+        if abs(d) < 0.05:
+            return f"🟡 與上月大致持平（{d:+.2f}pp）"
+        return (f"🟢 較上月{down_txt} {abs(d):.2f}pp" if good else f"🔴 較上月{up_txt} {abs(d):.2f}pp")
+
+    hy = _g(data, "hy_oas", None) or {}
+    hy_v = hy.get("value")
+    hy_p = hy.get("prev")
+    hy_j = ("待補（FRED 連線失敗）" if hy_v is None else
+            ("🟢 低於歷史均值（約 450 bps），信用市場無違約壓力訊號" if hy_v < 3.5 else
+             "🟡 高於 350 bps，留意信用風險升溫"))
+
     story.append(Paragraph(en("<b>【全球債券專題】暖琥珀 —— 利率與殖利率曲線</b>"), s["h1"]))
     story.append(_detail_table(
         ["債券指標", "當前數據", "上月數據", "趨勢判讀與進出場建議"],
         [
-            ["美債 10 年期殖利率", f"{t10}%", "4.15%", "🟢 殖利率顯著回落，長天期公債價格上漲，鎖定高票息"],
-            ["美債 2 年期殖利率", f"{t2}%", "4.30%", "🟢 短端利率反映 Fed 年底前降息 2 碼之預期"],
-            ["10Y-2Y 殖利率利差", spread_d, "-0.15%", "🟢 殖利率倒掛結束並陡峭化，有利於金融機構利差改善"],
-            ["美國高收益債信用利差", "340 bps", "320 bps", "🟡 信用利差微幅擴大但仍低於歷史均值 (450 bps)，無違約危機"],
+            ["美債 10 年期殖利率", f"{t10}%", _pend(t10_prev, "{:.2f}", "%"),
+             _chg_j(t10, t10_prev, down_txt="回落（利多長債）", up_txt="上行") + "，長天期布局依殖利率位階衡量"],
+            ["美債 2 年期殖利率", f"{t2}%", _pend(t2_prev, "{:.2f}", "%"),
+             _chg_j(t2, t2_prev, down_txt="回落", up_txt="上行") + "，短端反映 Fed 政策預期"],
+            ["10Y-2Y 殖利率利差", spread_d, _pend(sp_prev, "{:+.2f}", "%"),
+             ("🟢 曲線未倒掛（正斜率），有利金融機構利差" if spread is not None and spread >= 0 else
+              "🔴 曲線倒掛，留意衰退訊號" if spread is not None else "待補後判讀")],
+            ["美國高收益債信用利差",
+             (f"{hy_v*100:.0f} bps" if hy_v is not None else "待補"),
+             (f"{hy_p*100:.0f} bps" if hy_p is not None else "待補"),
+             hy_j + "（FRED：ICE BofA HY OAS）"],
         ],
         header_bg=COLOR_BOND, grid_color=colors.HexColor('#FCF0DC'), styles=s,
     ))
     story.append(Spacer(1, 8))
 
+    _jpy = _g(data, "usdjpy", None)
+    _twd_live = _g(data, "usdtwd", None)
+    twd_row_j = ("待補後判讀" if _twd_live is None else
+                 "🟢 TWD 低於 31.8，台幣偏強有利外資回流" if _twd_live < 31.8 else
+                 "🟡 TWD 高於 32.5，台幣偏弱，留意資金流向" if _twd_live > 32.5 else
+                 "🟡 TWD 於 31.8–32.5 區間震盪")
     story.append(Paragraph(en("<b>【外匯與美元專題】抹茶綠 —— 匯率與資金流動性</b>"), s["h1"]))
     story.append(_detail_table(
         ["外匯指標", "當前數據", "關鍵水位", "資金流向與影響判讀"],
         [
-            ["美元指數 (DXY)", dxy_d, "阻力: 104.5 / 支撐: 101.0", "🟢 美元自高點走弱，減輕新興市場資金外流壓力"],
-            ["美元/新台幣 (USD/TWD)", f"{twd}", "阻力: 32.50 / 支撐: 31.80", "🟢 台幣升值預期升溫，有利外資回流台股現貨"],
-            ["美元/日圓 (USD/JPY)", "145.2", "警戒: 155.0 (套利平倉)", "🟡 日圓套利交易平倉風險趨緩，金融市場流動性恢復"],
+            ["美元指數 (DXY)", dxy_d, "阻力: 104.5 / 支撐: 101.0", verdicts["forex"][3]],
+            ["美元/新台幣 (USD/TWD)", _px_live(data, "usdtwd", "{:.2f}"), "阻力: 32.50 / 支撐: 31.80", twd_row_j],
+            ["美元/日圓 (USD/JPY)", _px_live(data, "usdjpy", "{:.2f}"), "警戒: 155.0 (套利平倉)",
+             ("🟡 日圓偏弱（>150），留意套利平倉風險" if _jpy is not None and _jpy >= 150 else
+              "🟢 日圓水位未達套利平倉警戒" if _jpy is not None else "待補後判讀")],
         ],
         header_bg=COLOR_FOREX, grid_color=colors.HexColor('#E8F0E9'), styles=s,
     ))
@@ -855,23 +999,25 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         date_str, COLOR_CRYPTO, s, eyebrow_text="Financial Intelligence"))
 
     story.append(Paragraph(en("<b>【大宗商品與數位資產】墨藍黑</b>"), s["h1"]))
-    silver = _g(data, "silver", 29.5)
-    copper = _g(data, "copper", 4.35)
-    natgas = _g(data, "natgas", 2.85)
-    wti = _g(data, "wti", 76.5)
+    silver = _g(data, "silver", None)
+    copper = _g(data, "copper", None)
+    natgas = _g(data, "natgas", None)
+    wti = _g(data, "wti", None)
     def _band(price, lo_pct, hi_pct, dec=0):
-        """技術支撐/壓力區間 — 依現價動態推導（取代過時的靜態模板水位）。"""
+        """技術支撐/壓力��間 — 依現價動態推導（取代過時的靜態模板水位）。"""
+        if price is None:
+            return "待補"
         return f"支撐: ${price * (1 - lo_pct):,.{dec}f} / 壓力: ${price * (1 + hi_pct):,.{dec}f}"
 
     story.append(_detail_table(
         ["資產標的", "當前價格", "關鍵支撐/壓力", "鏈上/市場籌碼與觀點分析"],
         [
-            ["黃金 (Gold)", f"${gold:,.0f} / oz", _band(gold, 0.05, 0.05), "🟢 央行持續購金與避險需求支撐，高位高姿態震盪"],
-            ["白銀 (Silver)", f"${silver:,.2f} / oz", _band(silver, 0.08, 0.08, 2), "🟡 工業需求（太陽能/電子）與避險雙引擎，波動大於黃金"],
-            ["銅 (Copper)", f"${copper:,.2f} / lb", _band(copper, 0.08, 0.08, 2), "🟢 全球電網與 AI 數據中心用銅需求強勁，庫存偏低"],
-            ["紐約原油 (WTI)", f"${wti:,.1f} / bbl", _band(wti, 0.08, 0.08, 1), "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
-            ["天然氣 (NatGas)", f"${natgas:,.2f} / MMBtu", _band(natgas, 0.15, 0.15, 2), "🟡 季節性需求波動大，LNG 出口產能持續擴張"],
-            ["比特幣 (BTC)", f"${btc:,.0f}", _band(btc, 0.12, 0.12), "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
+            ["黃金 (Gold)", _px_live(data, "gold", "${:,.0f}", " / oz"), _band(gold, 0.05, 0.05), "🟢 央行持續購金與避險需求支撐，高位高姿態震盪"],
+            ["白銀 (Silver)", _px_live(data, "silver", "${:,.2f}", " / oz"), _band(silver, 0.08, 0.08, 2), "🟡 工業需求（太陽能/電子）與避險雙引擎，波動大於黃金"],
+            ["銅 (Copper)", _px_live(data, "copper", "${:,.2f}", " / lb"), _band(copper, 0.08, 0.08, 2), "🟢 全球電網與 AI 數據中心用銅需求強勁，庫存偏低"],
+            ["紐約原油 (WTI)", _px_live(data, "wti", "${:,.1f}", " / bbl"), _band(wti, 0.08, 0.08, 1), "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
+            ["天��氣 (NatGas)", _px_live(data, "natgas", "${:,.2f}", " / MMBtu"), _band(natgas, 0.15, 0.15, 2), "🟡 季節性需求波動大，LNG 出口產能持續擴張"],
+            ["比特幣 (BTC)", _px_live(data, "btc", "${:,.0f}"), _band(btc, 0.12, 0.12), "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
         ],
         header_bg=COLOR_CRYPTO, grid_color=colors.HexColor('#EEF0F4'), styles=s,
     ))
@@ -914,7 +1060,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
         [Paragraph(en("股票部位 (Equities)"), s["body"]), Paragraph(en("50%", bold=True), s["body"]),
          Paragraph(en("⬆️ +5% (偏多)"), s["body"]), Paragraph(en("台股融資洗盤完畢 + 美股 VIX 恐慌區，逢低分批佈局優質市值型標的"), s["body"])],
         [Paragraph(en("債券部位 (Bonds)"), s["body"]), Paragraph(en("30%", bold=True), s["body"]),
-         Paragraph(en("⬆️ +5% (鎖利)"), s["body"]), Paragraph(en("倒掛結束，配置中長天期美國公債與投資級公司債，鎖定降息票息"), s["body"])],
+         Paragraph(en("⬆️ +5% (鎖利)"), s["body"]), Paragraph(en("配置中長天期美國公債與投資級公司債，鎖定高殖利率票息"), s["body"])],
         [Paragraph(en("現金與流動性 (Cash)"), s["body"]), Paragraph(en("15%", bold=True), s["body"]),
          Paragraph(en("⬇️ -10% (彈性)"), s["body"]), Paragraph(en("保留 15% 流動性，作為極端震盪或急跌時之二度加碼彈性預備金"), s["body"])],
         [Paragraph(en("黃金與替代資產"), s["body"]), Paragraph(en("5%", bold=True), s["body"]),
@@ -934,18 +1080,20 @@ def generate_daily_pdf(filename, data=None, date_str=None):
               if twm is not None else "融資餘額待補；先進封裝與 CoWoS 產能滿載，評價具吸引力。")],
             ["台股市場", "AI 伺服器水冷與散熱龍頭", "拉回重心支撐線加碼", "AI 伺服器單機功耗暴增，營收月增率持強，法人與投信連續 15 日買超護盤。"],
             ["美股市場", "標普 500 / 納指 ETF<br/>(如 VOO, QQQ)", "分 3 批定期定額扣款",
-             (f"VIX 升至 {vix} + F&amp;G 降至 {fg} 極度恐慌區，歷史回測分批進場勝率 > 82%。"
+             (f"VIX {vix}、加密 F&G {fg}（{_fg_band_zh(fg)}區），依情緒區間調整扣款節奏。"
               if vix is not None and fg is not None
-              else "情緒指標待補（VIX/F&amp;G 未取得），待數據恢復後確認分批時機。")],
-            ["美股市場", "雲端 Hyperscaler &amp; AI 巨頭", "分批進場", "科技巨頭 2026 年 Capex 資本支出持續上修，自由現金流非常強健。"],
-            ["全球債券", "20年期以上美國公債 ETF<br/>(如 TLT, 00679B)", "單筆搭配定期定額", f"10Y-2Y 倒掛結束，鎖定 {t10}%~{t10 + 0.15:.2f}% 高殖利率，降息啟動享資本利得。"],
+              else "情緒指標待補（VIX/F&G 未取得），待數據恢復後確認分批時機。")],
+            ["美股市場", "雲端 Hyperscaler 與 AI 巨頭", "分批進場", "科技巨頭 2026 年 Capex 資本支出持續上修，自由現金流非常強健。"],
+            ["全球債券", "20年期以上美國公債 ETF<br/>(如 TLT, 00679B)", "單筆搭配定期定額",
+             (f"10Y-2Y 利差 {spread:+.2f}pp（{'未倒掛' if spread >= 0 else '倒掛中'}），鎖定 {t10}% 起的高殖利率。"
+              if spread is not None else f"鎖定 {t10}% 起的高殖利率（利差待補）。")],
             ["數位資產", "比特幣現貨 ETF / BTC", "分批佈局", "永續合約資費歸零、交易所槓桿多單清理完畢，鏈上算力持續創新高。"],
         ],
         header_bg=T.SIGNAL_BUY, grid_color=colors.HexColor('#E8F0E9'), styles=s,
     ))
     story.append(Spacer(1, 10))
 
-    story.append(Paragraph(en("<b>🔴 需要注意退場 / 減碼避險投資標的 (Warning &amp; Exit Targets)</b>"), s["h1"]))
+    story.append(Paragraph(en("<b>🔴 需要注意退場 / 減碼避險投資標的 (Warning 與 Exit Targets)</b>"), s["h1"]))
     story.append(_detail_table(
         ["投資領域", "標的類別 / 警示特徵", "建議退場/避險策略", "風險警示理由與量化數據"],
         [
@@ -990,7 +1138,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             en(f"<b>美債 10Y 殖利率走勢（{first['date']} → {last['date']}，年內 {len(ten10y)} 個交易日）</b>"),
             s["h1"]))
         story.append(_line_chart(labels, [vals], height=118,
-                                 y_unit="%", y_fmt="{:.2f}", x_unit="月份"))
+                                 y_unit="%", y_fmt="{:.2f}", x_unit="交易日"))
         story.append(Spacer(1, 5))
     cpi_r2 = _yoy_series(md.get("cpi_hist"))
     core_r2 = _yoy_series(md.get("core_cpi_hist"))
