@@ -82,9 +82,21 @@ class SpiritualReportScheduler(BaseReportScheduler):
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("spiritual RSS ingest failed: %s", exc)
 
-        transits = divination.all_transits(self.date_str)
+        # 示範本命（Galen）：紫微流日命宮以本命十二宮對照；占星摘要的上升
+        # 以本命上升取代「(預設)」。任何 natal 失敗都不影響流日計算。
+        from core.data import natal as _natal
+        natal_zw = _natal.natal_ziwei() or {}
+        natal_cmd = natal_zw.get("cmd_branch")
+
+        transits = divination.all_transits(self.date_str, natal_cmd_branch=natal_cmd)
         if not transits:
             return None
+        natal_astro = _natal.natal_astro() or {}
+        if natal_astro.get("asc") is not None and transits.get("SYS_AST"):
+            from core.data.natal import _sign_zh
+            old_sum = transits["SYS_AST"].get("system_data_summary", "")
+            transits["SYS_AST"]["system_data_summary"] = old_sum.replace(
+                "上升：獅子座(預設)", f"上升：{_sign_zh(natal_astro['asc'])}(本命)")
         return {"_source": "divination", "systems": transits}
 
     def synthesize(self, data):
@@ -97,6 +109,14 @@ class SpiritualReportScheduler(BaseReportScheduler):
                 data["spiritual_intel"] = items
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("spiritual retrieval failed: %s", exc)
+        # 當日關鍵詞（與 spotlight 同源）＋示範本命對照＋轉換點偵測——皆 None-safe
+        try:
+            from core.data import natal as _natal
+            data["motto_keywords"] = divination.motto_keywords(self.date_str)
+            data["natal_section"] = _natal.build_natal_section(self.date_str)
+            data["transitions"] = divination.transitions(self.date_str)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("natal/keywords/transitions failed: %s", exc)
         return data
 
     def render_pdf(self, data):
@@ -120,8 +140,12 @@ class SpiritualReportScheduler(BaseReportScheduler):
                     cfg["system_data_summary"] = hit["system_data_summary"]
 
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
-        generate_pdf_report(pdf_path, date_str=self.date_str, location=location, systems=systems,
-                           spiritual_intel=(data or {}).get("spiritual_intel"))
+        generate_pdf_report(
+            pdf_path, date_str=self.date_str, location=location, systems=systems,
+            spiritual_intel=(data or {}).get("spiritual_intel"),
+            keywords=(data or {}).get("motto_keywords") or {},
+            natal=(data or {}).get("natal_section") or {},
+            trans=(data or {}).get("transitions") or [])
         return pdf_path
 
     def render_obsidian(self, data):

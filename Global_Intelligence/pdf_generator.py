@@ -350,7 +350,7 @@ def build_global_pdf(filename, data=None, date_str=None):
         story.append(Paragraph(en("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
         story.append(Paragraph(en(
             f"本次未生成（{reason}）——GIVEN-WHEN-THEN 論述暫缺，請參閱下方各領域卡片；"
-            "下次排程將自���重試。"), miss_st))
+            "下次排程將自動重試。"), miss_st))
         story.append(Spacer(1, 8))
 
     # Trend table with (單位) labels

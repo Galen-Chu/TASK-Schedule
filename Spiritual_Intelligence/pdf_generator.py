@@ -46,13 +46,21 @@ def _style(name, size, color, leading=None, wrap=True):
     )
 
 
-def create_system_page(cfg, page_num, page_total, date_str, location):
-    """Build the 8-card story for one occult system."""
+def create_system_page(cfg, page_num, page_total, date_str, location,
+                       keyword=None, natal=None, trans=None):
+    """Build the 8-card story for one occult system.
+
+    ``keyword``   — motto 當日錨點（divination.motto_keywords，與 spotlight 同源）
+    ``natal``     — {params, compare} 個人本命對照（core.data.natal）
+    ``trans``     — 本系統相關的轉換點提示 list（divination.transitions）
+    """
     ensure_fonts()
 
     motto_st   = _style("Motto", 9.5, cfg["color_text_dark"], 14.0)
     spot_st    = _style("Spotlight", 9.0, cfg["color_highlight"], 13.0)
     param_st   = _style("SysParam", 8.5, cfg["color_primary"], 12.5)
+    natal_st   = _style("Natal", 8.2, cfg["color_text_dark"], 12.0)
+    trans_st   = _style("Trans", 8.5, cfg["color_highlight"], 12.0)
     heading_st = _style("Section", 10.0, cfg["color_primary"], 14.0)
     dim_h_st   = _style("DimH", 8.8, cfg["color_primary"], 12.0)
     dim_b_st   = _style("DimB", 8.2, cfg["color_text_dark"], 11.8)
@@ -60,25 +68,26 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
 
     story = []
 
-    # 1. Header — shared title row + accent rule in this system's primary color.
-    # Subtitle carries only context (location / page x of 5), not content
-    # restatement; the weekday label is derived inside make_title_row.
+    # 1. Header — 流日基準時間明示（pyswisseph/lunar_python 於報告日台北
+    #    正午計算，可重現），讓讀者知道參照時點。
     story += make_title_row(
         cfg["title"],
-        subtitle_text=f"地點：{location}　·　七術 {page_num}/{page_total}（{cfg['subtitle']}）",
+        subtitle_text=(f"地點：{location}　·　七術 {page_num}/{page_total}"
+                       f"（{cfg['subtitle']}）　·　流日基準：{date_str} 12:00 台北"),
         date_str=date_str,
         accent_color=cfg["color_primary"],
         eyebrow_text="Spiritual Intelligence 每日覺察運勢報告",
     )
     story.append(Spacer(1, 6))
 
-    # 2. Motto card — with the system's vector emblem (font-independent icon;
-    #    emoji glyphs render as .notdef boxes under the CI CJK font)
+    # 2. Motto card — 固定核心金句 ＋ 當日錨點（keyword 與 spotlight 同源）
     from Spiritual_Intelligence.icons import system_emblem
     emblem = system_emblem(page_num - 1, cfg["color_primary"], cfg["color_highlight"],
                            size=40)
-    motto = Table([[emblem,
-                    Paragraph(en(f"<b>【意識定錨座右銘】</b> {cfg['motto']}"), motto_st)]],
+    motto_text = f"<b>【意識定錨座右銘】</b> {cfg['motto']}"
+    if keyword:
+        motto_text += f'<font color="#{cfg["color_primary"].hexval()[2:]}"><b>｜今日錨點：{keyword}</b></font>'
+    motto = Table([[emblem, Paragraph(en(motto_text), motto_st)]],
                   colWidths=[48, T.PRINTABLE_WIDTH - 48])
     motto.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), cfg["color_bg"]),
@@ -87,9 +96,9 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('PADDING', (0, 0), (-1, -1), 7),
     ]))
-    story += [motto, Spacer(1, 8)]
+    story += [motto, Spacer(1, 6)]
 
-    # 3. Spotlight card (📍 emoji stripped — renders as .notdef under CI font)
+    # 3. Spotlight card（📍 emoji stripped — .notdef under CI font）
     spot_text = cfg["spotlight"].replace("📍 ", "")
     spotlight = Table([[Paragraph(en(f"<b>{spot_text}</b>"), spot_st)]], colWidths=[T.PRINTABLE_WIDTH])
     spotlight.setStyle(TableStyle([
@@ -98,22 +107,52 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
         ('LINELEFT', (0, 0), (0, -1), 4, cfg["color_highlight"]),
         ('PADDING', (0, 0), (-1, -1), 6),
     ]))
-    story += [spotlight, Spacer(1, 8)]
+    story += [spotlight, Spacer(1, 4)]
+
+    # 3b. 轉換點提示（⚡ → ◆：CI 字集無 ⚡）
+    if trans:
+        lines = [t.replace("⚡ ", "◆ ") for t in trans]
+        tcard = Table([[Paragraph(en("<br/>".join(lines)), trans_st)]],
+                      colWidths=[T.PRINTABLE_WIDTH])
+        tcard.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FDF6EC")),
+            ('BOX', (0, 0), (-1, -1), 0.8, cfg["color_highlight"]),
+            ('LINELEFT', (0, 0), (0, -1), 4, cfg["color_secondary"]),
+            ('PADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story += [tcard, Spacer(1, 4)]
 
     # 4. System parameters card
-    params = Table([[Paragraph(en(f"<b>【系統關鍵參數】</b> {cfg['system_data_summary']}"), param_st)]], colWidths=[T.PRINTABLE_WIDTH])
+    params = Table([[Paragraph(en(f"<b>���系統關鍵參數】</b> {cfg['system_data_summary']}"), param_st)]], colWidths=[T.PRINTABLE_WIDTH])
     params.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), cfg["color_bg"]),
         ('BOX', (0, 0), (-1, -1), 0.5, cfg["color_secondary"]),
         ('PADDING', (0, 0), (-1, -1), 6),
     ]))
-    story += [params, Spacer(1, 10)]
+    story += [params, Spacer(1, 4)]
+
+    # 4b. 【個人本命對應】——大環境流日 vs 示範本命的分區對照
+    if natal and (natal.get("params") or natal.get("compare")):
+        n_rows = [[Paragraph(en("<b>【個人本命對應】示範本命：Galen（1995-04-15 12:52・臺灣澎湖）</b>"),
+                             _style("NatalH", 8.5, cfg["color_primary"], 12.0))]]
+        if natal.get("params"):
+            n_rows.append([Paragraph(en(natal["params"]), natal_st)])
+        if natal.get("compare"):
+            n_rows.append([Paragraph(en(natal["compare"]), natal_st)])
+        ncard = Table(n_rows, colWidths=[T.PRINTABLE_WIDTH])
+        ncard.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+            ('BOX', (0, 0), (-1, -1), 0.8, cfg["color_primary"]),
+            ('LINELEFT', (0, 0), (0, -1), 4, cfg["color_highlight"]),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story += [ncard, Spacer(1, 6)]
 
     # 5. Five dimensions cards — each with its own colored shape marker
     _DIM_GLYPHS = ["●", "■", "▲", "◆", "★"]
     _p_hex = "#" + cfg["color_primary"].hexval()[2:]
     _h_hex = "#" + cfg["color_highlight"].hexval()[2:]
-    story.append(Paragraph(en("<b>五大維度深度覺察 (5-Dimensional Analysis)</b>"), heading_st))
+    story.append(Paragraph(en("<b>五大維度深度覺察（綜合論述）(5-Dimensional Analysis)</b>"), heading_st))
     for di, (dim_title, dim_content) in enumerate(cfg["dimensions"]):
         glyph = _DIM_GLYPHS[di % len(_DIM_GLYPHS)]
         gcol = _p_hex if di % 2 == 0 else _h_hex
@@ -165,14 +204,29 @@ def create_system_page(cfg, page_num, page_total, date_str, location):
     return story
 
 
+def _relevant_transitions(system_id, all_lines):
+    """轉換提示依系統分派：行星換座→占星、換閘→人類圖、節氣換月柱→八字；
+    紫微/梅花/六爻/塔羅為逐日起卦系統（transitions() 本就不產生其項目）。"""
+    if not all_lines:
+        return []
+    keys = {"SYS_AST": ("座",), "SYS_HD": ("人類圖",), "SYS_BAZI": ("月柱",)}
+    return [l for l in all_lines if any(k in l for k in keys.get(system_id, ()))]
+
+
 def generate_pdf_report(output_filename, date_str=None, location=None, systems=None,
-                       spiritual_intel=None):
+                       spiritual_intel=None, keywords=None, natal=None, trans=None):
     """Build the 7-page Spiritual PDF (7 systems + optional spiritual news strip).
+
+    ``keywords``/``natal``/``trans``：{system_id: ...} 對照 dict（scheduler
+    注入；缺項自動略過，任何 None 不影響產出）。
     Returns ``output_filename``."""
     ensure_fonts()
     date_str = date_str or datetime.date.today().strftime("%Y-%m-%d")
     location = location or _DEFAULT_LOCATION
     systems = systems or SYSTEMS_CONFIG
+    keywords = keywords or {}
+    natal = natal or {}
+    trans = trans or {}
     page_total = len(systems)
 
     doc = new_doc(
@@ -186,7 +240,11 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
     )
     story = []
     for idx, cfg in enumerate(systems, start=1):
-        story.extend(create_system_page(cfg, idx, page_total, date_str, location))
+        story.extend(create_system_page(
+            cfg, idx, page_total, date_str, location,
+            keyword=keywords.get(cfg["id"]),
+            natal=natal.get(cfg["id"]),
+            trans=_relevant_transitions(cfg["id"], trans)))
 
     # Phase 3 H1: spiritual news strip at the bottom of the last page
     if spiritual_intel:
