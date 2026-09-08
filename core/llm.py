@@ -399,7 +399,9 @@ def spiritual_system_brief(system_title, subtitle, transit_spot, natal_params,
         (f"今日錨點：{keyword}\n" if keyword else "") +
         "\n請以本系統的專業語言，把「大環境流日」與「示範本命」的對照寫成具體、可實踐的覺察內容；"
         "每一段都要引用當日流日或本命的具體元素（卦名/干支/閘門/宮位/牌名/相位等），不要空泛。"
-        "語氣溫和篤定、避免絕對化斷言，不構成醫療或投資建議。\n\n"
+        "語氣溫和篤定、避免絕對化斷言，不構成醫療或投資建議。"
+        "標點規範：盡量不用括號做補充說明——相近概念直接以「・」併置，"
+        "補充資訊以「｜」或「，」承接。\n\n"
         "請用繁體中文，嚴格依下列純文字格式輸出（不要任何 Markdown 符號）：\n"
         "DIM_A: ...（維度A 心理狀態，40-60字）\n"
         "DIM_B: ...（維度B 生活實踐，40-60字）\n"
@@ -440,5 +442,5 @@ def spiritual_system_brief(system_title, subtitle, transit_spot, natal_params,
         "dimensions": [fields[k] for k in ("DIM_A", "DIM_B", "DIM_C", "DIM_D", "DIM_E")],
         "what": fields["WHAT"], "why": fields["WHY"],
         "action": [fields[k] for k in ("ACTION1", "ACTION2", "ACTION3") if fields[k]],
-        "harmony_note": f"【系統綜合調和與心流指引】{fields['HARMONY']}",
+        "harmony_note": f"系統調和與心流指引｜{fields['HARMONY']}",
     }

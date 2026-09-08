@@ -99,7 +99,7 @@ class SpiritualReportScheduler(BaseReportScheduler):
             from core.data.natal import _sign_zh
             old_sum = transits["SYS_AST"].get("system_data_summary", "")
             transits["SYS_AST"]["system_data_summary"] = old_sum.replace(
-                "上升：獅子座(預設)", f"上升：{_sign_zh(natal_astro['asc'])}(本命)")
+                "上升 獅子座・預設", f"上升 {_sign_zh(natal_astro['asc'])}・本命")
         return {"_source": "divination", "systems": transits}
 
     def synthesize(self, data):

@@ -235,7 +235,7 @@ def natal_tarot():
         return None
 
 
-# ---- 流日 × 本命對照（每系統 1–3 行，供 PDF 個人本命對��卡） -------------------
+# ---- 流日 × 本命對照（每系統 1–3 行，供 PDF 個人本命對照卡） -------------------
 _ASPECTS = ((0, "合相"), (60, "六合"), (90, "四分"), (120, "三分"), (180, "對沖"))
 
 
@@ -246,38 +246,38 @@ def build_natal_section(date_str):
     b = natal_bazi()
     if b:
         out["SYS_BAZI"] = {
-            "params": f"本命四柱：{b['pillars']}（{b['lunar']}）· 日主{b['day_master']}",
+            "params": f"本命四柱 {b['pillars']}・{b['lunar']}・日主{b['day_master']}",
             "compare": "",
         }
 
 
     z = natal_ziwei()
     if z:
-        cmd_stars = "+".join(z["cmd_stars"]) if z["cmd_stars"] else "無主星（借對宮）"
-        # 全盤一行摘要：宮(支)主星，只列有星的宮
+        cmd_stars = "+".join(z["cmd_stars"]) if z["cmd_stars"] else "無主星・借對宮"
+        # 全盤一行摘要：宮 支 主星，只列有星的宮（不用括號）
         full = "・".join(
-            f"{pn}({pv['branch']}){'+'.join(pv['stars'])}"
+            f"{pn}{pv['branch']} {'+'.join(pv['stars'])}"
             for pn, pv in z["palaces"].items() if pv["stars"])
+        body_note = "・身宮同命宮" if z["body_branch"] == z["cmd_branch"] else ""
         out["SYS_ZW"] = {
-            "params": (f"本命：{z['ju']}，命宮{z['cmd_gan_zhi']}〔{cmd_stars}〕、"
-                       f"身宮在{z['body_branch']}・{z['year_gan']}干四化：{z['si_hua']}"),
-            "compare": (f"全盤：{full}（身宮同命宮）" if z["body_branch"] == z["cmd_branch"]
-                        else f"全盤：{full}"),
+            "params": (f"本命 {z['ju']}・命宮{z['cmd_gan_zhi']}〔{cmd_stars}〕"
+                       f"・身宮{z['body_branch']}・{z['year_gan']}干四化 {z['si_hua']}"),
+            "compare": f"全盤 {full}{body_note}",
         }
 
     a = natal_astro()
     if a:
         out["SYS_AST"] = {
-            "params": (f"本命：太陽{_sign_zh(a['sun'])}{a['sun'] % 30:.1f}°・"
-                       f"月亮{_sign_zh(a['moon'])}・上升{_sign_zh(a['asc'])}"),
+            "params": (f"本命 太陽{_sign_zh(a['sun'])}{a['sun'] % 30:.1f}°"
+                       f"・月亮{_sign_zh(a['moon'])}・上升{_sign_zh(a['asc'])}"),
             "compare": "",
         }
 
     h = natal_hd()
     if h:
         out["SYS_HD"] = {
-            "params": (f"本命：個性太陽閘{h['pers_gate']}.{h['pers_line']}《{h['pers_hex']}》／"
-                       f"設計太陽閘{h['design_gate']}.{h['design_line']}《{h['design_hex']}》"
+            "params": (f"本命 個性太陽閘{h['pers_gate']}.{h['pers_line']}《{h['pers_hex']}》"
+                       f"／設計太陽閘{h['design_gate']}.{h['design_line']}《{h['design_hex']}》"
                        f"→ 人生角色 {h['profile']}"),
             "compare": "",
         }
@@ -307,16 +307,17 @@ def build_natal_section(date_str):
                             hits.append((orb, f"{t_zh}{name}{n_name}（orb {orb:.1f}°）"))
             hits.sort()
             if hits:
-                out["SYS_AST"]["compare"] = "今日相位：" + "、".join(h[1] for h in hits[:2])
+                out["SYS_AST"]["compare"] = "今日相位 " + "、".join(h[1] for h in hits[:2])
 
         if h and today:
             t_gate, _ = _div.hd_gate_line(today.get("sun_lon"))
             if t_gate:
                 natal_gates = {h["pers_gate"], h["design_gate"]}
                 if t_gate in natal_gates:
-                    out["SYS_HD"]["compare"] = f"今日流日閘 {t_gate} 直接引動本命太陽閘（共鳴日）"
+                    out["SYS_HD"]["compare"] = f"今日流日閘 {t_gate} 直接引動本命太陽閘・共鳴日"
                 else:
-                    out["SYS_HD"]["compare"] = f"今日流日閘 {t_gate}，未直觸本命太陽閘（{h['pers_gate']}/{h['design_gate']}）"
+                    out["SYS_HD"]["compare"] = (f"今日流日閘 {t_gate}"
+                                            f"・未直觸本命太陽閘 {h['pers_gate']}/{h['design_gate']}")
 
         if z:
             try:
@@ -328,9 +329,9 @@ def build_natal_section(date_str):
                     palace_stars = ""
                     for pn, pv in z["palaces"].items():
                         if pv["branch"] == zw_today.get("day_branch", "") and pv["stars"]:
-                            palace_stars = f"（宮主星：{'+'.join(pv['stars'])}）"
+                            palace_stars = f"・宮主星 {'+'.join(pv['stars'])}"
                             break
-                    out["SYS_ZW"]["compare"] += f"流日對照：{spot}{palace_stars}"
+                    out["SYS_ZW"]["compare"] += f"｜流日對照 {spot}{palace_stars}"
             except Exception as exc:  # noqa: BLE001
                 log.info("zw natal compare failed: %s", exc)
 
@@ -340,7 +341,7 @@ def build_natal_section(date_str):
                 y, m, d = (int(x) for x in str(date_str).split("-"))
                 l2 = _S.fromYmd(y, m, d).getLunar()
                 tg = ten_god(b["day_master"], l2.getDayGan())
-                out["SYS_BAZI"]["compare"] = f"流日對照：今日{l2.getDayInGanZhi()}，日主見{tg}"
+                out["SYS_BAZI"]["compare"] = f"流日對照 今日{l2.getDayInGanZhi()}・日主見{tg}"
             except Exception as exc:  # noqa: BLE001
                 log.info("bazi natal compare failed: %s", exc)
 
@@ -367,24 +368,24 @@ def build_natal_section(date_str):
                                    or _ELE_CTRL.get(_TRI_ELEMENT.get(t_up, "")) == _TRI_ELEMENT.get(n_up, ""))
                    else "比和")
             out["SYS_ICHING"] = {
-                "params": f"出生日起卦（本命卦參考）：{ich['system_data_summary']}",
+                "params": f"出生日起卦・本命卦參考｜{ich['system_data_summary']}",
                 "compare": (f"今日卦與本命卦體用{rel}" if today_ich else ""),
             }
         ly = _div.liuyao_transit(birth_iso)
         if ly:
             out["SYS_LIUYAO"] = {
-                "params": f"出生日干支起卦：{ly['system_data_summary']}",
+                "params": f"出生日干支起卦｜{ly['system_data_summary']}",
                 "compare": "六爻為時卦系統，出生卦僅作背景參考",
             }
         tt = natal_tarot()
         if tt:
             names = []
             for c in tt.get("cards", [])[:3]:
-                body = c.split("：", 1)[-1]
-                name = body.split("（")[0].strip() + ("（逆）" if "逆位" in body else "（正）")
-                names.append(name)
+                head = c.split("—")[0]                     # 「位置 牌名・方位」
+                name = head.split("・")[0].split("／", 1)[-1].strip()
+                names.append(name + ("・逆" if "逆位" in c else "・正"))
             out["SYS_TAROT"] = {
-                "params": "出生日牌陣（參考）：" + "／".join(names),
+                "params": "出生日牌陣・參考 " + "／".join(names),
                 "compare": "塔羅為原型占卜系統，無本命盤；以當日牌陣為主",
             }
     except Exception as exc:  # noqa: BLE001

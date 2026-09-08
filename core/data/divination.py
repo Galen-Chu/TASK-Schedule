@@ -97,12 +97,12 @@ def bazi_transit(date_str, day_master=None):
     zhi_wu = branch_wu.get(day_zhi, "?")
     flow = "相生" if (wu in _GAN_ELEM and _generates(wu, zhi_wu)) else "平和"
     tg = ten_god(day_master, day_gan) if day_master else None
-    tg_note = (f"，流日干對日主{day_master}為【{tg}】" if tg else "")
+    tg_note = (f"・日主{day_master}見「{tg}」" if tg else "")
 
-    spotlight = f"📍 {day_gz} 流日 (日干{day_gan}{wu} / 日支{day_zhi}{zhi_wu}，{flow}){tg_note}"
-    summary = (f"當日干支：{day_gz} | 年柱：{year_gz} | 月柱：{month_gz} | "
-               f"日干{day_gan}({wu}) | 五行動能：{wu}{zhi_wu}{flow}"
-               + (f" | 十神（vs 日主{day_master}）：{tg}" if tg else ""))
+    spotlight = f"📍 {day_gz}流日・日干{day_gan}{wu}／日支{day_zhi}{zhi_wu}・{flow}{tg_note}"
+    summary = (f"當日干支 {day_gz}｜年柱 {year_gz}｜月柱 {month_gz}"
+               f"｜日干{day_gan}{wu}｜五行動能 {wu}{zhi_wu}{flow}"
+               + (f"｜十神・日主{day_master}見{tg}" if tg else ""))
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
@@ -148,9 +148,10 @@ def ziwei_transit(date_str, natal_cmd_branch=None):
     day_gan = l.getDayGan()
     palace = zw_palace_for(day_zhi, natal_cmd_branch)
     luck, power, sci, taboo = _ZW_SI_HUA.get(day_gan, ("", "", "", ""))
-    where = f"{day_zhi}宮（本命{palace}）" if natal_cmd_branch else f"{day_zhi}宮（{palace}）"
-    spotlight = f"📍 流日命宮在{where} / 流日{luck} / {taboo}提醒審慎"
-    summary = (f"流日命宮：{where} | 流日四化（{day_gan}干）：{luck}、{power}、{sci}、{taboo}")
+    where = (f"{day_zhi}宮・落本命{palace}" if natal_cmd_branch
+             else f"{day_zhi}宮・{palace}")
+    spotlight = f"📍 流日命宮{where}｜{luck}・{taboo}提醒審慎"
+    summary = (f"流日命宮 {where}｜流日四化 {day_gan}干：{luck}、{power}、{sci}、{taboo}")
     return {"spotlight": spotlight, "system_data_summary": summary,
             "day_branch": day_zhi, "day_gan": day_gan}
 
@@ -218,9 +219,9 @@ def human_design_transit(date_str):
     lon = t["sun_lon"]
     gate, line = hd_gate_line(lon)
     hex_name, theme = _GATE_INFO.get(gate, ("未知", "未知"))
-    spotlight = f"📍 流日太陽進入閘門 {gate}.{line}《{hex_name}》（{theme}）"
-    summary = (f"流日太陽閘門：{gate}（{hex_name}·{theme}）| 線：{line} | "
-               f"太陽黃經：{lon:.1f}°")
+    spotlight = f"📍 流日太陽閘門 {gate}.{line}《{hex_name}》・{theme}"
+    summary = (f"流日太陽閘門 {gate} {hex_name}・{theme}｜線 {line}"
+               f"｜太陽黃經 {lon:.1f}°")
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
@@ -303,9 +304,9 @@ def iching_transit(date_str):
     hour_zhi_idx = _BRANCHES.index(l.getTimeZhi()) + 1
     u, low, moving = mei_hua_cast(year_zhi_idx, l.getMonth(), l.getDay(), hour_zhi_idx)
     name = _hex_name_from_trigrams(u, low)
-    spotlight = f"📍 當日得《{name}》卦，動爻在 {moving}（梅花易數・年月日時起卦）"
-    summary = (f"主卦：{name}（上{_TRIGRAMS[u-1]}下{_TRIGRAMS[low-1]}）| 動爻：{moving} | "
-               f"起卦：{l.getMonth()}月{l.getDay()}日{hour_zhi_idx}時")
+    spotlight = f"📍 當日得《{name}》・動爻 {moving}・年月日時起卦"
+    summary = (f"主卦 {name}・上{_TRIGRAMS[u-1]}下{_TRIGRAMS[low-1]}｜動爻 {moving}"
+               f"｜起卦 {l.getMonth()}月{l.getDay()}日{hour_zhi_idx}時")
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
@@ -347,9 +348,9 @@ def liuyao_transit(date_str):
             meaning = _LIUYAO_POS[i][0 if yang else 1]
             is_moving = (i + 1) == moving_num
             lines.append(f"{yao_names[i]}{label}（{polarity}爻{'·動爻' if is_moving else ''}）：{meaning}")
-        spotlight = f"📍 日干支 {day_gan}{day_zhi} 起卦，得《{hex_name}》，動爻在第 {moving_num} 爻"
-        summary = (f"主卦：{hex_name}（上{upper}下{lower}）| 動爻：第{moving_num}爻 | "
-                   f"日干支：{day_gan}{day_zhi}")
+        spotlight = f"📍 日干支 {day_gan}{day_zhi} 起卦・得《{hex_name}》・動爻第 {moving_num} 爻"
+        summary = (f"主卦 {hex_name}・上{upper}下{lower}｜動爻第 {moving_num}爻"
+                   f"｜日干支 {day_gan}{day_zhi}")
         return {"spotlight": spotlight, "system_data_summary": summary,
                 "lines": lines, "moving_line": moving_num}
     except Exception as exc:
@@ -408,11 +409,12 @@ def tarot_transit(date_str):
             # 正逆位由 hash 決定
             reversed_ = bool(int(h[12 + i], 16) % 2)
             orient = "逆位" if reversed_ else "正位"
-            # 逆位時調整解讀
-            rev_hint = {"正位": "", "逆位": "（能量內化或受阻，需向內在探索）"}
-            cards.append(f"{pos}：{name}（{orient}）— {interp}{rev_hint[orient]}")
-        spotlight = f"📍 今日牌陣：{cards[0].split('：')[1][:20]} → {cards[1].split('：')[1][:20]} → {cards[2].split('：')[1][:20]}"
-        summary = " | ".join(c.split("—")[0].strip() for c in cards)
+            # 逆位時調整解讀（無括號格式：位置 牌名・方位—解讀）
+            rev_hint = {"正位": "", "逆位": "逆位提示能量內化，需向內在探索。"}
+            cards.append(f"{pos} {name}・{orient}—{interp}{rev_hint[orient]}")
+        spotlight = ("📍 今日牌陣：" + " → ".join(
+            c.split("—")[0].split("・")[0].strip() for c in cards))
+        summary = "｜".join(c.split("—")[0].strip() for c in cards)
         return {"spotlight": spotlight, "system_data_summary": summary, "cards": cards}
     except Exception as exc:
         log.warning("tarot failed: %s", exc)
@@ -453,16 +455,16 @@ def transitions(date_str):
                 if t_s and p_s and t_s != p_s:
                     out.append(f"⚡ 今日轉換：{label}由{p_s}座進入{t_s}座")
                 elif t_s and n_s and t_s != n_s:
-                    out.append(f"⚡ 明日轉換（預告）：{label}將由{t_s}座進入{n_s}座")
+                    out.append(f"⚡ 明日轉換・預告：{label}將由{t_s}座進入{n_s}座")
             t_g, _ = hd_gate_line(today.get("sun_lon"))
             p_g, _ = hd_gate_line(prev.get("sun_lon"))
             n_g, _ = hd_gate_line(nxt.get("sun_lon"))
             if t_g and p_g and t_g != p_g:
                 hex_name, theme = _GATE_INFO.get(t_g, ("", ""))
-                out.append(f"⚡ 今日轉換：人類圖太陽換入 {t_g} 號閘門《{hex_name}》（{theme}）")
+                out.append(f"⚡ 今日轉換：人類圖太陽換入 {t_g} 號閘門《{hex_name}》・{theme}")
             elif t_g and n_g and t_g != n_g:
                 hex_name, theme = _GATE_INFO.get(n_g, ("", ""))
-                out.append(f"⚡ 明日轉換（預告）：人類圖太陽將換入 {n_g} 號閘門《{hex_name}》（{theme}）")
+                out.append(f"⚡ 明日轉換・預告：人類圖太陽將換入 {n_g} 號閘門《{hex_name}》・{theme}")
         if _HAS_LUNAR:
             s = _solar_from(date_str)
             sp = _solar_from(_dstr(date_str, -1))

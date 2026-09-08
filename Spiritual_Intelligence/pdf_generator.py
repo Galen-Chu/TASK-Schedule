@@ -68,12 +68,17 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
 
     story = []
 
-    # 1. Header — 流日基準時間明示（pyswisseph/lunar_python 於報告日台北
-    #    正午計算，可重現），讓讀者知道參照時點。
+    # 1. Header — 副標兩行：首行中英併置（不用括號），次行地點＋流日基準
+    #    （pyswisseph/lunar_python 於報告日台北正午計算，可重現）。
+    sub_zh, _, sub_en = (cfg["subtitle"] or "").partition(" (")
+    sub_en = sub_en.rstrip(")")
+    line1 = f"七術 {page_num}/{page_total}　{sub_zh}"
+    if sub_en:
+        line1 += f"・{sub_en}"
     story += make_title_row(
         cfg["title"],
-        subtitle_text=(f"地點：{location}　·　七術 {page_num}/{page_total}"
-                       f"（{cfg['subtitle']}）　·　流日基準：{date_str} 12:00 台北"),
+        subtitle_text=(f"{line1}<br/>"
+                       f"地點 {location}　流日基準 {date_str} 12:00 台北"),
         date_str=date_str,
         accent_color=cfg["color_primary"],
         eyebrow_text="Spiritual Intelligence 每日覺察運勢報告",
@@ -86,7 +91,9 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
                            size=40)
     motto_text = f"<b>【意識定錨座右銘】</b> {cfg['motto']}"
     if keyword:
-        motto_text += f'<font color="#{cfg["color_primary"].hexval()[2:]}"><b>｜今日錨點：{keyword}</b></font>'
+        # 錨點獨立成行（不與金句擠同一行）
+        motto_text += (f'<br/><font color="#{cfg["color_primary"].hexval()[2:]}">'
+                       f"<b>今日錨點 {keyword}</b></font>")
     motto = Table([[emblem, Paragraph(en(motto_text), motto_st)]],
                   colWidths=[48, T.PRINTABLE_WIDTH - 48])
     motto.setStyle(TableStyle([
@@ -122,8 +129,12 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
         ]))
         story += [tcard, Spacer(1, 4)]
 
-    # 4. System parameters card
-    params = Table([[Paragraph(en(f"<b>���系統關鍵參數】</b> {cfg['system_data_summary']}"), param_st)]], colWidths=[T.PRINTABLE_WIDTH])
+    # 4. System parameters card — 標籤上色直接併置。原始碼中【位元組損毀
+    #    是 PDF 抽取成 NUL 的根因；改無括號標籤，兩問題一併解。
+    _p_hex = "#" + cfg["color_primary"].hexval()[2:]
+    params = Table([[Paragraph(en(
+        f'<font color="{_p_hex}"><b>系統關鍵參數</b></font>　{cfg["system_data_summary"]}'),
+        param_st)]], colWidths=[T.PRINTABLE_WIDTH])
     params.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), cfg["color_bg"]),
         ('BOX', (0, 0), (-1, -1), 0.5, cfg["color_secondary"]),
@@ -133,8 +144,9 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
 
     # 4b. 【個人本命對應】——大環境流日 vs 示範本命的分區對照
     if natal and (natal.get("params") or natal.get("compare")):
-        n_rows = [[Paragraph(en("<b>【個人本命對應】示範本命：Galen（1995-04-15 12:52・臺灣澎湖）</b>"),
-                             _style("NatalH", 8.5, cfg["color_primary"], 12.0))]]
+        n_rows = [[Paragraph(en(
+            f'<font color="{_p_hex}"><b>個人本命對應</b></font>　示範本命 Galen・1995-04-15 12:52・臺灣澎湖'),
+            _style("NatalH", 8.5, cfg["color_primary"], 12.0))]]
         if natal.get("params"):
             n_rows.append([Paragraph(en(natal["params"]), natal_st)])
         if natal.get("compare"):
@@ -155,10 +167,15 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     _src_label = {"AI": "AI 依流日×本命生成", "template": "編輯樣板"}.get(
         cfg.get("content_source", "template"), "編輯樣板")
     story.append(Paragraph(
-        en(f"<b>五大維度深度覺察（{_src_label}）(5-Dimensional Analysis)</b>"), heading_st))
+        en("<b>五大維度深度覺察　5-Dimensional Analysis</b>"), heading_st))
+    # 內容來源以小字標示（不塞進標題括號）
+    story.append(Paragraph(en(f"<i>{_src_label}</i>"),
+                           _style("SrcNote", 7.5, cfg["color_highlight"], 10)))
     for di, (dim_title, dim_content) in enumerate(cfg["dimensions"]):
         glyph = _DIM_GLYPHS[di % len(_DIM_GLYPHS)]
         gcol = _p_hex if di % 2 == 0 else _h_hex
+        # 維度標題去括號：「維度 A：心理狀態 (靈魂諮商師)」→「維度 A　心理狀態・靈魂諮商師」
+        dim_title = dim_title.replace("：", "　").replace(" (", "・").rstrip(")")
         card = Table(
             [[Paragraph(en(f'<font color="{gcol}"><b>{glyph}</b></font> '
                            f"<b>{dim_title}</b>"), dim_h_st)],
@@ -175,7 +192,7 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     story.append(Spacer(1, 6))
 
     # 6. Three-step guidance card
-    story.append(Paragraph(en("<b>三段式結構導引 (Structured Guidance: What / Why / So What)</b>"), heading_st))
+    story.append(Paragraph(en("<b>三段式結構導引　What・Why・So What</b>"), heading_st))
     action_str = "<br/>".join(cfg["action"])
     guidance = Table(
         [[Paragraph(en(f'<font color="{_p_hex}"><b>◎</b></font> <b>覺察觀察 (What)：</b> {cfg["what"]}'), dim_b_st)],

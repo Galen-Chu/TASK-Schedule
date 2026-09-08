@@ -90,7 +90,8 @@ def astrology_spotlight(transits):
     orb = transits["sun_mercury_orb"]
     conj = ""
     if orb is not None and orb < 3.0:
-        conj = f" / 太陽合相水星 (Orb {orb:.1f}°)"
-    spotlight = f"📍 當日天象：太陽在{sun} / 月亮在{moon}{conj}"
-    summary = f"太陽：{sun} | 月亮：{moon} | 上升：獅子座(預設) | 日水相位 Orb: {orb if orb is not None else 'N/A'}°"
+        conj = f"・太陽合相水星 Orb {orb:.1f}°"
+    spotlight = f"📍 當日天象：太陽在{sun}・月亮在{moon}{conj}"
+    summary = (f"太陽 {sun}｜月亮 {moon}｜上升 獅子座・預設"
+               f"｜日水相位 Orb {orb if orb is not None else 'N/A'}°")
     return spotlight, summary
