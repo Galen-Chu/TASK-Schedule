@@ -47,10 +47,11 @@ def _style(name, size, color, leading=None, wrap=True):
 
 
 def create_system_page(cfg, page_num, page_total, date_str, location,
-                       keyword=None, natal=None, trans=None):
+                       keyword=None, natal=None, trans=None, classic=None):
     """Build the 8-card story for one occult system.
 
     ``keyword``   — motto 當日錨點（divination.motto_keywords，與 spotlight 同源）
+    ``classic``   — 本日經典：當日大環境流日的白話註腳（≤100 字，每日一則）
     ``natal``     — {params, compare} 個人本命對照（core.data.natal）
     ``trans``     — 本系統相關的轉換點提示 list（divination.transitions）
     """
@@ -78,7 +79,7 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     story += make_title_row(
         cfg["title"],
         subtitle_text=(f"{line1}<br/>"
-                       f"地點 {location}　流日基準 {date_str} 12:00 台北"),
+                       f"流日基準 {date_str} 12:00 Taiwan・台北"),
         date_str=date_str,
         accent_color=cfg["color_primary"],
         eyebrow_text="Spiritual Intelligence 每日覺察運勢報告",
@@ -89,11 +90,14 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     from Spiritual_Intelligence.icons import system_emblem
     emblem = system_emblem(page_num - 1, cfg["color_primary"], cfg["color_highlight"],
                            size=40)
-    motto_text = f"<b>【意識定錨座右銘】</b> {cfg['motto']}"
+    _m_hex = "#" + cfg["color_primary"].hexval()[2:]
+    motto_text = (f'<font color="{_m_hex}"><b>意識流座右銘</b></font>　{cfg["motto"]}')
     if keyword:
-        # 錨點獨立成行（不與金句擠同一行）
-        motto_text += (f'<br/><font color="#{cfg["color_primary"].hexval()[2:]}">'
+        # 錨點獨立成行；本日經典＝當日大環境流日的白話註腳（≤100 字）
+        motto_text += (f'<br/><font color="{_m_hex}">'
                        f"<b>今日錨點 {keyword}</b></font>")
+        if classic:
+            motto_text += f"<br/><b>本日經典</b>　{classic}"
     motto = Table([[emblem, Paragraph(en(motto_text), motto_st)]],
                   colWidths=[48, T.PRINTABLE_WIDTH - 48])
     motto.setStyle(TableStyle([
@@ -234,7 +238,8 @@ def _relevant_transitions(system_id, all_lines):
 
 
 def generate_pdf_report(output_filename, date_str=None, location=None, systems=None,
-                       spiritual_intel=None, keywords=None, natal=None, trans=None):
+                       spiritual_intel=None, keywords=None, natal=None, trans=None,
+                       classic=None):
     """Build the 7-page Spiritual PDF (7 systems + optional spiritual news strip).
 
     ``keywords``/``natal``/``trans``：{system_id: ...} 對照 dict（scheduler
@@ -264,7 +269,8 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
             cfg, idx, page_total, date_str, location,
             keyword=keywords.get(cfg["id"]),
             natal=natal.get(cfg["id"]),
-            trans=_relevant_transitions(cfg["id"], trans)))
+            trans=_relevant_transitions(cfg["id"], trans),
+            classic=classic))
 
     # Phase 3 H1: spiritual news strip at the bottom of the last page
     if spiritual_intel:

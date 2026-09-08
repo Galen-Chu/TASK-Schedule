@@ -483,6 +483,46 @@ def transitions(date_str):
     return out
 
 
+# ---- 本日經典（大環境流日白話註腳，≤100 字） --------------------------------
+_CLASSIC_BY_FLOW = {
+    "相生": "今天的氣場像水到渠成——事情會自己找到流向，你只需要別擋路。",
+    "平和": "今天沒有強風也沒有急流，適合把心放慢，讓該成熟的事慢慢成熟。",
+}
+_CLASSIC_BY_TRIGRAM = {
+    "乾": "天行健的一天，想做的事情趁光還亮著去碰它。",
+    "坤": "承載萬物的日子，柔軟不是退讓，是讓一切穩穩落地的力量。",
+    "震": "如春雷驚蟄，變化敲門時別急著關門，它常帶著新局而來。",
+    "巽": "風行無孔不入，今天適合以柔滲透，而非硬闖。",
+    "坎": "水流過險處仍向前，遇到顛簸，記得你比你以為的更會渡河。",
+    "離": "光明依附於薪火，今天你的溫度也會照亮身邊的人。",
+    "艮": "山止靜定的日子，知道何時停，比知道何時衝更難也更重要。",
+    "兌": "澤水滋養喜悅，把話說得溫柔一點，關係就會回甘。",
+}
+
+
+def daily_classic(date_str):
+    """本日經典 fallback：以八字五行局勢＋梅花卦象組一句白話環境註腳。
+
+    與 spotlight 同源（lunar_python 干支＋當日起卦），確定性、離線可用；
+    有 Gemini 時由 llm.spiritual_daily_classic 生成，本函式為退路。
+    """
+    try:
+        b = bazi_transit(date_str) or {}
+        flow = "相生" if "相生" in b.get("spotlight", "") else "平和"
+        line = _CLASSIC_BY_FLOW.get(flow, _CLASSIC_BY_FLOW["平和"])
+        ich = iching_transit(date_str) or {}
+        summary = ich.get("system_data_summary", "")
+        tri = next((t for t in _CLASSIC_BY_TRIGRAM if f"上{t}" in summary), None)
+        if tri:
+            line += "　" + _CLASSIC_BY_TRIGRAM[tri]
+        gz = b.get("system_data_summary", "").split("｜")[0].replace("當日干支 ", "").strip()
+        out = f"{gz}・{line}"
+        return out[:100]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("daily classic failed: %s", exc)
+        return ""
+
+
 # ---- 當日關鍵詞（motto 選擇器素材） ----------------------------------------
 def motto_keywords(date_str, day_master=None):
     """每系統一句「當日關鍵詞」——全部取自各系統的當日 live 計算（與 spotlight

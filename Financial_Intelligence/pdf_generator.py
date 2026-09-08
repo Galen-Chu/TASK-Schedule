@@ -467,7 +467,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                     import datetime as _dt
                     dt = _pdt(pub)
                     _tz = _dt.timezone(_dt.timedelta(hours=8))
-                    return dt.astimezone(_tz).strftime("%m-%d %H:%M")
+                    return dt.astimezone(_tz).strftime("%Y-%m-%d")
                 except Exception:
                     pass
             return (item.get("fetched_at", "") or "")[:10] or "—"

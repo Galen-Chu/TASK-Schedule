@@ -122,6 +122,26 @@ class SpiritualReportScheduler(BaseReportScheduler):
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("natal/keywords/transitions failed: %s", exc)
 
+        # 本日經典：大環境流日的白話註腳（LLM 主、daily_classic fallback）
+        try:
+            from core import llm
+            from core.text_clean import strip_html
+            classic = divination.daily_classic(self.date_str)
+            if llm.is_available():
+                systems = (data or {}).get("systems") or {}
+                digest = "；".join(
+                    strip_html(v.get("spotlight", "")) for v in systems.values())
+                llm_line = llm.spiritual_daily_classic(
+                    digest, (data or {}).get("transitions") or [])
+                if llm_line:
+                    classic = llm_line
+                else:
+                    self.logger.warning("LLM classic missing (fallback kept)")
+            if classic:
+                data["daily_classic"] = classic
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("daily classic failed: %s", exc)
+
         # 五維度論述與三段式導引：LLM 依「流日×本命」生成（無 key / 失敗 /
         # 解析不全 → 保留編輯樣板，絕不半空渲染——2026-08-31 空回應教訓）。
         try:
@@ -195,7 +215,8 @@ class SpiritualReportScheduler(BaseReportScheduler):
             spiritual_intel=(data or {}).get("spiritual_intel"),
             keywords=(data or {}).get("motto_keywords") or {},
             natal=(data or {}).get("natal_section") or {},
-            trans=(data or {}).get("transitions") or [])
+            trans=(data or {}).get("transitions") or [],
+            classic=(data or {}).get("daily_classic"))
         return pdf_path
 
     def render_obsidian(self, data):

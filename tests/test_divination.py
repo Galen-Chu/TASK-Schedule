@@ -220,3 +220,40 @@ def test_ziwei_chart_galen_structure():
     zi = "子丑寅卯辰巳午未申酉戌亥"
     assert (zi.index(c["ziwei_branch"]) + zi.index(c["tianfu_branch"])) % 12 == 4 \
         or c["ziwei_branch"] == c["tianfu_branch"]
+
+
+# ---- 本日經典（2026-09-08 第四波） -------------------------------------------
+def test_daily_classic_fallback_shape():
+    """確定性 fallback：非空、≤100 字、含干支、白話句。"""
+    pytest.importorskip("lunar_python")
+    from core.data.divination import daily_classic
+    c = daily_classic("2026-09-08")
+    assert c and len(c) <= 100
+    assert c.startswith("乙酉")
+    assert "。" in c                     # 白話句
+
+
+def test_news_card_dates_iso(tmp_path):
+    """Financial/Global 新聞卡日期統一 YYYY-MM-DD（無時間）。"""
+    import re
+    from Global_Intelligence.pdf_generator import _fmt_time
+    it = {"published": "Mon, 07 Sep 2026 09:38:00 GMT", "fetched_at": ""}
+    d = _fmt_time(it)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", d), d
+    it2 = {"published": "", "fetched_at": "2026-09-08T07:00:00+08:00"}
+    assert _fmt_time(it2) == "2026-09-08"
+    # Financial 的 _ftime 在 generate_daily_pdf 內部——以實際渲染出的卡驗證
+    fitz = pytest.importorskip("fitz")
+    from Financial_Intelligence.pdf_generator import generate_daily_pdf
+    data = {"tw_margin_balance": None, "vix": None, "fear_and_greed": None,
+            "spread_10y2y": None, "dxy": None,
+            "market_intel": [{
+                "title": "ISO date check", "summary": "summary " * 10,
+                "source": "https://finance.yahoo.com/news/rss.xml", "link": "https://x.org",
+                "published": "Mon, 07 Sep 2026 09:38:00 GMT"}]}
+    out = str(tmp_path / "iso.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-08")
+    doc = fitz.open(out)
+    text = "".join(pg.get_text() for pg in doc)
+    doc.close()
+    assert "2026-09-07" in text and "09-07 09:38" not in text

@@ -153,20 +153,20 @@ def _fmt_time(item):
         try:
             from email.utils import parsedate_to_datetime as _pdt
             dt = _pdt(pub)
-            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+            return dt.astimezone(_TZ).strftime("%Y-%m-%d")
         except Exception:
             pass
         try:
             dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
-            return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+            return dt.astimezone(_TZ).strftime("%Y-%m-%d")
         except Exception:
             pass
     fa = item.get("fetched_at", "")
     try:
         dt = datetime.fromisoformat(fa)
-        return dt.astimezone(_TZ).strftime("%m-%d %H:%M")
+        return dt.astimezone(_TZ).strftime("%Y-%m-%d")
     except (ValueError, TypeError):
-        return (pub or "—")[:16]
+        return (fa or pub or "—")[:10]
 
 
 def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None, compact=False):

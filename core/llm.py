@@ -444,3 +444,28 @@ def spiritual_system_brief(system_title, subtitle, transit_spot, natal_params,
         "action": [fields[k] for k in ("ACTION1", "ACTION2", "ACTION3") if fields[k]],
         "harmony_note": f"系統調和與心流指引｜{fields['HARMONY']}",
     }
+
+
+def spiritual_daily_classic(transit_digest, transitions=None):
+    """本日經典：以當日大環境流日格局，寫一句白話感性的人生註腳（≤100 字）。
+
+    ``transit_digest`` = 七術 spotlight 的合併文字；回傳單句字串或 None
+    （caller 退回 divination.daily_classic 的確定性版本）。
+    """
+    if not _AVAILABLE:
+        return None
+    tr = ("今日轉換提示：" + "；".join(transitions) + "\n") if transitions else ""
+    prompt = (
+        "以下是今日「大環境流日」的技術描述（七術同源計算）：\n"
+        f"{transit_digest}\n{tr}\n"
+        "請以白話、感性、容易理解的一到兩句話，寫給一般讀者，說明今天"
+        "大環境的格局與變化給人的感受（例如節奏快慢、該衝該��、情緒基調）。"
+        "不要專業術語與卦名干支，不要括號補充，繁體中文，100 字以內，"
+        "只輸出這一句話本身。"
+    )
+    text = generate(prompt, max_tokens=1400)
+    if not text:
+        return None
+    import re as _re
+    line = _re.sub(r"\s+", " ", text.strip().strip("*_#`>~	")).strip()
+    return line[:100] if 8 <= len(line) <= 100 else None
