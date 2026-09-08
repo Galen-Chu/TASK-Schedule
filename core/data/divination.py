@@ -78,62 +78,107 @@ def _generates(a, b):
 
 
 # ---- 紫微斗數 (Ziwei) ------------------------------------------------------
-_ZW_BRANCH_PALACE = {
-    "子": "命宮", "丑": "兄弟", "寅": "夫妻", "卯": "子女", "辰": "財帛", "巳": "疾厄",
-    "午": "遷移", "未": "交友", "申": "官祿", "酉": "田宅", "戌": "福德", "亥": "父母",
+# 正統十天干四化表（中州派通行版）。2026-09-08 前為 5 列輪播的簡化表，
+# 丁幹起即錯、己~癸全數錯位。
+_ZW_SI_HUA = {
+    "甲": ("廉貞化祿", "破軍化權", "武曲化科", "太陽化忌"),
+    "乙": ("天機化祿", "天梁化權", "紫微化科", "太陰化忌"),
+    "丙": ("天同化祿", "天機化權", "文昌化科", "廉貞化忌"),
+    "丁": ("太陰化祿", "天同化權", "天機化科", "巨門化忌"),
+    "戊": ("貪狼化祿", "太陰化權", "右弼化科", "天機化忌"),
+    "己": ("武曲化祿", "貪狼化權", "天梁化科", "文曲化忌"),
+    "庚": ("太陽化祿", "武曲化權", "太陰化科", "天同化忌"),
+    "辛": ("巨門化祿", "太陽化權", "文曲化科", "文昌化忌"),
+    "壬": ("天梁化祿", "紫微化權", "左輔化科", "武曲化忌"),
+    "癸": ("破軍化祿", "巨門化權", "太陰化科", "貪狼化忌"),
 }
 
+# 十二宮依命宮逆行排列（兄弟在命宮逆行第一支）
+_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+_PALACES = ["命宮", "兄弟", "夫妻", "子女", "財帛", "疾厄", "遷移", "交友", "官祿", "田宅", "福德", "父母"]
 
-def ziwei_transit(date_str):
-    """Daily Ziwei Doushu reading (流日命宮 + 四化). Returns dict or None.
 
-    Uses the day branch to place the 流日命宮, and a fixed day-index rotation
-    for the four transformations (四化) so the reading is stable per day yet
-    varies day-to-day.
+def zw_palace_for(day_zhi, natal_cmd_branch=None):
+    """流日地支落在本命哪一宮。無本命資料時退化為固定 12 宮起命宮於子。"""
+    base = _BRANCHES.index(natal_cmd_branch) if natal_cmd_branch in _BRANCHES else 0
+    pal_idx = (base - _BRANCHES.index(day_zhi)) % 12
+    return _PALACES[pal_idx]
+
+
+def ziwei_transit(date_str, natal_cmd_branch=None):
+    """Daily Ziwei Doushu reading（流日命宮＋日干四化）.
+
+    流日命宮＝日支所在宮；有本命命宮時以本命盤十二宮對照（zw_palace_for），
+    無則以子起命宮的固定版面呈現。四化為正統日干四化。
     """
     s = _solar_from(date_str)
     if s is None:
         return None
     l = s.getLunar()
     day_zhi = l.getDayZhi()
-    palace = _ZW_BRANCH_PALACE.get(day_zhi, "命宮")
-    # Four Transformations (化祿/化權/化科/化忌) rotate by day stem index.
-    stems = "甲乙丙丁戊己庚辛壬癸"
-    idx = stems.find(l.getDayGan())
-    # Simplified, deterministic rotation across 10 stems.
-    rotations = [
-        ("廉貞化祿", "破軍化權", "武曲化科", "太陽化忌"),
-        ("天機化祿", "天梁化權", "紫微化科", "太陰化忌"),
-        ("天同化祿", "天機化權", "文昌化科", "廉貞化忌"),
-        ("太陰化祿", "太陽化權", "武曲化科", "天同化忌"),
-        ("貪狼化祿", "太陰化權", "右弼化科", "天機化忌"),
-    ]
-    luck, power, sci, taboo = rotations[idx % len(rotations)]
-    spotlight = f"📍 流日命宮在{day_zhi}宮 ({palace}) / 流日{luck} / {taboo}入命提醒審慎"
-    summary = (f"流日命宮：{day_zhi}宮({palace}) | 流日四化：{luck}、{power}、{sci}、{taboo}")
+    day_gan = l.getDayGan()
+    palace = zw_palace_for(day_zhi, natal_cmd_branch)
+    luck, power, sci, taboo = _ZW_SI_HUA.get(day_gan, ("", "", "", ""))
+    where = f"{day_zhi}宮（本命{palace}）" if natal_cmd_branch else f"{day_zhi}宮（{palace}）"
+    spotlight = f"📍 流日命宮在{where} / 流日{luck} / {taboo}提醒審慎"
+    summary = (f"流日命宮：{where} | 流日四化（{day_gan}干）：{luck}、{power}、{sci}、{taboo}")
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
-# ---- 人類圖 (Human Design) —— I Ching gate map ----------------------------
-# 64 gates ordered around the zodiac (Mandala). Each spans 5.625°.
-# Index = floor(longitude / 5.625) mod 64. Map below gives (gate, line) themes.
-_HD_GATES = [
-    "自我表達", "方向", "秩序", "滋養", "等待", "摩擦", "軍隊", "貢獻",
-    "專注", "行為", "和平", "警覺", "傾聽", "極限", "謙遜", "技能",
-    "意見", "修正", "需要", "當下", "獵人", "優雅", "分裂", "品味",
-    "重生", "累積", "滋養", "玩樂", "毅力", "情感", "影響", "持久",
-    "隱退", "隱密", "力量", "判斷", "友誼", "戰士", "阻礙", "解放",
-    "收縮", "增加", "突破", "決定", "活力", "決心", "深度", "井",
-    "革命", "宇宙", "驟變", "驚嚇", "靜止", "漸進", "豐盛", "細節",
-    "溫柔", "直覺", "混亂", "限制", "真理", "謬誤", "完成", "創造",
+# ---- 人類圖 (Human Design) —— Rave Mandala ---------------------------------
+# 真實曼陀羅：閘 41 起於寶瓶 2°（黃經 302°），每閘 5°37'30"（=5.625°），
+# 順黃經依序排列（Barney+flow / Gates-and-Zodiac-Placements 對照表驗證，
+# 2026-09-08）。閘門 N 對應易經第 N 卦（King Wen），卦名即中文名依據。
+_HD_MANDALA = [
+    41, 19, 13, 49, 30, 55, 37, 63, 22, 36, 25, 17, 21, 51, 42, 3,
+    27, 24, 2, 23, 8, 20, 16, 35, 45, 12, 15, 52, 39, 53, 62, 56,
+    31, 33, 7, 4, 29, 59, 40, 64, 47, 6, 46, 18, 48, 57, 32, 50,
+    28, 44, 1, 43, 14, 34, 9, 5, 26, 11, 10, 58, 38, 54, 61, 60,
 ]
+_HD_START_LON = 302.0      # 2° Aquarius
+
+# 閘門 → 卦名（King Wen，閘 N = 第 N 卦）＋主題詞（HD 命名脈絡）
+_GATE_INFO = {
+    1: ("乾為天", "創造表達"), 2: ("坤為地", "方向包容"), 3: ("水雷屯", "開創秩序"),
+    4: ("山水蒙", "公式啟蒙"), 5: ("水天需", "等待時機"), 6: ("天水訟", "衝突調解"),
+    7: ("地水師", "領導統御"), 8: ("水地比", "貢獻凝聚"), 9: ("風天小畜", "專注聚焦"),
+    10: ("天澤履", "自處行為"), 11: ("地天泰", "理想平衡"), 12: ("天地否", "靜止緘默"),
+    13: ("天火同人", "聆聽見證"), 14: ("火天大有", "掌握資源"), 15: ("地山謙", "謙遜"),
+    16: ("雷地豫", "熱情豫樂"), 17: ("澤雷隨", "順勢跟隨"), 18: ("山風蠱", "修正除弊"),
+    19: ("地澤臨", "需求感知"), 20: ("風地觀", "觀察當下"), 21: ("火雷噬嗑", "決斷"),
+    22: ("山火賁", "裝飾賁美"), 23: ("山地剝", "剝落放手"), 24: ("地雷復", "復始更新"),
+    25: ("天雷無妄", "無妄天真"), 26: ("山天大畜", "蓄積大能"), 27: ("山雷頤", "頤養滋養"),
+    28: ("澤風大過", "承重過載"), 29: ("坎為水", "險難習坎"), 30: ("離為火", "光明依附"),
+    31: ("澤山咸", "感應"), 32: ("雷風恆", "恆常持續"), 33: ("天山遯", "退避遯世"),
+    34: ("雷天大壯", "威力大壯"), 35: ("火地晉", "晉升前進"), 36: ("地火明夷", "晦明養晦"),
+    37: ("風火家人", "家人內治"), 38: ("火澤睽", "睽異分歧"), 39: ("水山蹇", "蹇難知止"),
+    40: ("雷水解", "解脫赦免"), 41: ("山澤損", "損減收縮"), 42: ("風雷益", "增益豐盛"),
+    43: ("澤天夬", "決斷清除"), 44: ("天風姤", "姤遇微交"), 45: ("澤地萃", "萃聚"),
+    46: ("地風升", "升進"), 47: ("澤水困", "困窘自處"), 48: ("水風井", "井源不竭"),
+    49: ("澤火革", "革變"), 50: ("火風鼎", "鼎新養賢"), 51: ("震為雷", "震動驚蟄"),
+    52: ("艮為山", "艮止安定"), 53: ("風山漸", "漸進"), 54: ("雷澤歸妹", "歸妹終始"),
+    55: ("雷火豐", "豐盛"), 56: ("火山旅", "旅居歷練"), 57: ("巽為風", "巽順滲透"),
+    58: ("兌為澤", "兌悅"), 59: ("風水渙", "渙散離聚"), 60: ("水澤節", "節制守分"),
+    61: ("風澤中孚", "中孚誠信"), 62: ("雷山小過", "小過細行"), 63: ("水火既濟", "既濟完成"),
+    64: ("火水未濟", "未濟轉化"),
+}
+
+
+def hd_gate_line(lon):
+    """黃經 → (閘門號, 線1-6)。真實曼陀羅順序（閘 41 起於寶瓶 2°）。"""
+    if lon is None:
+        return None, None
+    idx = int(((lon - _HD_START_LON) % 360) // 5.625)
+    gate = _HD_MANDALA[idx]
+    frac = ((lon - _HD_START_LON) % 360) - idx * 5.625
+    line = int(frac / 5.625 * 6) + 1
+    return gate, min(6, max(1, line))
 
 
 def human_design_transit(date_str):
     """Human Design daily Sun gate via Swiss Ephemeris. Returns dict or None.
 
-    The Sun's ecliptic longitude maps to one of 64 gates (each 5.625°); the
-    line (1-6) is the sub-division. This is a real, daily-shifting gate.
+    黃經為真值（pyswisseph）；閘門/線由真實曼陀羅表決定（閘 N = 易經 N 卦）。
     """
     if _astro is None:
         return None
@@ -141,18 +186,17 @@ def human_design_transit(date_str):
     if not t or t.get("sun_lon") is None:
         return None
     lon = t["sun_lon"]
-    gate_idx = int(lon // 5.625) % 64
-    gate_num = gate_idx + 1
-    line = int(((lon % 5.625) / 5.625) * 6) + 1
-    theme = _HD_GATES[gate_idx]
-    spotlight = f"📍 流日太陽進入 {gate_num} 號閘門 (動爻 {line}.{line}，主題：{theme})"
-    summary = (f"流日太陽閘門：{gate_num}（{theme}）| 當日動爻：{line} | "
+    gate, line = hd_gate_line(lon)
+    hex_name, theme = _GATE_INFO.get(gate, ("未知", "未知"))
+    spotlight = f"📍 流日太陽進入閘門 {gate}.{line}《{hex_name}》（{theme}）"
+    summary = (f"流日太陽閘門：{gate}（{hex_name}·{theme}）| 線：{line} | "
                f"太陽黃經：{lon:.1f}°")
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
 # ---- 梅花易數 (I Ching / Mei Hua) -----------------------------------------
-_TRIGRAMS = ["乾", "兌", "離", "震", "巽", "坎", "艮", "坤"]  # 0-7 by value
+_TRIGRAMS = ["乾", "兌", "離", "震", "巽", "坎", "艮", "坤"]  # index = 先天卦數-1
+_TRI_BITS = ["111", "110", "101", "100", "011", "010", "001", "000"]
 _HEX_NAMES = {
     "111111": "乾為天", "011111": "澤天夬", "101111": "火天大有", "001111": "雷天大壯",
     "110111": "風天小畜", "100111": "水天需", "010111": "山天大畜", "000111": "地天泰",
@@ -173,64 +217,83 @@ _HEX_NAMES = {
 }
 
 
-def _upper_from(date_str):
-    """Upper trigram from solar longitude (Mei Hua: time → trigram)."""
-    if _astro is None:
-        return 0
-    t = _astro.compute_transits(date_str)
-    lon = (t or {}).get("sun_lon", 0) or 0
-    return int(lon // 45) % 8
+# (上卦, 下卦) -> 卦名——結構化 King Wen 八八方陣（與 _GATE_INFO 閘門卦名
+# 全數交叉一致）。舊的位元串鍵 _HEX_NAMES 與上下卦組成本來就對不上（卦名
+# 與宣稱的上下卦互相矛盾），2026-09-08 改為顯式表，不再經位元轉換。
+_HEX_BY_PAIR = {
+    ("乾", "乾"): "乾為天", ("乾", "兌"): "天澤履", ("乾", "離"): "天火同人",
+    ("乾", "震"): "天雷無妄", ("乾", "巽"): "天風姤", ("乾", "坎"): "天水訟",
+    ("乾", "艮"): "天山遯", ("乾", "坤"): "天地否",
+    ("兌", "乾"): "澤天夬", ("兌", "兌"): "兌為澤", ("兌", "離"): "澤火革",
+    ("兌", "震"): "澤雷隨", ("兌", "巽"): "澤風大過", ("兌", "坎"): "澤水困",
+    ("兌", "艮"): "澤山咸", ("兌", "坤"): "澤地萃",
+    ("離", "乾"): "火天大有", ("離", "兌"): "火澤睽", ("離", "離"): "離為火",
+    ("離", "震"): "火雷噬嗑", ("離", "巽"): "火風鼎", ("離", "坎"): "火水未濟",
+    ("離", "艮"): "火山旅", ("離", "坤"): "火地晉",
+    ("震", "乾"): "雷天大壯", ("震", "兌"): "雷澤歸妹", ("震", "離"): "雷火豐",
+    ("震", "震"): "震為雷", ("震", "巽"): "雷風恆", ("震", "坎"): "雷水解",
+    ("震", "艮"): "雷山小過", ("震", "坤"): "雷地豫",
+    ("巽", "乾"): "風天小畜", ("巽", "兌"): "風澤中孚", ("巽", "離"): "風火家人",
+    ("巽", "震"): "風雷益", ("巽", "巽"): "巽為風", ("巽", "坎"): "風水渙",
+    ("巽", "艮"): "風山漸", ("巽", "坤"): "風地觀",
+    ("坎", "乾"): "水天需", ("坎", "兌"): "水澤節", ("坎", "離"): "水火既濟",
+    ("坎", "震"): "水雷屯", ("坎", "巽"): "水風井", ("坎", "坎"): "坎為水",
+    ("坎", "艮"): "水山蹇", ("坎", "坤"): "水地比",
+    ("艮", "乾"): "山天大畜", ("艮", "兌"): "山澤損", ("艮", "離"): "山火賁",
+    ("艮", "震"): "山雷頤", ("艮", "巽"): "山風蠱", ("艮", "坎"): "山水蒙",
+    ("艮", "艮"): "艮為山", ("艮", "坤"): "山地剝",
+    ("坤", "乾"): "地天泰", ("坤", "兌"): "地澤臨", ("坤", "離"): "地火明夷",
+    ("坤", "震"): "地雷復", ("坤", "巽"): "地風升", ("坤", "坎"): "地水師",
+    ("坤", "艮"): "地山謙", ("坤", "坤"): "坤為地",
+}
 
 
-def _lower_from(date_str):
-    """Lower trigram from day-of-year parity (stable, deterministic)."""
-    try:
-        y, m, d = (int(x) for x in str(date_str).split("-"))
-        doy = datetime.date(y, m, d).timetuple().tm_yday
-        return (doy + int(str(doy)[-1])) % 8
-    except Exception:  # noqa: BLE001
-        return 0
+def _hex_name_from_trigrams(upper_num, lower_num):
+    """卦名＝（上卦, 下卦）查表；輸入為先天卦數 1-8（乾兌離震巽坎艮坤）。"""
+    return _HEX_BY_PAIR.get((_TRIGRAMS[upper_num - 1], _TRIGRAMS[lower_num - 1]),
+                            "未知卦")
+
+
+def mei_hua_cast(year_zhi_idx, lunar_month, lunar_day, hour_zhi_idx):
+    """正統梅花易數「年月日時起卦」：農曆年支數＋月＋日 除 8 餘為上卦，
+    加時支數除 8 餘為下卦，總和除 6 餘為動爻（餘 0 取 8/6）。"""
+    u = (year_zhi_idx + lunar_month + lunar_day) % 8 or 8
+    low = (year_zhi_idx + lunar_month + lunar_day + hour_zhi_idx) % 8 or 8
+    moving = (year_zhi_idx + lunar_month + lunar_day + hour_zhi_idx) % 6 or 6
+    return u, low, moving
 
 
 def iching_transit(date_str):
-    """Daily I-Ching hexagram (Mei Hua). Returns dict or None.
-
-    Upper trigram from the Sun's longitude band, lower from the day index;
-    a changing line from the sub-position within the band. Purely
-    deterministic so a given day always yields the same hexagram.
-    """
-    u = _upper_from(date_str)
-    low = _lower_from(date_str)
-    # build binary string upper(3)+lower(3), yang=1 yin=0 using trigram bit patterns
-    tri_bits = ["111", "110", "101", "100", "011", "010", "001", "000"]  # by _TRIGRAMS index
-    upper_bits = tri_bits[u]
-    lower_bits = tri_bits[low]
-    glyph = upper_bits + lower_bits
-    name = _HEX_NAMES.get(glyph, "未知卦")
-    # changing line (1-6) from longitude fraction
-    if _astro is not None:
-        lon = (_astro.compute_transits(date_str) or {}).get("sun_lon", 0) or 0
-        moving = int((lon % 30) / 5) + 1
-    else:
-        moving = 1
-    spotlight = f"📍 當日得《{name}》卦，動爻在 {moving}（梅花易數起卦）"
-    summary = (f"主卦：{name}（上{_TRIGRAMS[u]}下{_TRIGRAMS[low]}）| 動爻：{moving} | "
-               f"體用：{_TRIGRAMS[u]}與{_TRIGRAMS[low]}")
+    """Daily I-Ching hexagram — 正統梅花易數年月日時起卦（農曆）。"""
+    s = _solar_from(date_str)
+    if s is None:
+        return None
+    l = s.getLunar()
+    year_zhi_idx = _BRANCHES.index(l.getYearZhi()) + 1
+    hour_zhi_idx = _BRANCHES.index(l.getTimeZhi()) + 1
+    u, low, moving = mei_hua_cast(year_zhi_idx, l.getMonth(), l.getDay(), hour_zhi_idx)
+    name = _hex_name_from_trigrams(u, low)
+    spotlight = f"📍 當日得《{name}》卦，動爻在 {moving}（梅花易數・年月日時起卦）"
+    summary = (f"主卦：{name}（上{_TRIGRAMS[u-1]}下{_TRIGRAMS[low-1]}）| 動爻：{moving} | "
+               f"起卦：{l.getMonth()}月{l.getDay()}日{hour_zhi_idx}時")
     return {"spotlight": spotlight, "system_data_summary": summary}
 
 
 # ---- 易經六爻 (Liu Yao / Six Lines divination) ------------------------------
-_LIUYAO_LINES = {
-    "初九": ("陽", "潛龍勿用，蓄勢待發"), "初六": ("陰", "陰凝於下，慎始為宜"),
-    "九二": ("陽", "見龍在田，利見大人"), "六二": ("陰", "直方大，不習無不利"),
-    "九三": ("陽", "君子終日乾乾，夕惕若厲"), "六三": ("陰", "含章可貞，或從王事"),
-    "九四": ("陽", "或躍在淵，進無咎也"), "六四": ("陰", "括囊，無咎無譽"),
-    "九五": ("陽", "飛龍在天，利見大人"), "六五": ("陰", "黃裳元吉，居中得正"),
-    "上九": ("陽", "亢龍有悔，盈不可久"), "上六": ("陰", "龍戰於野，其道窮也"),
+# 爻位通用釋義（初/二/三/四/五/上 × 陰陽質性）。2026-09-08 前直接借用乾/坤
+# 二卦的爻辭（潛龍勿用、亢龍有悔…）套用到任何卦——方法論錯置，已改為
+# 不指涉特定卦的爻位通則。
+_LIUYAO_POS = {
+    0: ("潛藏待時，醞釀先行", "靜觀其變，慎始為宜"),
+    1: ("嶄露頭角，穩健推進", "含蓄持中，借力使力"),
+    2: ("勤奮警惕，調整節奏", "含章不顯，等待時機"),
+    3: ("躍升前夕，進退有據", "謹言慎行，整備資源"),
+    4: ("當權主導，利見大人", "柔中得正，以和為貴"),
+    5: ("盈滿思退，防範過亢", "陰極思變，靜待轉機"),
 }
 
 def liuyao_transit(date_str):
-    """易經六爻：以日干支起卦，得六爻卦象。Returns dict or None."""
+    """易經六爻：以日干支起卦（干定上卦、支定下卦、干支和定動爻）。"""
     if not _HAS_LUNAR:
         return None
     try:
@@ -239,30 +302,24 @@ def liuyao_transit(date_str):
         day_gan = lunar.getDayGan()   # 日干
         day_zhi = lunar.getDayZhi()   # 日支
         gan_num = "甲乙丙丁戊己庚辛壬癸".index(day_gan) + 1  # 1-10
-        zhi_num = "子丑寅卯辰巳午未申酉戌亥".index(day_zhi) + 1  # 1-12
-        # 六爻由日干支數值決定：干定上卦、支定下卦、干支和定動爻
-        upper_num = (gan_num % 8) or 8  # 1-8 對應八卦
+        zhi_num = _BRANCHES.index(day_zhi) + 1               # 1-12
+        upper_num = (gan_num % 8) or 8
         lower_num = (zhi_num % 8) or 8
-        moving_num = ((gan_num + zhi_num) % 6) or 6  # 1-6 動爻
-        # 八卦編號：1乾2兌3離4震5巽6坎7艮8坤
-        bagua = {1:"乾",2:"兌",3:"離",4:"震",5:"巽",6:"坎",7:"艮",8:"坤"}
-        upper = bagua[upper_num]
-        lower = bagua[lower_num]
-        hex_name = f"{upper}上{lower}下"
+        moving_num = ((gan_num + zhi_num) % 6) or 6
+        upper, lower = _TRIGRAMS[upper_num - 1], _TRIGRAMS[lower_num - 1]
+        hex_name = _hex_name_from_trigrams(upper_num, lower_num)
         yao_names = ["初", "二", "三", "四", "五", "上"]
         lines = []
         for i in range(6):
-            yin_yang = "六" if (lower_num + i) % 2 == 0 else "九"
-            if i < 3:  # 下卦
-                trigram = lower
-            else:      # 上卦
-                trigram = upper
-            yao_label = f"{yao_names[i]}{yin_yang}"
-            meaning = _LIUYAO_LINES.get(yao_label, ("—", "—"))[1]
+            yang = ((lower_num if i < 3 else upper_num) + i) % 2 == 1
+            polarity = "陽" if yang else "陰"
+            label = "九" if yang else "六"
+            meaning = _LIUYAO_POS[i][0 if yang else 1]
             is_moving = (i + 1) == moving_num
-            lines.append(f"{yao_label}（{trigram}卦{'·動爻' if is_moving else ''}）：{meaning}")
-        spotlight = f"📍 日干支 {day_gan}{day_zhi} 起卦，得「{hex_name}」，動爻在第 {moving_num} 爻"
-        summary = f"主卦：{hex_name}（上{upper}下{lower}）| 動爻：第{moving_num}爻 | 日干支：{day_gan}{day_zhi}"
+            lines.append(f"{yao_names[i]}{label}（{polarity}爻{'·動爻' if is_moving else ''}）：{meaning}")
+        spotlight = f"📍 日干支 {day_gan}{day_zhi} 起卦，得《{hex_name}》，動爻在第 {moving_num} 爻"
+        summary = (f"主卦：{hex_name}（上{upper}下{lower}）| 動爻：第{moving_num}爻 | "
+                   f"日干支：{day_gan}{day_zhi}")
         return {"spotlight": spotlight, "system_data_summary": summary,
                 "lines": lines, "moving_line": moving_num}
     except Exception as exc:
@@ -332,12 +389,120 @@ def tarot_transit(date_str):
         return None
 
 
-# ---- aggregate -------------------------------------------------------------
-def all_transits(date_str):
-    """Return {system_id: {spotlight, system_data_summary}} for all 5 systems.
+# ---- 轉換點偵測 (transition points) -----------------------------------------
+def _dstr(date_str, delta):
+    import datetime as _dt
+    d = _dt.date.fromisoformat(str(date_str)) + _dt.timedelta(days=delta)
+    return d.isoformat()
 
-    Western astrology comes from core.data.astro; the other four from here.
-    Entries that fail to compute are simply omitted (caller keeps sample).
+
+def _sign_of(lon):
+    if lon is None:
+        return None
+    from core.data.astro import _SIGNS_ZH as _SIGNS
+    return _SIGNS[int(lon // 30) % 12]
+
+
+def transitions(date_str):
+    """跨日轉換點偵測：比較 date±1 的各系統狀態。回傳中文提示 list（空=無）。
+
+    涵蓋有連續天文/曆法意義者：行星換座（太陽/月亮/水星）、人類圖換閘、
+    八字換月柱（節氣交換）。紫微流日四化逐日輪替、梅花/六爻/塔羅為逐日
+    起卦（無跨日連續性概念），不在此列。
+    """
+    out = []
+    try:
+        if _astro is not None and _astro._HAS_SWISSEPH:
+            today = _astro.compute_transits(date_str) or {}
+            prev = _astro.compute_transits(_dstr(date_str, -1)) or {}
+            nxt = _astro.compute_transits(_dstr(date_str, 1)) or {}
+            for label, lon_key in (("太陽", "sun_lon"), ("月亮", "moon_lon"),
+                                   ("水星", "mercury_lon")):
+                t_s, p_s, n_s = (_sign_of(today.get(lon_key)), _sign_of(prev.get(lon_key)),
+                                 _sign_of(nxt.get(lon_key)))
+                if t_s and p_s and t_s != p_s:
+                    out.append(f"⚡ 今日轉換：{label}由{p_s}座進入{t_s}座")
+                elif t_s and n_s and t_s != n_s:
+                    out.append(f"⚡ 明日轉換（預告）：{label}將由{t_s}座進入{n_s}座")
+            t_g, _ = hd_gate_line(today.get("sun_lon"))
+            p_g, _ = hd_gate_line(prev.get("sun_lon"))
+            n_g, _ = hd_gate_line(nxt.get("sun_lon"))
+            if t_g and p_g and t_g != p_g:
+                hex_name, theme = _GATE_INFO.get(t_g, ("", ""))
+                out.append(f"⚡ 今日轉換：人類圖太陽換入 {t_g} 號閘門《{hex_name}》（{theme}）")
+            elif t_g and n_g and t_g != n_g:
+                hex_name, theme = _GATE_INFO.get(n_g, ("", ""))
+                out.append(f"⚡ 明日轉換（預告）：人類圖太陽將換入 {n_g} 號閘門《{hex_name}》（{theme}）")
+        if _HAS_LUNAR:
+            s = _solar_from(date_str)
+            sp = _solar_from(_dstr(date_str, -1))
+            if s is not None and sp is not None:
+                m_now = s.getLunar().getMonthInGanZhi()
+                m_prev = sp.getLunar().getMonthInGanZhi()
+                if m_now != m_prev:
+                    try:
+                        jq = s.getLunar().getPrevJieQi()
+                        jieqi = jq.getName() if hasattr(jq, "getName") else str(jq)
+                    except Exception:  # noqa: BLE001
+                        jieqi = "節氣"
+                    out.append(f"⚡ 今日轉換：交{jieqi}，月柱由{m_prev}轉{m_now}")
+    except Exception as exc:  # noqa: BLE001 — 轉換偵測不得影響報告產出
+        log.warning("transitions failed: %s", exc)
+    return out
+
+
+# ---- 當日關鍵詞（motto 選擇器素材） ----------------------------------------
+def motto_keywords(date_str):
+    """每系統一句「當日關鍵詞」——全部取自各系統的當日 live 計算（與 spotlight
+    同源：pyswisseph 黃經 / lunar_python 干支農曆 / 日期 hash 塔羅），資料流
+    單一可追溯，不引入外部資料。回傳 {system_id: keyword}。
+    """
+    out = {}
+    try:
+        if _astro is not None:
+            t = _astro.compute_transits(date_str)
+            if t:
+                out["SYS_AST"] = f"日行{t['sun_sign_zh']}·月行{t['moon_sign_zh']}"
+                gate, line = hd_gate_line(t.get("sun_lon"))
+                if gate:
+                    hex_name, theme = _GATE_INFO.get(gate, ("", ""))
+                    out["SYS_HD"] = f"閘{gate}.{line}《{hex_name}》·{theme}"
+        if _HAS_LUNAR:
+            s = _solar_from(date_str)
+            if s is not None:
+                l = s.getLunar()
+                day_gz = l.getDayInGanZhi()
+                wu = _wuxing(l.getDayGan())
+                out["SYS_BAZI"] = f"{day_gz}流日·日干{wu}"
+                palace = zw_palace_for(l.getDayZhi())
+                luck, _, _, _ = _ZW_SI_HUA.get(l.getDayGan(), ("", "", "", ""))
+                out["SYS_ZW"] = f"流日命宮{palace}·{luck}"
+                u, low, moving = mei_hua_cast(
+                    _BRANCHES.index(l.getYearZhi()) + 1, l.getMonth(), l.getDay(),
+                    _BRANCHES.index(l.getTimeZhi()) + 1)
+                out["SYS_ICHING"] = f"《{_hex_name_from_trigrams(u, low)}》動{moving}爻"
+                gan_num = "甲乙丙丁戊己庚辛壬癸".index(l.getDayGan()) + 1
+                zhi_num = _BRANCHES.index(l.getDayZhi()) + 1
+                un, ln = (gan_num % 8) or 8, (zhi_num % 8) or 8
+                out["SYS_LIUYAO"] = (f"《{_hex_name_from_trigrams(un, ln)}》"
+                                     f"第{(gan_num + zhi_num) % 6 or 6}爻動")
+        to = tarot_transit(date_str)
+        if to and to.get("cards"):
+            now_card = to["cards"][1].split("：", 1)[-1].split("（")[0].strip()
+            out["SYS_TAROT"] = f"現在牌·{now_card}"
+    except Exception as exc:  # noqa: BLE001
+        log.warning("motto keywords failed: %s", exc)
+    return out
+
+
+# ---- aggregate -------------------------------------------------------------
+def all_transits(date_str, natal_cmd_branch=None):
+    """Return {system_id: {spotlight, system_data_summary}} for all systems.
+
+    Western astrology comes from core.data.astro; the others from here.
+    ``natal_cmd_branch``（本命紫微命宮地支）傳入時，流日命宮以本命十二宮
+    對照呈現。Entries that fail to compute are simply omitted (caller keeps
+    sample).
     """
     out = {}
     if _astro is not None:
@@ -352,10 +517,12 @@ def all_transits(date_str):
     if to:
         out["SYS_TAROT"] = to
     for sid, fn in [("SYS_HD", human_design_transit),
-                    ("SYS_ZW", ziwei_transit),
                     ("SYS_BAZI", bazi_transit),
                     ("SYS_ICHING", iching_transit)]:
         r = fn(date_str)
         if r:
             out[sid] = r
+    zw = ziwei_transit(date_str, natal_cmd_branch)
+    if zw:
+        out["SYS_ZW"] = zw
     return out
