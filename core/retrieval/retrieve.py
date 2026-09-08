@@ -32,7 +32,37 @@ def _parse_dt(s):
         return None
 
 
+def _pub_dt(s):
+    """Parse an item's ``published`` stamp (RFC822 for RSS, ISO for Atom).
+
+    Returns an aware datetime (naive stamps assumed Taipei) or None. Used for
+    aging/filtering: an item's true publish date, not when we happened to
+    fetch it, decides whether it is news (2026-09-08 audit — the whole corpus
+    aged on fetched_at, so week-old articles kept ranking as fresh).
+    """
+    s = (s or "").strip()
+    if not s:
+        return None
+    from email.utils import parsedate_to_datetime
+    try:
+        d = parsedate_to_datetime(s)
+    except (ValueError, TypeError, IndexError):
+        d = None
+    if d is None:
+        try:
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=_TZ)
+    return d
+
+
 def _age_days(it, now):
+    """Age in days by publish date when the item carries one, else fetched_at."""
+    pd = _pub_dt(it.get("published", ""))
+    if pd is not None:
+        return max(0, (now - pd).days)
     fa = _parse_dt(it.get("fetched_at", ""))
     if fa is None:
         return 0

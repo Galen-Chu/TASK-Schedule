@@ -147,3 +147,44 @@ def test_trending_keywords_shape_and_digit_filter(tmp_path):
     assert out[0]["keyword"] == "quantum"
     assert out[0]["this_week"] >= 3 and out[0]["change"] > 0
     assert all(not k["keyword"].isdigit() for k in out), "pure-number keywords leaked"
+
+
+# ---- published-based aging (2026-09-08 ①修復) --------------------------------
+def _rfc822(days_ago):
+    from email.utils import format_datetime
+    return format_datetime(datetime.now(_TZ) - timedelta(days=days_ago))
+
+
+def test_retrieve_ages_on_published_not_fetched(tmp_path):
+    """Selection window keys on the item's publish date when present: a
+    week-old article fetched today must NOT count as fresh, and a fresh
+    article sitting in an old-fetched corpus slot must still qualify."""
+    store = CorpusStore(str(tmp_path / "c.jsonl"))
+    store.add([
+        {"title": "Old story freshly fetched", "link": "1", "summary": "quantum",
+         "domain_tag": "it_ai", "fetched_at": _iso(0), "published": _rfc822(10)},
+        {"title": "Fresh story stale fetch slot", "link": "2", "summary": "quantum",
+         "domain_tag": "it_ai", "fetched_at": _iso(0), "published": _rfc822(1)},
+    ])
+    got = retrieve(store, query="quantum", domain="it_ai", days=7)
+    titles = [it["title"] for it in got]
+    assert "Fresh story stale fetch slot" in titles
+    assert "Old story freshly fetched" not in titles
+
+
+def test_retrieve_falls_back_to_fetched_when_no_published(tmp_path):
+    """Legacy corpus rows (published="") keep the fetched_at semantics."""
+    store = CorpusStore(str(tmp_path / "c.jsonl"))
+    store.add([{"title": "Legacy row", "link": "1", "summary": "quantum",
+                "domain_tag": "it_ai", "fetched_at": _iso(3), "published": ""}])
+    assert len(retrieve(store, query="quantum", domain="it_ai", days=7)) == 1
+    assert retrieve(store, query="quantum", domain="it_ai", days=1) == []
+
+
+def test_pub_dt_parses_rfc822_and_iso():
+    from core.retrieval.retrieve import _pub_dt
+    d = _pub_dt("Mon, 07 Sep 2026 09:00:00 GMT")
+    assert d is not None and d.year == 2026 and d.month == 9
+    d2 = _pub_dt("2026-09-07T09:00:00Z")
+    assert d2 is not None and d2.year == 2026
+    assert _pub_dt("") is None and _pub_dt("not a date") is None

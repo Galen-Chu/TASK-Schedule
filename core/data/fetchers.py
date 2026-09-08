@@ -63,6 +63,23 @@ def fetch_twse_margin(date_str):
             "total_margin_balance": margin, "total_short_balance": short}
 
 
+def _feed_items(feed, limit):
+    """Map feedparser entries to plain dicts. Exposed for tests.
+
+    ``published`` is the item's real publish date (RFC822 ``published`` or
+    ``updated`` for Atom feeds) — the retrieval layer ages/filters on it.
+    Losing it (2026-09-08 audit: the corpus had 0/1483 items with published)
+    made every card display our fetched_at stamp instead, and up-to-7-day-old
+    items kept qualifying as "fresh".
+    """
+    return [
+        {"title": e.get("title", ""), "link": e.get("link", ""),
+         "summary": e.get("summary", ""),
+         "published": e.get("published") or e.get("updated") or ""}
+        for e in feed.entries[:limit]
+    ]
+
+
 def fetch_rss_items(url, limit=6):
     """剖析 RSS/Atom feed（需要 feedparser）。回傳 list 或 []。"""
     try:
@@ -72,10 +89,7 @@ def fetch_rss_items(url, limit=6):
         return []
     try:
         feed = feedparser.parse(url)
-        return [
-            {"title": e.get("title", ""), "link": e.get("link", ""), "summary": e.get("summary", "")}
-            for e in feed.entries[:limit]
-        ]
+        return _feed_items(feed, limit)
     except Exception as exc:  # noqa: BLE001
         log.info("RSS 解析失敗 (%s)：%s", url, exc)
         return []

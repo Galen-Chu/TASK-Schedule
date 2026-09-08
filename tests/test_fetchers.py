@@ -86,3 +86,23 @@ def test_fetchers_return_none_on_bad_input():
     """Garbage in -> None out (never raises)."""
     assert fetchers.fetch_yahoo_quote("TOTALLY_BOGUS_$$$") is None
     assert fetchers.fetch_json("https://example.invalid/url") is None
+
+
+# ---- RSS published stamp (2026-09-08 ①修復：發布時間必須帶進語料) ------------
+def test_feed_items_carries_published():
+    """feedparser entries expose published (RSS) / updated (Atom); the dict
+    must carry it through — the corpus had 0/1483 items with published, so
+    selection and card display both fell back to our fetched_at stamp."""
+    import pytest
+    feedparser = pytest.importorskip("feedparser")
+    xml = """<?xml version="1.0"?>
+    <rss version="2.0"><channel><title>t</title>
+      <item><title>One</title><link>http://x/1</link>
+        <description>d1</description><pubDate>Mon, 07 Sep 2026 09:00:00 GMT</pubDate></item>
+      <item><title>Two</title><link>http://x/2</link>
+        <description>d2</description></item>
+    </channel></rss>"""
+    items = fetchers._feed_items(feedparser.parse(xml), limit=4)
+    assert items[0]["published"].startswith("Mon, 07 Sep 2026")
+    assert items[1]["published"] == ""          # no pubDate → empty, not crash
+    assert items[0]["title"] == "One"
