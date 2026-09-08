@@ -57,15 +57,15 @@ def main(staged_only=False):
         for line_no, preview in scan_file(f):
             bad.append(f"{f}:{line_no}: {preview}")
     if bad:
-        print("ENCODING GUARD FAILED — 發現 U+FFFD 替換字元（傳輸損毀亂碼）：",
-              file=sys.stderr)
+        print("ENCODING GUARD FAILED - U+FFFD replacement chars found "
+              "(transmission corruption):", file=sys.stderr)
         for b in bad:
             print("  " + b, file=sys.stderr)
-        print("請修復上列字元後再提交（重寫該行即可，語意不變）。",
-              file=sys.stderr)
+        print("Fix the listed lines before committing (rewrite the line, "
+              "same meaning).", file=sys.stderr)
         return 1
     mode = "staged" if staged_only else "tracked"
-    print(f"encoding guard: OK（掃描 {mode} 檔案，零 U+FFFD）")
+    print(f"encoding guard: OK ({mode} files scanned, 0 U+FFFD)")
     return 0
 
 
