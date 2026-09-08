@@ -7,6 +7,23 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 
 ## 當前狀態（2026-09-08 更新）
 
+- 2026-09-08 第二波（晚）：
+  * **紫微本命全盤**——`natal.ziwei_chart()` 十四主星全盤（五行局算術法、
+    安紫微訣借數奇退偶進、天府寅申軸鏡像、紫微系逆行/天府系順行；規則
+    以 iztro 安星訣＋福山堂例題交叉驗證，Galen 盤=土5局命宮丙戌〔巨門〕、
+    紫貪同宮酉/武破同宮巳）。本命對照卡顯示全盤＋流日落宮主星。
+  * **五維度論述＋三段式改 LLM 生成**——`llm.spiritual_system_brief()`
+    依「流日×本命」逐系統生成（max_tokens=2400；缺欄位→整頁保留樣板，
+    標題「AI 依流日×本命生成」vs「編輯樣板」分明）；7 呼叫/日仍在額度內。
+  * **TAIFEX 期貨 OI 結論**——官方頁 futContractsDate 表單由 JS 動態構建
+    （僅 pstring token），opendata API 不存在、data.gov.tw 無直接 CSV：
+    keyless 抓取不可行，futures_net_oi 維持 None/待補（誠實呈現）；要補
+    需瀏覽器級抓取，屬後續評估。
+  * **feed 替換**——IEEE Spectrum 半導體 feed（7-12 天一篇）→
+    EE Times（每日、純半導體）＋ Semiconductor Engineering（產業深度）；
+    權重 1.2。TrendForce/鉅亨 RSS 不可達。
+  * CI「產生兩次」虛驚：dispatch 補跑（#91）被 4 分鐘後的 push（#92）
+    cancel-in-progress 取消，殘留 249KB 半成品 artifact（14 天自動過期）。
 - 原路線圖 A~H+E 全數完成（檢索層 Phase 1-3、NFP、跨域摘要 G、方案 C 分頁、
   P1 新聞多樣化、P5 六商品+走勢圖、七術向量圖示、交易判斷橫幅）。
 - 2026-09-08 內容誠實化五件套：
