@@ -178,3 +178,45 @@ def test_motto_keyword_bazi_includes_ten_god():
     from core.data.divination import motto_keywords
     kw = motto_keywords("2026-09-08", day_master="丙")
     assert kw["SYS_BAZI"] == "乙酉流日·正印日"
+
+
+# ---- 紫微全盤十四主星（2026-09-08 第二波） -----------------------------------
+def test_wu_xing_jv_arithmetic_matches_nayin():
+    """五行局算術法 vs 納音法等價（iztro 三例＋甲子）。"""
+    from core.data.natal import wu_xing_jv
+    assert wu_xing_jv("丙", "子")[1] == 2     # 水二局
+    assert wu_xing_jv("辛", "未")[1] == 5     # 土五局
+    assert wu_xing_jv("庚", "申")[1] == 3     # 木三局
+    assert wu_xing_jv("甲", "子")[1] == 4     # 金四局（海中金）
+
+
+def test_an_zi_wei_day1_and_classical_examples():
+    """局一落宮口訣（水丑/木辰/金亥/土午/火酉）＋福山堂例題（27日木三局→戌）。"""
+    from core.data.natal import an_zi_wei
+    assert an_zi_wei(1, 2) == 1    # 水二局初一→丑
+    assert an_zi_wei(1, 3) == 4    # 木三局初一→辰
+    assert an_zi_wei(1, 4) == 11   # 金四局初一→亥
+    assert an_zi_wei(1, 5) == 6    # 土五局初一→午
+    assert an_zi_wei(1, 6) == 9    # 火六局初一→酉
+    assert an_zi_wei(27, 3) == 10  # 木三局27日→戌
+    assert an_zi_wei(13, 6) == 11  # 火六局13日→亥
+
+
+def test_ziwei_chart_galen_structure():
+    """Galen 盤：土五局、命宮丙戌〔巨門〕、紫微在酉（紫貪同宮）、武破同宮巳。"""
+    from core.data.natal import ziwei_chart
+    c = ziwei_chart()
+    if c is None:
+        pytest.skip("lunar engine unavailable")
+    assert c["ju"] == "土5局" and c["cmd_gan_zhi"] == "丙戌"
+    assert c["cmd_stars"] == ["巨門"]
+    assert c["palaces"]["兄弟"]["stars"] == ["紫微", "貪狼"]
+    assert c["palaces"]["疾厄"]["stars"] == ["武曲", "破軍"]
+    assert c["palaces"]["田宅"]["stars"] == ["廉貞", "七殺"]
+    # 十四主星全數入盤
+    all_stars = [s for pv in c["palaces"].values() for s in pv["stars"]]
+    assert len(all_stars) == 14 and len(set(all_stars)) == 14
+    # 天府＝紫微寅申軸鏡像：mirror(idx)=(4-idx)%12 → 兩支和 mod 12 == 4（寅申同宮除外）
+    zi = "子丑寅卯辰巳午未申酉戌亥"
+    assert (zi.index(c["ziwei_branch"]) + zi.index(c["tianfu_branch"])) % 12 == 4 \
+        or c["ziwei_branch"] == c["tianfu_branch"]

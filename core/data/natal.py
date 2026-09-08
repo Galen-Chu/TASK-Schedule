@@ -72,20 +72,91 @@ def natal_bazi():
         return None
 
 
-def natal_ziwei():
-    """本命命宮（寅起正月順數至生月，自生月宮起子時逆數至生時）＋年干四化。"""
+# ---- 紫微安星（iztro 安星訣；規則互相交叉驗證過，見測試） -------------------
+_WU_HU = {"甲": "丙", "己": "丙", "乙": "戊", "庚": "戊", "丙": "庚",
+          "辛": "庚", "丁": "壬", "壬": "壬", "戊": "甲", "癸": "甲"}  # 五虎遁（年起寅干）
+_JV_STEM_NUM = {"甲": 1, "乙": 1, "丙": 2, "丁": 2, "戊": 3, "己": 3,
+                "庚": 4, "辛": 4, "壬": 5, "癸": 5}
+_JV_BRANCH_NUM = {"子": 1, "午": 1, "丑": 1, "未": 1,
+                  "寅": 2, "申": 2, "卯": 2, "酉": 2,
+                  "辰": 3, "戌": 3, "巳": 3, "亥": 3}
+_JU_ELEM = {1: ("木", 3), 2: ("金", 4), 3: ("水", 2), 4: ("火", 6), 5: ("土", 5)}
+_ZIWEI_PALACES = ["命宮", "兄弟", "夫妻", "子女", "財帛", "疾厄",
+                  "遷移", "交友", "官祿", "田宅", "福德", "父母"]   # 命宮起逆行
+
+
+def wu_xing_jv(gan, zhi):
+    """五行局（算術法：干數+支數，>5 減 5；1木3 2金4 3水2 4火6 5土5）。
+    與六十甲子納音法等價（甲子→金四局等已交叉驗證）。"""
+    n = _JV_STEM_NUM[gan] + _JV_BRANCH_NUM[zhi]
+    if n > 5:
+        n -= 5
+    elem, jv = _JU_ELEM[n]
+    return f"{elem}{jv}局", jv
+
+
+def an_zi_wei(day, jv):
+    """安紫微星（iztro 訣）：日÷局得商餘；整除→寅起順數商宮；不整除→借數
+    （局-餘）後商+1 為基準宮，借數奇退偶進。回傳地支 index（子0..亥11）。"""
+    q, r = divmod(day, jv)
+    if r == 0:
+        return (2 + (q - 1)) % 12
+    borrow = jv - r
+    base = (2 + q) % 12            # 商+1 宮（寅起數，寅=2）
+    return (base - borrow) % 12 if borrow % 2 == 1 else (base + borrow) % 12
+
+
+def ziwei_chart(gan_zhi_day=None):
+    """十四主星全盤。回傳 {"palaces": {宮名: {"branch", "stars"}},
+    "ziwei_branch", "tianfu_branch", "cmd_stars", ...}。閏月依 lunar_python
+    月序直接入式（閏月視同該月，學派簡化，已註明）。"""
     try:
         l = _lunar()
         month, hour_idx = l.getMonth(), _ZHIS.find(l.getTimeZhi())
-        cmd_idx = (2 + (month - 1) - hour_idx) % 12       # 寅 = index 2
-        body_idx = (2 + (month - 1) + hour_idx) % 12      # 身宮
+        cmd_idx = (2 + (month - 1) - hour_idx) % 12
+        body_idx = (2 + (month - 1) + hour_idx) % 12
+        # 命宮干（五虎遁：年干定寅干，順數至命宮支）
+        yin_gan_idx = "甲乙丙丁戊己庚辛壬癸".index(_WU_HU[l.getYearGan()])
+        cmd_gan = "甲乙丙丁戊己庚辛壬癸"[(yin_gan_idx + (cmd_idx - 2)) % 10]
+        ju_name, jv = wu_xing_jv(cmd_gan, _ZHIS[cmd_idx])
+        zw_idx = an_zi_wei(l.getDay(), jv)
+        tf_idx = (4 - zw_idx) % 12                        # 天府＝寅申軸鏡像
+        stars = {}
+        for name, off in (("紫微", 0), ("天機", -1), ("太陽", -3),
+                          ("武曲", -4), ("天同", -5), ("廉貞", -8)):
+            stars.setdefault((zw_idx + off) % 12, []).append(name)
+        for name, off in (("天府", 0), ("太陰", 1), ("貪狼", 2), ("巨門", 3),
+                          ("天相", 4), ("天梁", 5), ("七殺", 6), ("破軍", 10)):
+            stars.setdefault((tf_idx + off) % 12, []).append(name)
+        palaces = {}
+        for i, pname in enumerate(_ZIWEI_PALACES):
+            br = (cmd_idx - i) % 12
+            palaces[pname] = {"branch": _ZHIS[br],
+                              "stars": stars.get(br, []),
+                              "is_body": br == body_idx}
+        return {"ju": ju_name, "cmd_branch": _ZHIS[cmd_idx],
+                "cmd_gan_zhi": f"{cmd_gan}{_ZHIS[cmd_idx]}",
+                "body_branch": _ZHIS[body_idx],
+                "ziwei_branch": _ZHIS[zw_idx], "tianfu_branch": _ZHIS[tf_idx],
+                "cmd_stars": palaces["命宮"]["stars"], "palaces": palaces}
+    except Exception as exc:  # noqa: BLE001
+        log.info("ziwei chart failed: %s", exc)
+        return None
+
+
+def natal_ziwei():
+    """本命紫微：命宮/身宮、五行局、十四主星全盤、年干四化。"""
+    try:
+        l = _lunar()
+        chart = ziwei_chart()
+        if chart is None:
+            return None
         from core.data.divination import _ZW_SI_HUA
         luck, power, sci, taboo = _ZW_SI_HUA.get(l.getYearGan(), ("",) * 4)
-        return {"cmd_branch": _ZHIS[cmd_idx],
-                "body_branch": _ZHIS[body_idx],
-                "year_gan": l.getYearGan(),
-                "si_hua": f"{luck}、{power}、{sci}、{taboo}",
-                "note": "（簡化對照：命宮/身宮/年干四化，未排全盤主星）"}
+        out = dict(chart)
+        out["year_gan"] = l.getYearGan()
+        out["si_hua"] = f"{luck}、{power}、{sci}、{taboo}"
+        return out
     except Exception as exc:  # noqa: BLE001
         log.info("natal ziwei failed: %s", exc)
         return None
@@ -182,11 +253,16 @@ def build_natal_section(date_str):
 
     z = natal_ziwei()
     if z:
-        out.setdefault("SYS_ZW", {})  # 八字/紫微共用出生資料，此處補紫微欄位
+        cmd_stars = "+".join(z["cmd_stars"]) if z["cmd_stars"] else "無主星（借對宮）"
+        # 全盤一行摘要：宮(支)主星，只列有星的宮
+        full = "・".join(
+            f"{pn}({pv['branch']}){'+'.join(pv['stars'])}"
+            for pn, pv in z["palaces"].items() if pv["stars"])
         out["SYS_ZW"] = {
-            "params": (f"本命：命宮在{z['cmd_branch']}、身宮在{z['body_branch']}・"
-                       f"{z['year_gan']}干四化：{z['si_hua']}{z['note']}"),
-            "compare": "",
+            "params": (f"本命：{z['ju']}，命宮{z['cmd_gan_zhi']}〔{cmd_stars}〕、"
+                       f"身宮在{z['body_branch']}・{z['year_gan']}干四化：{z['si_hua']}"),
+            "compare": (f"全盤：{full}（身宮同命宮）" if z["body_branch"] == z["cmd_branch"]
+                        else f"全盤：{full}"),
         }
 
     a = natal_astro()
@@ -247,7 +323,14 @@ def build_natal_section(date_str):
                 from core.data.divination import ziwei_transit
                 zw_today = ziwei_transit(date_str, natal_cmd_branch=z["cmd_branch"])
                 if zw_today:
-                    out["SYS_ZW"]["compare"] = zw_today["spotlight"].replace("📍 ", "流日對照：")
+                    spot = zw_today["spotlight"].replace("📍 ", "")
+                    # 流日命宮落宮提示 + 落宮的本命主星
+                    palace_stars = ""
+                    for pn, pv in z["palaces"].items():
+                        if pv["branch"] == zw_today.get("day_branch", "") and pv["stars"]:
+                            palace_stars = f"（宮主星：{'+'.join(pv['stars'])}）"
+                            break
+                    out["SYS_ZW"]["compare"] += f"流日對照：{spot}{palace_stars}"
             except Exception as exc:  # noqa: BLE001
                 log.info("zw natal compare failed: %s", exc)
 

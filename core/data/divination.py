@@ -151,7 +151,8 @@ def ziwei_transit(date_str, natal_cmd_branch=None):
     where = f"{day_zhi}宮（本命{palace}）" if natal_cmd_branch else f"{day_zhi}宮（{palace}）"
     spotlight = f"📍 流日命宮在{where} / 流日{luck} / {taboo}提醒審慎"
     summary = (f"流日命宮：{where} | 流日四化（{day_gan}干）：{luck}、{power}、{sci}、{taboo}")
-    return {"spotlight": spotlight, "system_data_summary": summary}
+    return {"spotlight": spotlight, "system_data_summary": summary,
+            "day_branch": day_zhi, "day_gan": day_gan}
 
 
 # ---- 人類圖 (Human Design) —— Rave Mandala ---------------------------------
