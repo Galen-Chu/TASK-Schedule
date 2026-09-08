@@ -20,7 +20,8 @@ if _REPO_ROOT not in sys.path:
 
 from core.scheduler_base import BaseReportScheduler
 from core.data.fetchers import (
-    fetch_twse_margin, fetch_market_snapshot, fetch_treasury_yields, fetch_fear_greed,
+    fetch_twse_margin, fetch_twse_institutional, fetch_market_snapshot,
+    fetch_treasury_yields, fetch_fear_greed,
 )
 from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve

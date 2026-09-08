@@ -808,7 +808,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
-        "資料：TWSE MI_MARGN・T86��Yahoo Finance｜籌碼數據截至前一交易日",
+        "資料：TWSE MI_MARGN・T86・Yahoo Finance｜籌碼數據截至前一交易日",
         date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
 
     # 台股/美股專題表：當前數據欄一律即時值或「待補」，判讀欄由數值區間
@@ -1004,7 +1004,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     natgas = _g(data, "natgas", None)
     wti = _g(data, "wti", None)
     def _band(price, lo_pct, hi_pct, dec=0):
-        """技術支撐/壓力��間 — 依現價動態推導（取代過時的靜態模板水位）。"""
+        """技術支撐/壓力區間 — 依現價動態推導（取代過時的靜態模板水位）。"""
         if price is None:
             return "待補"
         return f"支撐: ${price * (1 - lo_pct):,.{dec}f} / 壓力: ${price * (1 + hi_pct):,.{dec}f}"
@@ -1016,7 +1016,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             ["白銀 (Silver)", _px_live(data, "silver", "${:,.2f}", " / oz"), _band(silver, 0.08, 0.08, 2), "🟡 工業需求（太陽能/電子）與避險雙引擎，波動大於黃金"],
             ["銅 (Copper)", _px_live(data, "copper", "${:,.2f}", " / lb"), _band(copper, 0.08, 0.08, 2), "🟢 全球電網與 AI 數據中心用銅需求強勁，庫存偏低"],
             ["紐約原油 (WTI)", _px_live(data, "wti", "${:,.1f}", " / bbl"), _band(wti, 0.08, 0.08, 1), "🟢 供需大致平衡，未出現引發二次通膨之暴漲風險"],
-            ["天��氣 (NatGas)", _px_live(data, "natgas", "${:,.2f}", " / MMBtu"), _band(natgas, 0.15, 0.15, 2), "🟡 季節性需求波動大，LNG 出口產能持續擴張"],
+            ["天然氣 (NatGas)", _px_live(data, "natgas", "${:,.2f}", " / MMBtu"), _band(natgas, 0.15, 0.15, 2), "🟡 季節性需求波動大，LNG 出口產能持續擴張"],
             ["比特幣 (BTC)", _px_live(data, "btc", "${:,.0f}"), _band(btc, 0.12, 0.12), "🟢 永續合約資費歸零、多頭高槓桿清理完畢，呈現健康築底"],
         ],
         header_bg=COLOR_CRYPTO, grid_color=colors.HexColor('#EEF0F4'), styles=s,
