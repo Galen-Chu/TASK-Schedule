@@ -114,7 +114,8 @@ _AUTHORITY = {
     "spacenews.com": 1.3,
     "arstechnica.com": 1.2,
     "aviationweek.com": 1.2,
-    "spectrum.ieee.org": 1.2,
+    "www.eetimes.com": 1.2,
+    "semiengineering.com": 1.2,
     "www.sciencedaily.com": 1.1,
     "electrek.co": 1.0,
     # Tier 3: Tech blogs / regional (good but less authoritative)

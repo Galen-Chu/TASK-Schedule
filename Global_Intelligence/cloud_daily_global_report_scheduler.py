@@ -39,7 +39,10 @@ SAMPLE_FEEDS = [
     # 生技 / 醫療
     "https://www.sciencedaily.com/rss/health_medicine.xml",
     # 硬體 / 半導體 / 能源
-    "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
+    # 2026-09-08：IEEE Spectrum 半導體 feed 本身 7-12 天才一篇（時效評估失敗），
+    # 換成 EE Times（每日、純半導體）＋ Semiconductor Engineering（產業深度）。
+    "https://www.eetimes.com/feed/",
+    "https://semiengineering.com/feed/",
     "https://electrek.co/feed/",
     # 航空太空與量子科技
     "https://www.nasa.gov/news-release/feed/",
