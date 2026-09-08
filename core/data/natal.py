@@ -25,7 +25,6 @@ BIRTH_HOUR_UTC = 4 + 52 / 60        # 12:52 台北 = 04:52 UT
 BIRTH_PLACE = "臺灣澎湖"
 BIRTH_LAT, BIRTH_LON = 23.5654, 119.5863   # 馬公
 
-_GANS = "甲乙丙丁戊己庚辛壬癸"
 _ZHIS = "子丑寅卯辰巳午未申酉戌亥"
 _TRI_ELEMENT = {"乾": "金", "兌": "金", "離": "火", "震": "木",
                 "巽": "木", "坎": "水", "艮": "土", "坤": "土"}
@@ -53,23 +52,8 @@ def _lon_at(jd, planet):
     return swe.calc_ut(jd, planet)[0][0]
 
 
-# ---- 十神（八字） -------------------------------------------------------------
-def ten_god(day_master, other):
-    """日主 vs 他干的十神。五行×陰陽 → 十神標準表。"""
-    el = lambda g: "木火土金水"[_GANS.find(g) // 2]
-    pol = lambda g: _GANS.find(g) % 2        # 0 陽 1 陰
-    me, ot = el(day_master), el(other)
-    if me == ot:
-        return "比肩" if pol(day_master) == pol(other) else "劫財"
-    if _ELE_GEN.get(me) == ot:
-        return "食神" if pol(day_master) == pol(other) else "傷官"
-    if _ELE_GEN.get(ot) == me:
-        return "偏印" if pol(day_master) == pol(other) else "正印"
-    if _ELE_CTRL.get(me) == ot:
-        return "偏財" if pol(day_master) == pol(other) else "正財"
-    if _ELE_CTRL.get(ot) == me:
-        return "七殺" if pol(day_master) == pol(other) else "正官"
-    return "?"
+# ---- 十神（八字）——實作移至 divination（流日層亦需使用） -------------
+from core.data.divination import ten_god  # noqa: F401  (re-export)
 
 
 # ---- 各系統本命參數 -----------------------------------------------------------

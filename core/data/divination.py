@@ -48,8 +48,40 @@ def _wuxing(gan):
     return "?"
 
 
-def bazi_transit(date_str):
-    """Daily Bazi (Gan-Zhi) reading via lunar_python. Returns dict or None."""
+_GAN_ELEM = "木火土金水"          # 甲乙木 丙丁火 戊己土 庚辛金 壬癸水
+_ELEM_GEN = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
+_ELEM_CTRL = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
+
+
+def _generates(a, b):
+    return _ELEM_GEN.get(a) == b
+
+
+def ten_god(day_master, other):
+    """十神：日主 vs 他干（五行×陰陽標準表）。八字分析的核心對照系統。"""
+    elem = lambda g: _GAN_ELEM["甲乙丙丁戊己庚辛壬癸".find(g) // 2]
+    polar = lambda g: "甲乙丙丁戊己庚辛壬癸".find(g) % 2     # 0 陽 1 陰
+    me, ot, same_pol = elem(day_master), elem(other), polar(day_master) == polar(other)
+    if me == ot:
+        return "比肩" if same_pol else "劫財"
+    if _ELEM_GEN.get(me) == ot:                    # 我生
+        return "食神" if same_pol else "傷官"
+    if _ELEM_GEN.get(ot) == me:                    # 生我
+        return "偏印" if same_pol else "正印"
+    if _ELEM_CTRL.get(me) == ot:                   # 我剋
+        return "偏財" if same_pol else "正財"
+    if _ELEM_CTRL.get(ot) == me:                   # 剋我
+        return "七殺" if same_pol else "正官"
+    return "?"
+
+
+def bazi_transit(date_str, day_master=None):
+    """Daily Bazi (Gan-Zhi) reading via lunar_python. Returns dict or None.
+
+    ``day_master``（本命日主，如示範本命「丙」）傳入時，流日干支以十神對照
+    呈現——十神是四柱八字最核心的對照系統，流日通用觀點即以「流日干 vs
+    日主」的十神定調當日課題。無日主時退回純五行生剋說明。
+    """
     s = _solar_from(date_str)
     if s is None:
         return None
@@ -60,21 +92,18 @@ def bazi_transit(date_str):
     year_gz = l.getYearInGanZhi()
     month_gz = l.getMonthInGanZhi()
     wu = _wuxing(day_gan)
-    # crude element-flow reading: day stem element + day branch element
     branch_wu = {"子": "水", "丑": "土", "寅": "木", "卯": "木", "辰": "土", "巳": "火",
                  "午": "火", "未": "土", "申": "金", "酉": "金", "戌": "土", "亥": "水"}
     zhi_wu = branch_wu.get(day_zhi, "?")
-    flow = "相生" if (wu in "木火土金水" and _generates(wu, zhi_wu)) else "平和"
+    flow = "相生" if (wu in _GAN_ELEM and _generates(wu, zhi_wu)) else "平和"
+    tg = ten_god(day_master, day_gan) if day_master else None
+    tg_note = (f"，流日干對日主{day_master}為【{tg}】" if tg else "")
 
-    spotlight = f"📍 {day_gz} 流日 (日干{day_gan}{wu} / 日支{day_zhi}{zhi_wu}，{flow})"
+    spotlight = f"📍 {day_gz} 流日 (日干{day_gan}{wu} / 日支{day_zhi}{zhi_wu}，{flow}){tg_note}"
     summary = (f"當日干支：{day_gz} | 年柱：{year_gz} | 月柱：{month_gz} | "
-               f"日干{day_gan}({wu}) | 五行動能：{wu}{zhi_wu}{flow}")
+               f"日干{day_gan}({wu}) | 五行動能：{wu}{zhi_wu}{flow}"
+               + (f" | 十神（vs 日主{day_master}）：{tg}" if tg else ""))
     return {"spotlight": spotlight, "system_data_summary": summary}
-
-
-def _generates(a, b):
-    gen = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
-    return gen.get(a) == b
 
 
 # ---- 紫微斗數 (Ziwei) ------------------------------------------------------
@@ -452,7 +481,7 @@ def transitions(date_str):
 
 
 # ---- 當日關鍵詞（motto 選擇器素材） ----------------------------------------
-def motto_keywords(date_str):
+def motto_keywords(date_str, day_master=None):
     """每系統一句「當日關鍵詞」——全部取自各系統的當日 live 計算（與 spotlight
     同源：pyswisseph 黃經 / lunar_python 干支農曆 / 日期 hash 塔羅），資料流
     單一可追溯，不引入外部資料。回傳 {system_id: keyword}。
@@ -473,7 +502,8 @@ def motto_keywords(date_str):
                 l = s.getLunar()
                 day_gz = l.getDayInGanZhi()
                 wu = _wuxing(l.getDayGan())
-                out["SYS_BAZI"] = f"{day_gz}流日·日干{wu}"
+                tg = ten_god(day_master, l.getDayGan()) if day_master else None
+                out["SYS_BAZI"] = (f"{day_gz}流日·{tg}日" if tg else f"{day_gz}流日·日干{wu}")
                 palace = zw_palace_for(l.getDayZhi())
                 luck, _, _, _ = _ZW_SI_HUA.get(l.getDayGan(), ("", "", "", ""))
                 out["SYS_ZW"] = f"流日命宮{palace}·{luck}"
@@ -496,7 +526,7 @@ def motto_keywords(date_str):
 
 
 # ---- aggregate -------------------------------------------------------------
-def all_transits(date_str, natal_cmd_branch=None):
+def all_transits(date_str, natal_cmd_branch=None, day_master=None):
     """Return {system_id: {spotlight, system_data_summary}} for all systems.
 
     Western astrology comes from core.data.astro; the others from here.
@@ -516,8 +546,10 @@ def all_transits(date_str, natal_cmd_branch=None):
     to = tarot_transit(date_str)
     if to:
         out["SYS_TAROT"] = to
+    bz = bazi_transit(date_str, day_master)
+    if bz:
+        out["SYS_BAZI"] = bz
     for sid, fn in [("SYS_HD", human_design_transit),
-                    ("SYS_BAZI", bazi_transit),
                     ("SYS_ICHING", iching_transit)]:
         r = fn(date_str)
         if r:

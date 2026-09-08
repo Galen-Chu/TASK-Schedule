@@ -147,3 +147,34 @@ def test_natal_section_none_safe():
     assert isinstance(ns, dict) and ns
     for v in ns.values():
         assert set(v) == {"params", "compare"}
+
+
+# ---- 十神對照（2026-09-08 用戶建議：流日帶入十神解析） -----------------------
+def test_ten_god_standard_table():
+    """五行×陰陽十神標準表抽樣驗證（日主丙）。"""
+    from core.data.divination import ten_god
+    assert ten_god("丙", "丙") == "比肩"    # 同我同性
+    assert ten_god("丙", "丁") == "劫財"    # 同我異性
+    assert ten_god("丙", "乙") == "正印"    # 生我異性（乙木生丙火）
+    assert ten_god("丙", "甲") == "偏印"    # 生我同性
+    assert ten_god("丙", "戊") == "食神"    # 我生同性
+    assert ten_god("丙", "己") == "傷官"    # 我生異性
+    assert ten_god("丙", "庚") == "偏財"    # 我剋同性（丙火剋庚金）
+    assert ten_god("丙", "辛") == "正財"    # 我剋異性
+    assert ten_god("丙", "壬") == "七殺"    # 剋我同性（壬水剋丙火）
+    assert ten_god("丙", "癸") == "正官"    # 剋我異性
+
+
+def test_bazi_transit_ten_god_with_day_master():
+    pytest.importorskip("lunar_python")
+    from core.data.divination import bazi_transit
+    r = bazi_transit("2026-09-08", day_master="丙")     # 乙酉日
+    assert "正印" in r["spotlight"] and "十神" in r["system_data_summary"]
+    plain = bazi_transit("2026-09-08")
+    assert "十神" not in plain["system_data_summary"]
+
+
+def test_motto_keyword_bazi_includes_ten_god():
+    from core.data.divination import motto_keywords
+    kw = motto_keywords("2026-09-08", day_master="丙")
+    assert kw["SYS_BAZI"] == "乙酉流日·正印日"

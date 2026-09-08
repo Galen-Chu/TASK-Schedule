@@ -87,8 +87,11 @@ class SpiritualReportScheduler(BaseReportScheduler):
         from core.data import natal as _natal
         natal_zw = _natal.natal_ziwei() or {}
         natal_cmd = natal_zw.get("cmd_branch")
+        natal_bz = _natal.natal_bazi() or {}
+        day_master = natal_bz.get("day_master")      # 示範本命日主（十神對照用）
 
-        transits = divination.all_transits(self.date_str, natal_cmd_branch=natal_cmd)
+        transits = divination.all_transits(self.date_str, natal_cmd_branch=natal_cmd,
+                                           day_master=day_master)
         if not transits:
             return None
         natal_astro = _natal.natal_astro() or {}
@@ -112,7 +115,8 @@ class SpiritualReportScheduler(BaseReportScheduler):
         # 當日關鍵詞（與 spotlight 同源）＋示範本命對照＋轉換點偵測——皆 None-safe
         try:
             from core.data import natal as _natal
-            data["motto_keywords"] = divination.motto_keywords(self.date_str)
+            dm = (_natal.natal_bazi() or {}).get("day_master")
+            data["motto_keywords"] = divination.motto_keywords(self.date_str, day_master=dm)
             data["natal_section"] = _natal.build_natal_section(self.date_str)
             data["transitions"] = divination.transitions(self.date_str)
         except Exception as exc:  # noqa: BLE001
