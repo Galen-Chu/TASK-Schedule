@@ -2,7 +2,10 @@
 """Global Intelligence — PDF report generator (7-page A4, dynamic cards).
 
 P1: Trend overview (domain heat table + bar chart + trending keywords + AI digest)
-P2-P7: One domain per page, 6 dynamic topic cards each.
+P2-P7: One domain per page. Card capacity adapts to the AI layer: 8 cards when
+the Gemini GIVEN/WHEN/THEN briefs parse (richer, ~74pt/card), 12 slimmed
+plain-summary cards when they don't (~46pt/card; title/summary clipped harder
+to stay ≤2 body lines) — breadth compensates for the lost structure.
 
 Cards pull live from the retrieval corpus; editorial fallback fills gaps.
 """
@@ -169,15 +172,17 @@ def _fmt_time(item):
         return (fa or pub or "—")[:10]
 
 
-def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None, compact=False):
-    """Topic card with optional compact mode (8/page)."""
+def _topic_card(org, focus, when, body_flowables, ramp, styles, url=None,
+                compact=False, slim=False):
+    """Topic card with optional compact mode (8/page) and slim mode (12/page
+    fallback: tighter leading/padding so twelve cards + the source note fit)."""
     base = colors.HexColor(ramp[2])
     tint = colors.HexColor(ramp[0])
     dark = colors.HexColor(ramp[3])
 
-    body_size = 7.8 if compact else 8.0
-    body_lead = 9.6 if compact else 10.0
-    pad_v = 1.5 if compact else 2
+    body_size = 7.3 if slim else (7.8 if compact else 8.0)
+    body_lead = 8.9 if slim else (9.6 if compact else 10.0)
+    pad_v = 1.0 if slim else (1.5 if compact else 2)
 
     meta_st = ParagraphStyle("gmeta", fontName=FONT_CJK, fontSize=7.5,
                              leading=9, textColor=T.TEXT_MUTED, alignment=2)
@@ -247,15 +252,20 @@ def _gwt_body(gwt, ramp, limit=52):
     return rows
 
 
-def _rss_card(item, ramp, styles, gwt=None, compact=False):
-    """Dynamic RSS card; a parsed Gemini brief shows as GIVEN/WHEN/THEN rows."""
+def _rss_card(item, ramp, styles, gwt=None, compact=False, slim=False):
+    """Dynamic RSS card; a parsed Gemini brief shows as GIVEN/WHEN/THEN rows.
+
+    ``slim`` (12-per-page fallback layout) clips title/summary harder so the
+    body stays within two wrapped lines and twelve cards fit the page.
+    """
     org_display = _source_display(item.get("source", ""))
-    focus = strip_html(item.get("title", ""))[:80]
+    focus = strip_html(item.get("title", ""))[:55 if slim else 80]
     when = _fmt_time(item)
-    summary = strip_html(item.get("summary", ""))[:200] or focus
+    summary = strip_html(item.get("summary", ""))[:120 if slim else 200] or focus
     link = item.get("link", "")
     body = _gwt_body(gwt, ramp) or [summary]
-    return _topic_card(org_display, focus, when, body, ramp, styles, url=link, compact=compact)
+    return _topic_card(org_display, focus, when, body, ramp, styles, url=link,
+                       compact=compact, slim=slim)
 
 
 def _bar_chart(data, ramp_map, styles, max_val=None):
@@ -447,7 +457,8 @@ def build_global_pdf(filename, data=None, date_str=None):
 
         live_items = retrieval_data.get(domain_tag, [])
 
-        # LLM GIVEN/WHEN/THEN briefs (one batched call per page)
+        # LLM GIVEN/WHEN/THEN briefs (one batched call per page). Only the first
+        # 8 topics go to the model — briefs only render on the 8-card layout.
         dynamic_tp = None
         if use_llm and live_items:
             topics_for_llm = [
@@ -462,23 +473,30 @@ def build_global_pdf(filename, data=None, date_str=None):
                 n_ok = sum(1 for x in dynamic_tp if x)
                 print(f"GWT[{domain_tag}] {n_ok}/{len(topics_for_llm)} cards parsed")
 
+        # No AI briefs (no key / API failure / unparsed reply) -> plain cards
+        # are ~46pt vs ~74pt with G-W-T rows, so the page swaps depth for
+        # breadth and carries 12 slimmed cards instead of 8.
+        capacity = 8 if dynamic_tp is not None else 12
+        slim = capacity > 8
+        gap = 1.2 if slim else 2
         cards_shown = 0
-        for i, item in enumerate(live_items[:8]):
+        for i, item in enumerate(live_items[:capacity]):
             tp = dynamic_tp[i] if dynamic_tp and i < len(dynamic_tp) else None
-            story.append(_rss_card(item, ramp, s, gwt=tp, compact=True))
-            story.append(Spacer(1, 2))
+            story.append(_rss_card(item, ramp, s, gwt=tp, compact=True, slim=slim))
+            story.append(Spacer(1, gap))
             cards_shown += 1
 
-        if cards_shown < 8:
+        if cards_shown < capacity:
             fallback = EDITORIAL_FALLBACK.get(domain_tag, [])
-            for org, focus, when, analysis in fallback[:8 - cards_shown]:
-                story.append(_topic_card(org, focus, when, [analysis], ramp, s, compact=True))
-                story.append(Spacer(1, 2))
+            for org, focus, when, analysis in fallback[:capacity - cards_shown]:
+                story.append(_topic_card(org, focus, when, [analysis], ramp, s,
+                                         compact=True, slim=slim))
+                story.append(Spacer(1, gap))
                 cards_shown += 1
 
-        n_live = min(len(live_items), 8)
+        n_live = min(len(live_items), capacity)
         src_note = (f"📡 {n_live} 則即時 RSS" +
-                    (f" + {8 - n_live} 則編輯精選" if n_live < 8 else "")) if live_items else "📚 編輯精選"
+                    (f" + {capacity - n_live} 則編輯精選" if n_live < capacity else "")) if live_items else "📚 編輯精選"
         story.append(Spacer(1, 3))
         story.append(Paragraph(en(f"<i>{src_note}</i>"),
                                ParagraphStyle("gsrcnote", fontName=FONT_CJK, fontSize=7.5,

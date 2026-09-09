@@ -182,3 +182,42 @@ def test_global_with_maxlen_gwt_fits_and_labels_visible(tmp_path, monkeypatch):
     assert dom_text.count("GIVEN 前提") == 8     # 8 live cards on P2
     assert dom_text.count("THEN 影響") == 8
     assert "GIVEN" in dom_text and "WHEN 事件" in dom_text
+
+
+def test_global_fallback_twelve_cards_still_7_pages(tmp_path, monkeypatch):
+    """Fallback mode: no AI briefs (no key / API failure / unparsed reply).
+
+    The domain pages then swap depth for breadth — 12 slimmed plain-summary
+    cards (title clipped to 55, summary to 120, 1.5pt gaps) instead of 8
+    G-W-T cards. Worst case here: full-length CJK titles and summaries on
+    every card, which must still fit one page each (7 pages total) and carry
+    no G-W-T rows. Guards the 2026-09-09 capacity change.
+    """
+    import re
+    from Global_Intelligence import pdf_generator as g
+    monkeypatch.setattr(g.llm, "summarize_topics_given_when_then",
+                        lambda *a, **k: None)
+
+    long_title = "台積電擴大先進製程與封裝資本支出上修全年指引反映AI需求結構性成長態勢明確" * 2
+    long_summary = "全球雲端服務商持續上修AI伺服器採購帶動先進製程產能吃緊，管理層重申需求結構性" \
+                   "成長並調升目標價，外資法人解讀為正面訊號，供應鏈營收動能可望延續。" * 2
+    out = str(tmp_path / "g.pdf")
+    data = {"editorial": True,
+            "retrieval": {d[0]: [{"fetched_at": "2026-09-09T07:00:00+08:00",
+                                  "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+                                  "title": long_title,
+                                  "summary": long_summary,
+                                  "link": "https://x.org"}] * 12
+                          for d in g.DOMAINS}}
+    g.build_global_pdf(out, data=data, date_str="2026-09-09")
+    raw = open(out, "rb").read()
+    pages = len(re.findall(rb"/Type\s*/Page[^s]", raw))
+    assert pages == 7, f"Global overflowed to {pages} pages with 12 fallback cards"
+
+    fitz = pytest.importorskip("pymupdf")   # local-only invariant; CI skips
+    doc = fitz.open(out)
+    dom_text = doc[1].get_text()
+    assert "GIVEN 前提" not in dom_text            # no AI briefs on the page
+    assert dom_text.count("BBC") == 12             # 12 live cards on P2
+    assert "12 則即時 RSS" in dom_text
+    assert "編輯精選" not in dom_text               # corpus filled all 12 slots
