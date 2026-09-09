@@ -5,8 +5,20 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-09-08 更新）
+## 當前狀態（2026-09-09 更新）
 
+- 2026-09-09（LLM 營運事件＋Global 容量自適應）：
+  * **Gemini 預付額度用罄**（run #98 起全部 429 RESOURCE_EXHAUSTED
+    「prepayment credits depleted」）→ 三報告 LLM 全退樣板、embedding 退
+    BM25，CI 仍綠；待至 AI Studio 儲值/換 key。期間 Global CI 產物即為
+    fallback-12 版面，可直接驗收。
+  * `_DEFAULT_MODEL` gemini-2.5-flash（已被 Google 404 退役）→
+    **gemini-3.6-flash**；探測鏈挑到活模型時不影響，僅最後退路換成活的。
+  * **Global 域頁容量自適應**：GWT 論述解析成功→8 張深度卡（不變）；
+    LLM 無法產出（無 key/呼叫失敗/未解析）→ **12 張 slim 廣度卡**
+    （標題裁 [:55]、摘要 [:120]、內文 7.3pt/8.9 行距、卡距 1.2pt——
+    最壞情況 12 卡+註記仍在一頁內；retrieve k=8→12）。回歸測試
+    `test_global_fallback_twelve_cards_still_7_pages` 釘住最壞情況。
 - 2026-09-08 第四、五波（版面微調＋防線）：
   * 新聞卡日期統一 ISO YYYY-MM-DD（Financial P1／Global 六域，無時間）。
   * Spiritual 基準行「流日基準 日期 12:00 Taiwan・台北」；「意識定錨座右銘」
