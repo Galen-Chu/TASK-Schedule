@@ -10,8 +10,10 @@ at three levels so the pipeline runs identically with or without an LLM:
 
 CI sets the key; local runs without it exercise the no-LLM path.
 
-Model: auto-picked flash variant (resolves to gemini-flash-lite-latest today).
-Override with ``GEMINI_MODEL``.
+Model: auto-picked flash variant (probed at startup, cached in llm_usage.json).
+Default/fallback ``gemini-3.6-flash`` — the previous ``gemini-2.5-flash`` was
+retired by Google (404 for new users since 2026-09). Override with
+``GEMINI_MODEL``.
 
 THINKING-BUDGET LANDMINE (found 2026-08-31): flash-lite models cannot turn
 thinking off (floor: 512 tokens) and thinking tokens are counted inside
@@ -85,7 +87,7 @@ def _save_model_cache(name):
 
 
 _API_KEY = os.environ.get("GEMINI_API_KEY")
-_DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+_DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 _CLIENT = None
 _AVAILABLE = False
 _MODEL_NAME = _DEFAULT_MODEL
@@ -95,10 +97,11 @@ _USER_SET = bool(os.environ.get("GEMINI_MODEL"))
 def _pick_model(client, preferred, user_set):
     """Find a Gemini flash model that actually generates.
 
-    Models get deprecated/renamed (gemini-2.5-flash is unavailable to new keys),
-    so we list flash variants and probe each with a 1-token call, returning the
-    first that works. ``preferred`` is tried first only when the user explicitly
-    set GEMINI_MODEL. Falls back to ``preferred`` if nothing probes successfully.
+    Models get deprecated/renamed (gemini-2.5-flash was 404-retired in
+    2026-09), so we list flash variants and probe each with a 1-token call,
+    returning the first that works. ``preferred`` is tried first only when the
+    user explicitly set GEMINI_MODEL. Falls back to ``preferred`` if nothing
+    probes successfully — keep ``preferred`` a live alias, not a retired model.
     """
     from google.genai import types as _gtypes
     names = []
