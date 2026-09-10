@@ -22,6 +22,7 @@ from core.scheduler_base import BaseReportScheduler
 from core.data.fetchers import (
     fetch_twse_margin, fetch_twse_institutional, fetch_market_snapshot,
     fetch_treasury_yields, fetch_fear_greed,
+    fetch_taifex_foreign_futures_oi, fetch_taifex_put_call, fetch_twse_breadth,
 )
 from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve
@@ -273,10 +274,32 @@ class FinancialReportScheduler(BaseReportScheduler):
             data["twii_bias60"] = round((last - ma60) / ma60 * 100, 2)
             data["twii_hist_last_date"] = twii_hist[-1]["date"]
 
-        # 4d) 外資台指期淨未平倉沒有可用的 keyless 資料源（TAIFEX 需另評估）
-        #     → verdict 輸入 fail-visible：None（不計分、版面待補），不再
-        #     用樣本 -18,500 偽造。離線全樣本模式仍保留樣本值。
-        data["futures_net_oi"] = None
+        # 4d) 外資台指期淨未平倉＋台股籌碼/情緒補強（2026-09-10 上線）：
+        #     TAIFEX OpenAPI（09-08 誤判無 API，實為 openapi.taifex.com.tw
+        #     /v1——詳見 fetchers.fetch_taifex_foreign_futures_oi）供外資
+        #     臺股期貨（TX）多空未平倉淨額與台指選 P/C 比；TWSE MI_INDEX
+        #     供上市股票漲跌家數（市場廣度）。verdict 輸入 fail-visible：
+        #     缺值 None（不計分、版面待補），離線全樣本模式保留樣本值。
+        fut = fetch_taifex_foreign_futures_oi(self.date_str)
+        if fut and fut.get("net_oi") is not None:
+            data["futures_net_oi"] = fut["net_oi"]
+            data["futures_oi_date"] = fut["date"]
+            data["futures_trade_net"] = fut.get("trade_net")
+            sources.append("TAIFEX")
+        else:
+            data["futures_net_oi"] = None
+        pc = fetch_taifex_put_call(self.date_str)
+        if pc and pc.get("pc_oi") is not None:
+            data["pc_ratio_oi"] = pc["pc_oi"]
+            data["pc_ratio_volume"] = pc.get("pc_volume")
+            data["pc_date"] = pc.get("date")
+            sources.append("TAIFEX")
+        brd = fetch_twse_breadth(self.date_str)
+        if brd and brd.get("advance") is not None:
+            data["tw_advance"] = brd["advance"]
+            data["tw_decline"] = brd["decline"]
+            data["tw_breadth_date"] = brd.get("date")
+            sources.append("MI_INDEX")
 
         # 5) Slow macro series behind a TTL cache (BLS monthly / Treasury daily);
         #    the cache file is committed back by CI so it persists across runs.

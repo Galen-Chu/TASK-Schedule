@@ -393,6 +393,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     twm   = _g(data, "tw_margin_balance", None)
     tws   = _g(data, "tw_short_balance", 214000)
     oi    = _g(data, "futures_net_oi", -18500)
+    oi_date = _g(data, "futures_oi_date", "") or ""
     vix   = _g(data, "vix", None)
     fg    = _g(data, "fear_and_greed", None)
     t10   = _g(data, "treasury_10y", 3.85)
@@ -654,13 +655,14 @@ def generate_daily_pdf(filename, data=None, date_str=None):
             f"{_tw_tag}</b></font>",
             f"融券餘額: {_pend(tws, '{:.1f}', ' 萬張')} | 來源: MI_MARGN 加總<br/>數值每日即時重抓，門檻可日後校準。")),
         (COLOR_US_STOCK, kpi_card(
-            "外資台指期淨未平倉",
+            "外資台指期淨未平倉（TX）",
             (f"<font color='#0E7C86' size=13><b>{oi:,} 口</b></font>"
+             + (f"（{oi_date}）" if oi_date else "")
              if oi is not None else
              "<font color='#0E7C86' size=13><b>待補</b></font>"),
-            ("警戒線: -30,000 口<br/>依即時未平倉量判讀避險部位。"
+            ("警戒線: -30,000 口<br/>TAIFEX OpenAPI 三大法人・臺股期貨 TX。"
              if oi is not None else
-             "資料源評估中（TAIFEX 未提供 keyless API）<br/>暫不計入訊號分，版面如實顯示待補。"))),
+             "TAIFEX OpenAPI 連線未成<br/>暫不計入訊號分，版面如實顯示待補。"))),
         (COLOR_BOND, kpi_card(
             "美股 VIX 與 加密市場恐貪指數",
             f"<font color='#E8A33D' size=13><b>VIX {vix_d} / F&G {fg_d}</b></font>"
@@ -695,6 +697,12 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     _twd_d = _px_live(data, "usdtwd", "{:.2f}")
     _gold_d = _px_live(data, "gold", "${:,.0f}")
     _btc_d = _px_live(data, "btc", "${:,.0f}")
+    # 台股指標列併入市場廣度（漲/跌家數，TWSE MI_INDEX；缺值僅顯示融資）
+    _adv = _g(data, "tw_advance", None)
+    _dec = _g(data, "tw_decline", None)
+    _tw_ind = f"融資餘額 {twm_d}"
+    if _adv is not None:
+        _tw_ind += f"｜漲/跌 {_adv}/{_dec}"
 
     def _vrow(idx, name, color_name, indicator, vkey):
         name_, light, headline, reason = verdicts[vkey]
@@ -712,7 +720,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
          Paragraph(en("<b>風險等級</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>進出場訊號燈號</b>", color="#FFFFFF"), s["th"]),
          Paragraph(en("<b>短線趨勢說明（即時推導）</b>", color="#FFFFFF"), s["th"])],
-        _vrow(1, "台股市場", "活力橘紅", f"融資餘額 {twm_d}", "tw"),
+        _vrow(1, "台股市場", "活力橘紅", _tw_ind, "tw"),
         _vrow(2, "美股市場", "科技青", f"S&P 500: {_spx_d}（VIX {vix_d}）", "us"),
         _vrow(3, "全球債券", "暖琥珀", f"美債 10Y: {t10}%（利差 {spread_d}）", "bond"),
         _vrow(4, "外匯與美元", "抹茶綠", f"DXY: {dxy_d} / TWD: {_twd_d}", "forex"),
@@ -808,7 +816,7 @@ def generate_daily_pdf(filename, data=None, date_str=None):
     # ======================= PAGE 2 — TW & US ==============================
     story.append(PageBreak())
     story.extend(make_title_row("台股與美股籌碼/技術面深度分析",
-        "資料：TWSE MI_MARGN・T86・Yahoo Finance｜籌碼數據截至前一交易日",
+        "資料：TWSE MI_MARGN・T86・MI_INDEX・TAIFEX OpenAPI・Yahoo Finance｜籌碼/期貨數據截至前一交易日",
         date_str, COLOR_TW_STOCK, s, eyebrow_text="Financial Intelligence"))
 
     # 台股/美股專題表：當前數據欄一律即時值或「待補」，判讀欄由數值區間
@@ -831,6 +839,34 @@ def generate_daily_pdf(filename, data=None, date_str=None):
                    "🔴 正乖離高於 +5%，短線過熱、留意獲利了結" if max(b20, b60) > 5 else
                    "🟡 乖離於 ±5% 內，技術面中性")
 
+    # 外資期貨未平倉判讀——門檻鏡像 calculate_signal_score（>-10,000 給分、
+    # <-30,000 扣分），表列與訊號分永不同調（地雷：banner 不得與模型矛盾）。
+    _oi_j = ("🔴 外資期貨淨空單偏大（<-3 萬口），避險/看空部位升溫"
+             if oi is not None and oi < -30000 else
+             "🟢 外資期貨淨部位回升（>-1 萬口），避險退潮、偏多訊號"
+             if oi is not None and oi > -10000 else
+             "🟡 外資期貨淨部位於觀察帶（-3 萬 ~ -1 萬口）"
+             if oi is not None else "待補後判讀（TAIFEX OpenAPI）")
+    # 台指選 P/C OI 比（<80 買權主導偏多 / >120 賣權避險偏空）
+    pc_oi = _g(data, "pc_ratio_oi", None)
+    pc_vol = _g(data, "pc_ratio_volume", None)
+    _pc_date = _g(data, "pc_date", "") or ""
+    _pc_j = ("🟢 買權主導，避險需求偏低，情緒偏多"
+             if pc_oi is not None and pc_oi < 80 else
+             "🔴 賣權避險升溫，防禦情緒濃厚，留意下檔保護"
+             if pc_oi is not None and pc_oi > 120 else
+             "🟡 買賣權勢力均衡，市場對方向未表態"
+             if pc_oi is not None else "待補後判讀（TAIFEX OpenAPI）")
+    # 市場廣度：漲跌比（>1.5 廣度偏多 / <0.67 廣度偏弱）
+    if _adv is not None and _dec:
+        _ratio = _adv / _dec
+        _brd_j = ("🟢 漲多家廣，多方基礎扎實" if _ratio > 1.5 else
+                  "🔴 跌多家廣，上攻動能不足" if _ratio < 0.67 else
+                  "🟡 漲跌互見，廣度中性")
+    else:
+        _brd_j = "待補後判讀（TWSE MI_INDEX）"
+    _brd_date = _g(data, "tw_breadth_date", "") or ""
+
     story.append(Paragraph(en("<b>【台股市場專題】活力橘紅 —— 融資/融券餘額與籌碼分析</b>"), s["h1"]))
     tw_rows = _detail_table(
         ["關鍵指標", "當前數據", "歷史警戒/臨界值", "數據判讀與進出場建議"],
@@ -848,8 +884,17 @@ def generate_daily_pdf(filename, data=None, date_str=None):
              "持續買超為內資支撐訊號",
              ("🟢 投信淨買超，內資法人支撐" if tr_sh is not None and tr_sh > 0 else
               "🟡 投信淨賣超，內資調節" if tr_sh is not None else "待補後判讀")],
-            ["外資台指期未平倉", _pend(oi, "{:,}", " 口"), "警戒線 -30,000 口",
-             ("依即時未平倉量判讀" if oi is not None else "資料源評估中（TAIFEX keyless API 未提供）")],
+            ["外資台指期未平倉（TX）",
+             _pend(oi, "{:,}", " 口") + (f"（{oi_date}）" if oi_date and oi is not None else ""),
+             "警戒線 -30,000 口", _oi_j],
+            ["台指選擇權 P/C OI 比",
+             ((f"{pc_oi:.1f}%・量 {pc_vol:.0f}%" if pc_vol is not None else f"{pc_oi:.1f}%")
+              + (f"（{_pc_date}）" if _pc_date else "") if pc_oi is not None else "待補"),
+             "避險升溫 > 120% / 偏多 < 80%", _pc_j],
+            ["市場廣度（漲跌家數）",
+             ((f"漲 {_adv} / 跌 {_dec}" + (f"（{_brd_date}）" if _brd_date else ""))
+              if _adv is not None else "待補"),
+             "漲跌比 > 1.5 偏多 / < 0.67 偏弱", _brd_j],
             ["大盤 MA20/60 乖離", _bias_d, "負乖離 > -5% 為短線超賣", _bias_j],
         ],
         header_bg=COLOR_TW_STOCK, grid_color=colors.HexColor('#FDE7E1'), styles=s,

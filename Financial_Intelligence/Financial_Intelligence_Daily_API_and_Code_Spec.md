@@ -10,6 +10,26 @@
   - `InstitutionalTrading`: 外資、投信、自營商買賣超金額
   - `ForeignFuturesNetOI`: 外資台指期未平倉淨口數
 
+### (1b) 臺灣期貨交易所 OpenAPI（2026-09-10 起接入，免 key）
+- **Base**: `https://openapi.taifex.com.tw/v1`（Swagger 於 `/swagger.json`；
+  09-08 曾誤判「無 keyless API」，實為期交所官方 OpenAPI，Cloudflare 前緣需瀏覽器 UA）
+- **端點**:
+  - `MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate?dateStart=&dateEnd=`
+    （YYYY/MM/DD）：三大法人-區分各期貨契約-依日期 → 取 `Item=外資及陸資`、
+    `ContractCode=臺股期貨`（TX）的 `OpenInterest(Net)`＝外資台指期淨未平倉
+    （媒體引用口徑；總表 GeneralBytheDate 為全商品合計，會被股票期貨淹没，勿用）。
+    注意：對無資料日期（假日/盤前）API 會靜默回退到最近交易日，日期以 row 的
+    `Date` 欄為準。
+  - `PutCallRatio`: 臺指選擇權 Put/Call 比（`PutCallOIRatio%`／`PutCallVolumeRatio%`；
+    日期參數會被忽略，回傳最近多日，自行取 `Date <= 報告日` 最新一列）。
+- **實作**: `core/data/fetchers.fetch_taifex_foreign_futures_oi` / `fetch_taifex_put_call`
+
+### (1c) TWSE 漲跌家數（市場廣度，2026-09-10 起接入）
+- **Endpoint**: `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=YYYYMMDD&type=ALL`
+- **欄位**: `tables[漲跌證券數合計].data` 的「股票」欄 → 上漲/下跌家數（值可帶
+  `(漲停)` 後綴，取括號前數字；約 4-5MB 大 JSON）
+- **實作**: `core/data/fetchers.fetch_twse_breadth`
+
 ### (2) 美國聖路易聯儲 (FRED API)
 - **Endpoint**: `https://api.stlouisfed.org/fred/series/observations`
 - **Series IDs**:
