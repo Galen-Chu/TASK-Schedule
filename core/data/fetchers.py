@@ -121,6 +121,188 @@ def fetch_twse_institutional(date_str, lookback=5):
     return None
 
 
+def _taifex_get(url, timeout=15):
+    """GET a TAIFEX OpenAPI JSON array（Cloudflare 前緣，帶瀏覽器 UA）。"""
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0",
+                                               "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8", "ignore"))
+            return data if isinstance(data, list) else None
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+        log.info("TAIFEX GET failed: %s (%s)", url, exc)
+        return None
+
+
+def _taifex_tx_oi_from_rows(rows):
+    """TAIFEX「三大法人-區分各期貨契約」rows -> 外資臺股期貨（TX）淨部位。
+
+    數字欄位是字串（可含逗點）；Date 欄（YYYYMMDD）是資料的實際交易日
+    ——API 對無資料日期（假日/盤前）會靜默回退到最近交易日，故日期必須
+    取自 row 本身，不可標查詢日。Exposed for tests（離線解析契約）。
+    回傳 {"date", "net_oi", "trade_net"} 或 None。
+    """
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("Item", "")).strip() != "外資及陸資":
+            continue
+        if str(r.get("ContractCode", "")).strip() != "臺股期貨":
+            continue
+
+        def _int(v):
+            v = str(v or "").replace(",", "").strip()
+            return int(v) if v.lstrip("-").isdigit() else None
+
+        oi = _int(r.get("OpenInterest(Net)"))
+        d = str(r.get("Date", ""))
+        if oi is None or not d.isdigit():
+            return None
+        return {"date": f"{d[:4]}-{d[4:6]}-{d[6:8]}",
+                "net_oi": oi, "trade_net": _int(r.get("TradingVolume(Net)"))}
+    return None
+
+
+def fetch_taifex_foreign_futures_oi(date_str, lookback=4):
+    """外資臺股期貨（TX）多空未平倉淨額（TAIFEX OpenAPI、免 key）。
+
+    2026-09-10 重新查證找到 openapi.taifex.com.tw/v1（09-08 誤判「無
+    keyless API」——當時只查了官網 JS 表單與 data.gov.tw）。日期參數
+    YYYY/MM/DD；假日/盤前 API 會靜默回退到最近交易日的資料（日期以 row
+    的 Date 欄為準），``lookback`` 迴圈只為應付偶發的空回應。取「臺股
+    期貨」單一契約（媒體引用口徑），不用總表（全商品合計會被股票期貨
+    幾十萬口淹沒）。回傳 {"source", "date", "net_oi", "trade_net"} 或
+    None（版面待補）。
+    """
+    import datetime as _dt
+    for back in range(lookback):
+        day = (_dt.date.fromisoformat(str(date_str)) - _dt.timedelta(days=back))
+        ds = day.strftime("%Y/%m/%d")
+        url = ("https://openapi.taifex.com.tw/v1/"
+               "MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate"
+               f"?dateStart={ds}&dateEnd={ds}")
+        rows = _taifex_get(url)
+        if not rows:
+            continue
+        hit = _taifex_tx_oi_from_rows(rows)
+        if hit:
+            hit["source"] = "TAIFEX OpenAPI"
+            return hit
+    return None
+
+
+def _put_call_from_rows(rows, ymd):
+    """PutCallRatio rows（API 忽略日期範圍、回多日）-> Date<=ymd 最新一列。
+
+    Exposed for tests。回傳 {"pc_oi", "pc_volume", "date"} 或 None。
+    """
+    best = None
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        d = str(r.get("Date", ""))
+        if not d.isdigit() or d > ymd:
+            continue
+        if best is None or d > best[0]:
+            best = (d, r)
+    if not best:
+        return None
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    oi = _f(best[1].get("PutCallOIRatio%"))
+    if oi is None:
+        return None
+    d = best[0]
+    return {"pc_oi": oi, "pc_volume": _f(best[1].get("PutCallVolumeRatio%")),
+            "date": f"{d[:4]}-{d[4:6]}-{d[6:8]}"}
+
+
+def fetch_taifex_put_call(date_str):
+    """臺指選擇權 Put/Call 比（成交量% 與 OI%，TAIFEX OpenAPI、免 key）。
+
+    API 的 dateStart/dateEnd 會被忽略（回傳最近多日、降冪），故抓回後取
+    Date<=date_str 的最新一列（週末自動落到上一交易日）。
+    回傳 {"source", "date", "pc_oi", "pc_volume"} 或 None。
+    """
+    import datetime as _dt
+    day = _dt.date.fromisoformat(str(date_str))
+    ds = day.strftime("%Y/%m/%d")
+    url = (f"https://openapi.taifex.com.tw/v1/PutCallRatio?dateStart={ds}&dateEnd={ds}")
+    rows = _taifex_get(url)
+    if not rows:
+        return None
+    hit = _put_call_from_rows(rows, day.strftime("%Y%m%d"))
+    if hit:
+        hit["source"] = "TAIFEX OpenAPI"
+    return hit
+
+
+def _breadth_from_mi_index(payload):
+    """MI_INDEX 的「漲跌證券數合計」表 -> 上市股票漲/跌家數。
+
+    取「股票」欄（不含權證）；家數值可能帶「(漲停)」後綴，取括號前數字。
+    Exposed for tests。回傳 {"advance", "decline"} 或 None。
+    """
+    tables = payload.get("tables") if isinstance(payload, dict) else None
+    for t in tables or []:
+        if "漲跌證券數合計" not in str(t.get("title", "")):
+            continue
+        fields = [str(f) for f in (t.get("fields") or [])]
+        if "股票" not in fields:
+            break
+        ci = fields.index("股票")
+        got = {}
+        for r in (t.get("data") or t.get("rows") or []):
+            kind = str(r[0]) if r else ""
+            val = str(r[ci]) if ci < len(r) else ""
+            num = val.split("(")[0].replace(",", "").strip()
+            if not num.isdigit():
+                continue
+            if kind.startswith("上漲"):
+                got["advance"] = int(num)
+            elif kind.startswith("下跌"):
+                got["decline"] = int(num)
+        if got.get("advance") is not None and got.get("decline") is not None:
+            return got
+        break
+    return None
+
+
+def fetch_twse_breadth(date_str, lookback=4):
+    """TWSE 上市股票漲/跌家數（市場廣度，MI_INDEX type=ALL 的統計表）。
+
+    MI_INDEX 是「每日收盤行情(全部)」大 JSON（約 4-5MB），漲跌家數在其
+    「漲跌證券數合計」表。假日回「查無資料」，由 date_str 往回找最近
+    交易日（同 T86 模式）。回傳 {"source", "date", "advance", "decline"}
+    或 None（版面待補）。
+    """
+    import datetime as _dt
+    for back in range(lookback):
+        day = (_dt.date.fromisoformat(str(date_str)) - _dt.timedelta(days=back))
+        url = ("https://www.twse.com.tw/exchangeReport/MI_INDEX"
+               f"?response=json&date={day.strftime('%Y%m%d')}&type=ALL")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0",
+                                                   "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                payload = json.loads(resp.read().decode("utf-8", "ignore"))
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+            log.info("TWSE MI_INDEX GET failed: %s (%s)", url, exc)
+            continue
+        if not isinstance(payload, dict) or payload.get("stat") != "OK":
+            continue
+        got = _breadth_from_mi_index(payload)
+        if got:
+            got.update({"source": "TWSE MI_INDEX", "date": day.isoformat()})
+            return got
+    return None
+
+
 def _feed_items(feed, limit):
     """Map feedparser entries to plain dicts. Exposed for tests.
 
