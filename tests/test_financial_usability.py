@@ -342,3 +342,65 @@ def test_monitor_table_matches_verdicts(tmp_path):
     text = "".join(p.get_text() for p in fitz.open(out))
     assert "907 萬張貼近門檻" in text          # verdict reason 字串
     assert "外資台指期淨未平倉" in text
+
+# ---- TAIFEX OpenAPI + MI_INDEX（2026-09-10：外資 TX 淨未平倉/P-C/漲跌家數）----
+def test_taifex_tx_oi_parse_picks_foreign_tx():
+    from core.data.fetchers import _taifex_tx_oi_from_rows
+    rows = [
+        {"Date": "20260909", "ContractCode": " 臺股期貨 ", "Item": "自營商",
+         "OpenInterest(Net)": "1,234", "TradingVolume(Net)": "-5"},
+        {"Date": "20260909", "ContractCode": "股票期貨", "Item": "外資及陸資",
+         "OpenInterest(Net)": "-463032", "TradingVolume(Net)": "0"},
+        {"Date": "20260909", "ContractCode": "臺股期貨", "Item": "外資及陸資",
+         "OpenInterest(Net)": "-81,066", "TradingVolume(Net)": "1164"},
+    ]
+    assert _taifex_tx_oi_from_rows(rows) == {"date": "2026-09-09",
+                                             "net_oi": -81066, "trade_net": 1164}
+    assert _taifex_tx_oi_from_rows([]) is None
+    assert _taifex_tx_oi_from_rows([{"Date": "20260909", "ContractCode": "臺股期貨",
+                                     "Item": "外資及陸資",
+                                     "OpenInterest(Net)": "N/A"}]) is None
+
+
+def test_put_call_rows_pick_latest_within_date():
+    from core.data.fetchers import _put_call_from_rows
+    rows = [
+        {"Date": "20260910", "PutCallOIRatio%": "90.0", "PutCallVolumeRatio%": "80"},
+        {"Date": "20260909", "PutCallOIRatio%": "96.34", "PutCallVolumeRatio%": "109.78"},
+        {"Date": "20260908", "PutCallOIRatio%": "105.23", "PutCallVolumeRatio%": "103.43"},
+    ]
+    hit = _put_call_from_rows(rows, "20260909")
+    assert hit["pc_oi"] == 96.34 and hit["pc_volume"] == 109.78
+    assert hit["date"] == "2026-09-09"
+    assert _put_call_from_rows(rows, "20260907") is None
+
+
+def test_breadth_parse_from_mi_index():
+    from core.data.fetchers import _breadth_from_mi_index
+    payload = {"stat": "OK", "tables": [
+        {"title": "x", "fields": ["類型"], "data": []},
+        {"title": "漲跌證券數合計", "fields": ["類型", "整體市場", "股票"],
+         "data": [["上漲(漲停)", "6,805(58)", "607(12)"],
+                  ["下跌(跌停)", "5,306(59)", "370(0)"],
+                  ["持平", "1,109", "99"]]}]}
+    assert _breadth_from_mi_index(payload) == {"advance": 607, "decline": 370}
+    assert _breadth_from_mi_index({"tables": []}) is None
+
+
+def test_oi_pc_breadth_render(tmp_path):
+    """三項新數據入列：KPI 卡 -81,066 口、P/C 判讀、漲跌家數廣度。"""
+    data = {"tw_margin_balance": 8_900_000, "vix": 15.3, "fear_and_greed": 69,
+            "spread_10y2y": 0.41, "dxy": 99.18, "macro": _full_macro(),
+            "futures_net_oi": -81066, "futures_oi_date": "2026-09-09",
+            "pc_ratio_oi": 96.34, "pc_ratio_volume": 109.78, "pc_date": "2026-09-09",
+            "tw_advance": 607, "tw_decline": 370, "tw_breadth_date": "2026-09-09",
+            "_live_keys": []}
+    out = str(tmp_path / "taifex.pdf")
+    generate_daily_pdf(out, data=data, date_str="2026-09-10")
+    fitz = pytest.importorskip("fitz")
+    text = "".join(p.get_text() for p in fitz.open(out))
+    assert "-81,066" in text and "TAIFEX OpenAPI" in text
+    assert "96.3%" in text and "買賣權勢力均衡" in text
+    assert "607" in text and "370" in text and "漲多家廣" in text
+    # 判讀鏡像計分帶：<-30,000 口為紅字偏空
+    assert "淨空單偏大" in text

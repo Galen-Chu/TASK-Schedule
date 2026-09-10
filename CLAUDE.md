@@ -5,8 +5,31 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-09-09 更新）
+## 當前狀態（2026-09-10 更新）
 
+- 2026-09-10（TAIFEX OpenAPI 復活＋本日經典每系統一則）：
+  * **期交所有官方 OpenAPI**：`https://openapi.taifex.com.tw/v1`（Swagger
+    於 /swagger.json，135 端點）——09-08「opendata API 不存在」結論錯誤，
+    當時只查了官網 JS 表單與 data.gov.tw。教訓：查 keyless 資料源時
+    OpenAPI 子網域（openapi.*）要單獨驗證。
+  * **外資台指期淨未平倉復活**：`DetailsOfFuturesContractsBytheDate` 取
+    `Item=外資及陸資`＋`ContractCode=臺股期貨`（TX，媒體口徑；總表為全
+    商品合計會被股票期貨淹沒）。地雷：API 對假日/盤前**靜默回退到最近
+    交易日**，日期必須取自 row 的 Date 欄，不可標查詢日；dateStart/
+    dateEnd 參數 YYYY/MM/DD、需瀏覽器 UA（Cloudflare）。09-09 外資 TX
+    淨額 -81,066 口已驗證。
+  * 同源加兩項台股數據（display＋表列判讀，**未動計分模型**——OI 本就
+    在模型內只是缺值，P/C 與廣度入分屬後續議題）：台指選 P/C OI 比
+    （PutCallRatio，API 忽略日期範圍回多日，取 Date<=報告日最新列；
+    判讀帶 <80 偏多 / >120 避險升溫）、上市漲跌家數（TWSE MI_INDEX
+    type=ALL 的「漲跌證券數合計」表・股票欄，約 4-5MB；漲跌比 >1.5
+    偏多 / <0.67 偏弱）。監控表台股列併入「漲/跌 N/M」。
+  * **Spiritual 本日經典每系統一則**：`divination.daily_classic(date,
+    system_id)` 以各系統當日符號（motto_keywords 同源）套系統視角樣板
+    ——同一個大環境、七種角度；**干支前綴移除**（八字頁干支自然融入
+    句中）。LLM `spiritual_daily_classic(system_title, spotlight)` 同步
+    每系統一呼叫（每日 +6，總量 ~21 仍在 60 守門內）。PDF `classic`
+    參數改 {system_id: text} dict（相容舊單一字串）。
 - 2026-09-09（LLM 營運事件＋Global 容量自適應）：
   * **Gemini 預付額度用罄**（run #98 起全部 429 RESOURCE_EXHAUSTED
     「prepayment credits depleted」）→ 三報告 LLM 全退樣板、embedding 退
@@ -39,7 +62,8 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
   * **TAIFEX 期貨 OI 結論**——官方頁 futContractsDate 表單由 JS 動態構建
     （僅 pstring token），opendata API 不存在、data.gov.tw 無直接 CSV：
     keyless 抓取不可行，futures_net_oi 維持 None/待補（誠實呈現）；要補
-    需瀏覽器級抓取，屬後續評估。
+    需瀏覽器級抓取，屬後續評估。〔09-10 已推翻：OpenAPI 存在，見頂部
+    09-10 條目——當時漏查 openapi.taifex.com.tw 子網域〕
   * **feed 替換**——IEEE Spectrum 半導體 feed（7-12 天一篇）→
     EE Times（每日、純半導體）＋ Semiconductor Engineering（產業深度）；
     權重 1.2。TrendForce/鉅亨 RSS 不可達。
