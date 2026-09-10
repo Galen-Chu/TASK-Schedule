@@ -449,22 +449,24 @@ def spiritual_system_brief(system_title, subtitle, transit_spot, natal_params,
     }
 
 
-def spiritual_daily_classic(transit_digest, transitions=None):
-    """本日經典：以當日大環境流日格局，寫一句白話感性的人生註腳（≤100 字）。
+def spiritual_daily_classic(system_title, spotlight, transitions=None):
+    """本日經典：以單一系統的觀點，為當日大環境流日寫一句白話註腳（≤100 字）。
 
-    ``transit_digest`` = 七術 spotlight 的合併文字；回傳單句字串或 None
-    （caller 退回 divination.daily_classic 的確定性版本）。
+    2026-09-10 起每系統一則（七種角度看同一個大環境）——``system_title``
+    是系統名（如「西洋占星」）、``spotlight`` 為該系統的當日技術描述
+    （與 spotlight 同源）；回傳單句字串或 None（caller 退回
+    divination.daily_classic 的確定性版本）。每日 7 呼叫，仍在額度守門內。
     """
     if not _AVAILABLE:
         return None
     tr = ("今日轉換提示：" + "；".join(transitions) + "\n") if transitions else ""
     prompt = (
-        "以下是今日「大環境流日」的技術描述（七術同源計算）：\n"
-        f"{transit_digest}\n{tr}\n"
-        "請以白話、感性、容易理解的一到兩句話，寫給一般讀者，說明今天"
-        "大環境的格局與變化給人的感受（例如節奏快慢、該衝該守、情緒基調）。"
-        "不要專業術語與卦名干支，不要括號補充，繁體中文，100 字以內，"
-        "只輸出這一句話本身。"
+        f"以下是「{system_title}」系統對今日「大環境流日」的技術描述：\n"
+        f"{spotlight}\n{tr}\n"
+        f"請以{system_title}的觀點，用白話、感性、容易理解的一到兩句話，"
+        "寫給一般讀者，說明今天大環境的格局與變化給人的感受（例如節奏"
+        "快慢、該衝該守、情緒基調）。不要專業術語與卦名干支，不要括號"
+        "補充，繁體中文，100 字以內，只輸出這一句話本身。"
     )
     text = generate(prompt, max_tokens=1400)
     if not text:

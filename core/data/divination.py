@@ -483,7 +483,46 @@ def transitions(date_str):
     return out
 
 
-# ---- 本日經典（大環境流日白話註腳，≤100 字） --------------------------------
+# ---- 本日經典（大環境流日白話註腳，≤100 字；每系統一則） --------------------
+# 各系統對「今日大環境」的白話視角（{kw} 與 motto_keywords 同源的當日符號）。
+# 同一個大環境、七種角度；干支只在八字頁自然融入句中，不再作為前綴。
+_CLASSIC_TMPL = {
+    "SYS_BAZI": "今日八字大環境：{kw}。順著大環境的節奏走，少逆流、多留餘裕。",
+    "SYS_ICHING": "今日易經大環境：{kw}。卦象是大環境的天氣圖，趨吉避凶，而不是吉凶本身。",
+    "SYS_LIUYAO": "今日六爻大環境：{kw}。爻動之處就是今天的變數所在，靜觀、順勢、不硬拗。",
+    "SYS_TAROT": "今日塔羅大環境：{kw}。把這張牌當今天的氣象預報而非判決書，課題自然浮現。",
+    "SYS_HD": "今日人類圖大環境：{kw}。這是眾人共享的集體課題——先照顧自己，再回應世界。",
+}
+
+
+def _classic_ast(kw):
+    """占星版（太陽/月亮分開內插）：「日行X·月行Y」→ 白話天象句。"""
+    parts = kw.split("·")
+    if len(parts) != 2:
+        return None
+    sun = parts[0].replace("日行", "")
+    moon = parts[1].replace("月行", "")
+    if not sun or not moon:
+        return None
+    sun = sun if sun.endswith("座") else sun + "座"
+    moon = moon if moon.endswith("座") else moon + "座"
+    return (f"今日天象大環境：太陽行經{sun}、月亮行經{moon}——白天的集體基調"
+            "務實，夜晚隨月亮轉柔，順流不逆流。")[:100]
+
+
+def _classic_zw(kw):
+    """紫微版：「流日命宮X·Y化Z」→ 宮位與四化分開內插的白話句。"""
+    body = kw.split("·", 1)
+    if len(body) != 2:
+        return None
+    palace = body[0].replace("流日命宮", "")
+    luck = body[1]
+    if not palace or not luck:
+        return None
+    return (f"今日紫微大環境：流日命宮落於{palace}，{luck}當令——集體的資源"
+            "與壓力各就各位，順勢而為，不搶頭香。")[:100]
+
+
 _CLASSIC_BY_FLOW = {
     "相生": "今天的氣場像水到渠成——事情會自己找到流向，你只需要別擋路。",
     "平和": "今天沒有強風也沒有急流，適合把心放慢，讓該成熟的事慢慢成熟。",
@@ -500,13 +539,30 @@ _CLASSIC_BY_TRIGRAM = {
 }
 
 
-def daily_classic(date_str):
-    """本日經典 fallback：以八字五行局勢＋梅花卦象組一句白話環境註腳。
+def daily_classic(date_str, system_id=None, day_master=None):
+    """本日經典 fallback：大環境流日的白話註腳（≤100 字），每系統一則。
 
-    與 spotlight 同源（lunar_python 干支＋當日起卦），確定性、離線可用；
-    有 Gemini 時由 llm.spiritual_daily_classic 生成，本函式為退路。
+    2026-09-10 起 ``system_id`` 對七術各自的當日符號（與 motto_keywords
+    同源）套系統視角樣板——同一個大環境、七種角度；``system_id`` 為 None
+    或該系統符號缺席時退回通用版（五行局勢＋梅花卦象）。干支前綴已移除
+    （頁首流日基準已載明日期，八字頁的干支自然融入句中而非前綴）。有
+    Gemini 時由 llm.spiritual_daily_classic 生成，本函式為退路。
     """
     try:
+        if system_id:
+            kw = (motto_keywords(date_str, day_master=day_master) or {}).get(system_id, "")
+            if kw:
+                if system_id == "SYS_TAROT":
+                    # 牌位卡片的 kw 帶整句牌義（長文）——經典只取牌名為止
+                    kw = kw.split("—")[0].split("。")[0].rstrip("，,、 ")
+                if system_id == "SYS_AST":
+                    line = _classic_ast(kw)
+                elif system_id == "SYS_ZW":
+                    line = _classic_zw(kw)
+                else:
+                    line = _CLASSIC_TMPL.get(system_id, "").format(kw=kw)
+                if line:
+                    return line[:100]
         b = bazi_transit(date_str) or {}
         flow = "相生" if "相生" in b.get("spotlight", "") else "平和"
         line = _CLASSIC_BY_FLOW.get(flow, _CLASSIC_BY_FLOW["平和"])
@@ -515,9 +571,7 @@ def daily_classic(date_str):
         tri = next((t for t in _CLASSIC_BY_TRIGRAM if f"上{t}" in summary), None)
         if tri:
             line += "　" + _CLASSIC_BY_TRIGRAM[tri]
-        gz = b.get("system_data_summary", "").split("｜")[0].replace("當日干支 ", "").strip()
-        out = f"{gz}・{line}"
-        return out[:100]
+        return line[:100]
     except Exception as exc:  # noqa: BLE001
         log.warning("daily classic failed: %s", exc)
         return ""

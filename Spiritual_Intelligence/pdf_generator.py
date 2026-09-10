@@ -51,7 +51,7 @@ def create_system_page(cfg, page_num, page_total, date_str, location,
     """Build the 8-card story for one occult system.
 
     ``keyword``   — motto 當日錨點（divination.motto_keywords，與 spotlight 同源）
-    ``classic``   — 本日經典：當日大環境流日的白話註腳（≤100 字，每日一則）
+    ``classic``   — 本日經典：當日大環境流日的白話註腳（≤100 字，每系統一則）
     ``natal``     — {params, compare} 個人本命對照（core.data.natal）
     ``trans``     — 本系統相關的轉換點提示 list（divination.transitions）
     """
@@ -244,6 +244,8 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
 
     ``keywords``/``natal``/``trans``：{system_id: ...} 對照 dict（scheduler
     注入；缺項自動略過，任何 None 不影響產出）。
+    ``classic``：本日經典——{system_id: 白話註腳} 每系統一則（2026-09-10
+    起，七種角度看同一個大環境）；相容舊介面的單一字串（全部頁面同一則）。
     Returns ``output_filename``."""
     ensure_fonts()
     date_str = date_str or datetime.date.today().strftime("%Y-%m-%d")
@@ -265,12 +267,16 @@ def generate_pdf_report(output_filename, date_str=None, location=None, systems=N
     )
     story = []
     for idx, cfg in enumerate(systems, start=1):
+        # 本日經典 2026-09-10 起每系統一則（dict）；相容舊的單一字串
+        # （全部頁面同一則）。缺項不渲染該行。
+        _classic = (classic.get(cfg["id"]) if isinstance(classic, dict)
+                    else classic) or None
         story.extend(create_system_page(
             cfg, idx, page_total, date_str, location,
             keyword=keywords.get(cfg["id"]),
             natal=natal.get(cfg["id"]),
             trans=_relevant_transitions(cfg["id"], trans),
-            classic=classic))
+            classic=_classic))
 
     # Phase 3 H1: spiritual news strip at the bottom of the last page
     if spiritual_intel:

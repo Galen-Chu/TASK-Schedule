@@ -229,8 +229,27 @@ def test_daily_classic_fallback_shape():
     from core.data.divination import daily_classic
     c = daily_classic("2026-09-08")
     assert c and len(c) <= 100
-    assert c.startswith("乙酉")
+    assert not c.startswith("乙酉")      # 干支前綴已移除（2026-09-10）
     assert "。" in c                     # 白話句
+
+
+def test_daily_classic_per_system_variants():
+    """每系統一則：非空、≤100 字、七術間有差異、無干支前綴。"""
+    import re
+    pytest.importorskip("lunar_python")
+    from core.data.divination import daily_classic
+    sids = ["SYS_AST", "SYS_HD", "SYS_ZW", "SYS_BAZI",
+            "SYS_ICHING", "SYS_LIUYAO", "SYS_TAROT"]
+    got = {s: daily_classic("2026-09-08", s) for s in sids}
+    for s, c in got.items():
+        assert c and len(c) <= 100, s
+        assert "。" in c, s
+    vals = [v for v in got.values() if v]
+    assert len(set(vals)) >= 2           # 紫微/八字/易經樣板必各自不同
+    gz = re.compile(r"^[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]・")
+    assert not any(gz.match(v) for v in vals)
+    # 八字頁的干支自然融入句中（非前綴）
+    assert "乙酉" in got["SYS_BAZI"]
 
 
 def test_news_card_dates_iso(tmp_path):

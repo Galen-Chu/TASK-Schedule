@@ -122,23 +122,33 @@ class SpiritualReportScheduler(BaseReportScheduler):
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("natal/keywords/transitions failed: %s", exc)
 
-        # 本日經典：大環境流日的白話註腳（LLM 主、daily_classic fallback）
+        # 本日經典：大環境流日的白話註腳（LLM 主、daily_classic 確定性
+        # fallback）。2026-09-10 起每系統一則——七種角度看同一個大環境，
+        # 干支前綴移除；LLM 路徑每日 7 呼叫（+6），仍在額度守門 60 內。
         try:
             from core import llm
             from core.text_clean import strip_html
-            classic = divination.daily_classic(self.date_str)
-            if llm.is_available():
-                systems = (data or {}).get("systems") or {}
-                digest = "；".join(
-                    strip_html(v.get("spotlight", "")) for v in systems.values())
-                llm_line = llm.spiritual_daily_classic(
-                    digest, (data or {}).get("transitions") or [])
-                if llm_line:
-                    classic = llm_line
-                else:
-                    self.logger.warning("LLM classic missing (fallback kept)")
-            if classic:
-                data["daily_classic"] = classic
+            from Spiritual_Intelligence.systems_data import SYSTEMS_CONFIG
+            from core.data import natal as _natal
+            dm = (_natal.natal_bazi() or {}).get("day_master")
+            classics = {}
+            systems = (data or {}).get("systems") or {}
+            for cfg in SYSTEMS_CONFIG:
+                sid = cfg["id"]
+                line = divination.daily_classic(self.date_str, sid, day_master=dm)
+                if llm.is_available():
+                    spot = strip_html(
+                        (systems.get(sid) or {}).get("spotlight", cfg["spotlight"]))
+                    llm_line = llm.spiritual_daily_classic(
+                        cfg["title"], spot, (data or {}).get("transitions") or [])
+                    if llm_line:
+                        line = llm_line
+                    else:
+                        self.logger.warning("LLM classic missing (fallback kept): %s", sid)
+                if line:
+                    classics[sid] = line
+            if classics:
+                data["daily_classic"] = classics
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("daily classic failed: %s", exc)
 
