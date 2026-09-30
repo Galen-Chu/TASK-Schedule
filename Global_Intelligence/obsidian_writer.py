@@ -15,7 +15,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.obsidian_writer import write_note
+from core.obsidian_writer import digest_meta, write_json_note, write_note
 
 _TAG_RE = re.compile(r"<[^>]+>")
 
@@ -105,16 +105,54 @@ tags:
 """
 
 
+def _item_json(it):
+    """Project one corpus/RSS item to the digest contract (sanitized, trimmed)."""
+    it = it or {}
+    return {
+        "title": _strip_html(it.get("title") or "")[:200],
+        "source": it.get("source") or "",
+        "link": it.get("link") or "",
+        "published": it.get("published") or it.get("updated") or "",
+        "summary": _strip_html(it.get("summary") or "")[:300],
+    }
+
+
+def build_digest(date_str, data=None):
+    """Curated machine-readable digest of the daily Global report.
+
+    ``llm_digest`` is the GIVEN/WHEN/THEN three-part brief — null when the
+    LLM layer was unavailable (no key / quota / parse fail), which is exactly
+    the signal downstream consumers should react to.
+    """
+    d = data or {}
+    domains = {tag: [_item_json(it) for it in items[:12]]
+               for tag, items in (d.get("retrieval") or {}).items()}
+    return {
+        "meta": digest_meta("global", date_str, d.get("_source")),
+        "llm_digest": d.get("llm_digest"),
+        "live_rss": [_item_json(it) for it in (d.get("rss_items") or [])[:6]],
+        "domains": domains,
+        "trends": d.get("trends") or {},
+    }
+
+
 def write_global_obsidian_note(date_str=None, output_dir=None, data=None):
-    """Write the daily Global markdown note. Returns the file path."""
+    """Write the daily Global markdown note + JSON digest.
+
+    Returns the markdown path (the ``render_obsidian`` contract); the JSON
+    digest lands next to it with the same basename.
+    """
     data = data or {}
     date_str = date_str or data.get("date") or "2026-08-25"
     output_dir = output_dir or os.path.join(_REPO_ROOT, "output", "obsidian_vault")
     filename = f"{date_str}_Global_Intelligence_每日產業局勢.md"
-    return write_note(
+    path = write_note(
         output_dir, filename,
         build_note_content(date_str, data.get("rss_items"), data.get("retrieval")),
     )
+    write_json_note(output_dir, f"{date_str}_Global_Intelligence_每日產業局勢.json",
+                    build_digest(date_str, data))
+    return path
 
 
 if __name__ == "__main__":

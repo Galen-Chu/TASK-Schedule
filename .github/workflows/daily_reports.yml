@@ -171,6 +171,19 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      # Machine-readable digests + markdown notes — the artifact downstream
+      # consumers (AI agents / social pipeline / vault import) read instead
+      # of parsing PDFs. Kept separate from the PDF artifact so existing
+      # PDF-only download habits stay unchanged.
+      - name: Upload Obsidian notes artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-notes-${{ github.run_id }}
+          path: output/obsidian_vault/**
+          retention-days: 14
+          if-no-files-found: warn
+
       # The retrieval corpus (data/retrieval/*.jsonl) must persist across the
       # ephemeral runner, so the scheduled run commits it back to the repo.
       # data/** is NOT in the push paths-filter, so this commit won't re-trigger.

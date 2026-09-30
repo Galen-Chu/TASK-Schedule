@@ -58,3 +58,30 @@ def test_report_produces_pdf(report_id, tmp_output):
     pages = _page_count(pdf)
     assert pages == EXPECTED_PAGES[report_id], (
         f"{report_id} expected {EXPECTED_PAGES[report_id]} pages, got {pages}")
+    if report_id in ("financial", "global", "spiritual"):
+        _assert_obsidian_outputs(report_id, tmp_output)
+
+
+def _assert_obsidian_outputs(report_id, output_dir):
+    """Every report also emits its markdown note + JSON digest (same date)."""
+    import glob
+    import json
+    date = "2026-08-12"
+    vault = os.path.join(output_dir, "obsidian_vault")
+    frag = {"financial": "Financial_Intelligence",
+            "global": "Global_Intelligence",
+            "spiritual": "Spiritual_Intelligence"}[report_id]
+    jsons = glob.glob(os.path.join(vault, "**", f"{date}*{frag}*.json"),
+                      recursive=True)
+    assert jsons, f"{report_id} produced no JSON digest under {vault}"
+    with open(jsons[0], encoding="utf-8") as f:
+        payload = json.load(f)
+    assert payload["meta"]["schema_version"] == 1
+    assert payload["meta"]["report_id"] == report_id
+    assert payload["meta"]["date"] == date
+    # markdown twin: financial/global at the vault root, spiritual detail
+    # note under Awareness/Daily-Transit/
+    md_glob = (f"Awareness{os.sep}Daily-Transit{os.sep}{date}.md"
+               if report_id == "spiritual" else f"{date}*{frag}*.md")
+    mds = glob.glob(os.path.join(vault, "**", md_glob), recursive=True)
+    assert mds, f"{report_id} produced no markdown note under {vault}"

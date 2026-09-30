@@ -13,11 +13,61 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.obsidian_writer import write_note
+from core.obsidian_writer import digest_meta, write_json_note, write_note
 
 
 def _g(data, key, default):
     return (data or {}).get(key, default)
+
+
+def _item_json(it):
+    """Project one retrieval item to the digest contract (sanitized, trimmed)."""
+    from core.text_clean import strip_html
+    it = it or {}
+    return {
+        "title": strip_html(it.get("title") or "")[:200],
+        "source": it.get("source") or "",
+        "link": it.get("link") or "",
+        "published": it.get("published") or it.get("updated") or "",
+        "summary": strip_html(it.get("summary") or "")[:300],
+    }
+
+
+def build_digest(data, date_str):
+    """Curated machine-readable digest of the daily Financial report.
+
+    Verdict inputs (vix/dxy/spread/…) stay null when their live fetch failed
+    — consumers must treat null as 待補, never fall back to a sample value.
+    ``live_keys`` lists the display fields that resolved live; display fields
+    absent from it carry the offline sample value and are marked 「(樣本)」
+    in the PDF.
+    """
+    d = data or {}
+
+    def take(*keys):
+        return {k: d.get(k) for k in keys}
+
+    return {
+        "meta": digest_meta("financial", date_str, d.get("_source")),
+        "signal": {"score": d.get("signal_score"), "rating": d.get("signal_rating")},
+        "live_keys": d.get("_live_keys") or [],
+        "indicators": take(
+            "vix", "dxy", "spread_10y2y", "fear_and_greed", "hy_oas",
+            "treasury_10y", "treasury_2y", "treasury_2y_prev",
+            "treasury_10y_prev", "spread_prev",
+            "gold", "btc", "wti", "silver", "copper", "natgas",
+            "spx", "ndx", "sox", "usdjpy", "usdtwd", "twii",
+            "tw_margin_balance", "tw_short_balance"),
+        "taiwan": take(
+            "tw_foreign_net_shares", "tw_trust_net_shares", "tw_institutional_date",
+            "futures_net_oi", "futures_oi_date", "futures_trade_net",
+            "pc_ratio_oi", "pc_ratio_volume", "pc_date",
+            "tw_advance", "tw_decline", "tw_breadth_date",
+            "twii_bias20", "twii_bias60", "twii_hist_last_date"),
+        "cross_domain_briefing": d.get("cross_domain_briefing"),
+        "market_intel": [_item_json(it) for it in (d.get("market_intel") or [])[:12]],
+        "trends": d.get("trends"),
+    }
 
 
 def _briefing_md(data):
@@ -102,13 +152,20 @@ signal_rating: "{rating}"
 
 
 def write_obsidian_note(data, output_dir=None):
-    """Write the daily Financial markdown note. Returns the file path."""
+    """Write the daily Financial markdown note + JSON digest.
+
+    Returns the markdown path (the ``render_obsidian`` contract); the JSON
+    digest lands next to it with the same basename.
+    """
     data = data or {}
     date_str = data.get("date") or datetime.date.today().strftime("%Y-%m-%d")
     output_dir = output_dir or os.path.join(_REPO_ROOT, "output", "obsidian_vault")
     filename = f"{date_str}_Financial_Intelligence_每日投資趨勢.md"
     content = build_note_content(data, date_str)
-    return write_note(output_dir, filename, content)
+    path = write_note(output_dir, filename, content)
+    write_json_note(output_dir, f"{date_str}_Financial_Intelligence_每日投資趨勢.json",
+                    build_digest(data, date_str))
+    return path
 
 
 if __name__ == "__main__":

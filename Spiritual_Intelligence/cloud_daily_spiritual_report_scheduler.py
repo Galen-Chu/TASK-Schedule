@@ -219,6 +219,11 @@ class SpiritualReportScheduler(BaseReportScheduler):
                 else:
                     cfg["content_source"] = "template"
 
+        # The Obsidian JSON digest serializes exactly what the PDF renders
+        # (live overlay + LLM briefs applied), not the static SYSTEMS_CONFIG.
+        data["_systems_rendered"] = systems
+        data["_render_location"] = location
+
         pdf_path = os.path.join(self.output_dir, f"{self.date_str}_Spiritual_Intelligence_每日覺察運勢報告.pdf")
         generate_pdf_report(
             pdf_path, date_str=self.date_str, location=location, systems=systems,
@@ -233,7 +238,7 @@ class SpiritualReportScheduler(BaseReportScheduler):
         from Spiritual_Intelligence.obsidian_writer import ObsidianVaultWriter
         vault = os.path.join(self.output_dir, "obsidian_vault")
         writer = ObsidianVaultWriter(vault_path=vault)
-        return writer.execute_writeback(self.date_str)
+        return writer.execute_writeback(self.date_str, data=data)
 
     def dispatch(self, pdf_path, data, note_path=None):
         link = upload_to_drive(pdf_path, folder_id=self.config.get("drive_folder_id"), subfolder=self.report_id)
