@@ -5,8 +5,26 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-09-10 更新）
+## 當前狀態（2026-09-30 更新）
 
+- 2026-09-30（Obsidian writer 補完：MD＋JSON 雙產出，社群管線地基）：
+  * **三報告各自產出 JSON digest**（與 MD 同基底名，`output/obsidian_vault/`
+    下）：`core.obsidian_writer` 新增 `write_json_note`＋`digest_meta` 共用
+    信封——`meta{schema_version, report_id, date, generated_at, producer,
+    source_chain}`＋各報告策展區塊。決策輸入（vix/dxy/spread 等）缺值保持
+    `null`（可見失敗教義），`live_keys` 標記哪些展示欄位是活值（PDF 的
+    「(樣本)」對應 JSON 端 absence from live_keys）。
+  * Spiritual JSON 序列化的是 **PDF 實際渲染的疊加清單**（render_pdf 存
+    `data["_systems_rendered"]`/`_render_location`，底線前綴同 `_source`
+    慣例），非靜態 SYSTEMS_CONFIG——每系統帶 `content_source`
+    (AI/template)。Global 的 `llm_digest: null` 即「LLM 層缺席」的機器
+    可讀訊號（下游消費者應對此反應）。
+  * CI 新增 **`daily-notes-{run_id}` artifact**（obsidian_vault 全部，
+    14 天保留）與 PDF artifact 分離。未來消費端（AI agent／社群發文／
+    vault 匯入）讀 JSON，不解析 PDF。
+  * 測試：`tests/test_obsidian_digest.py`（builder 契約：null 透傳、
+    消毒截斷、meta）＋ smoke test 擴充（每報告斷言 MD+JSON 存在且可解
+    析）。147 passed；09-30 本機產出 7/7/7 頁＋三 JSON 驗證。
 - 2026-09-10（TAIFEX OpenAPI 復活＋本日經典每系統一則）：
   * **期交所有官方 OpenAPI**：`https://openapi.taifex.com.tw/v1`（Swagger
     於 /swagger.json，135 端點）——09-08「opendata API 不存在」結論錯誤，
