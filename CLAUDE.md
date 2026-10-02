@@ -190,12 +190,26 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    pre-commit（`git config core.hooksPath .githooks` 一次性啟用）；大量
    寫入中文靜態資料後仍應即時目視。未來報告資料的字串斷言可掛同一入口。
 
-## 接下來最可能做的事（2026-08-27 盤點摘要）
+## 接下來最可能做的事（2026-10-02 結案盤點）
 
-- 設定即用：Drive 上傳（GCP_SA_KEY/DRIVE_FOLDER_ID）、BLS_API_KEY、本機 Gemini key
+- **下次開發從 B3 門檻軌道開始**（2026-10-02 決議）：確定性規則＋自動開
+  GitHub Issue，不需 LLM。資料源＝已上線的 JSON digest（signal_score、域
+  熱度、feed 活躍度）；前置：`data/` 存歷史 signal_score（比照
+  llm_usage.json 模式）供「連續 N 日」判斷。例：score ≤ -2 連 3 日 → 開
+  Issue；某 feed 連 7 日 0 條 → 開換源 Issue（--stats 自動化）。
+- 社群/agent 管線（09-30 評估四軌道）：A1 Library 匯入**已交由 Library
+  Agent 處理**（工單 `D:\Obsidian_Library\HANDOFF-import-daily-reports.md`；
+  注意 daily-notes artifact 14 天保留，10-01 批次約 10-15 過期）；A2 Gemini
+  儲值 **pending**（10-02 仍 402、GWT 0——第 24 天，儲值同時解鎖 Phase 2
+  評論生成與既有報告 LLM 內容恢復）；B4 評論生成模組可先以 fallback 路徑
+  開發；Phase 4 發文前才註冊平台（Threads/Mastodon/Telegram）＋起草免責/
+  AI 揭露文案。
+- 設定即用：Drive 上傳（GCP_SA_KEY/DRIVE_FOLDER_ID——已評估不啟用）、
+  BLS_API_KEY、本機 Gemini key
 - 中期：H 報表歷史對比（pymupdf 已裝）、Global 徽章對比統一、域分類調校、
-  易經卦象大圖、P5 白銀/銅走勢圖
+  易經卦象大圖、P5 白銀/銅走勢圖；（可選）CI 把 digest commit 進 repo
+  擺脫 artifact 14 天限制
 - 長期：I 互動 Dashboard、J 多租戶、檢索層 remote store
-- 維運：cron 23:30 可靠性觀察、LLM 額度、artifact 14 天保留
+- 維運：cron 可靠性觀察、LLM 額度、artifact 14 天保留
 
 細節與前置條件見 README.md 路線圖與「未來評估開發項目」區塊。
