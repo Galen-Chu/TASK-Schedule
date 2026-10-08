@@ -174,9 +174,12 @@ python scripts/fetch_fonts.py # 重建 fonts/ 靜態字型（見下方字型地�
    （flash-lite 思考 token 計入 max_output_tokens，2026-08-31 前上限
    420/600 太低 → 每次回空、功能從未渲染而 CI 全綠；已釘
    thinking_budget=512 並在空回應時 log.warning，新增呼叫點照此辦理）。
-6. **開發流程**：feature branch → 測試+產出驗證 → 邏輯分層 commit →
-   fast-forward merge main → push → 等 CI 綠 → 回報。使用者偏好繁中回報、
-   重大變更先提方案。
+6. **開發流程**：feature branch → 邏輯分層 commit → fast-forward merge
+   main → push → 等 CI 綠（全套測試＋建置＋頁數斷言）→ 回報。2026-10-08
+   起 Galen 同意**先 push 後驗收**：本機僅跑快速防線（check_encoding＋
+   目標測試）即可推，完整驗收交 CI；版面/字型類變更仍建議本機先跑
+   `main.py all`＋pymupdf 目視（CI 只驗頁數不驗視覺）。使用者偏好繁中
+   回報、重大變更先提方案。
 7. **決策欄位缺值要「可見失敗」**：verdict/訊號分的輸入（vix/dxy/
    spread_10y2y/tw_margin/fear_and_greed）抓不到時 scheduler 一律設 None
    → 報告顯示「數據待補」，**不可靜默沿用 sample**（2026-09-04 ^VIX 被
