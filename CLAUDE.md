@@ -5,8 +5,28 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-09-30 更新）
+## 當前狀態（2026-10-08 更新）
 
+- 2026-10-08（排查修復四件：死 feed／語料降噪／402 短路／Spiritual MD 對齊）：
+  * **finance.yahoo.com/news/rss.xml 已 404**（靜默斷流 13 天才被 --stats
+    抓到）→ 換 **NYT Business**（keyless、當日新鮮）；舊源 108 筆以
+    `purge_source` 立即清除（同 Global 的 reddit purge 模式）。教訓：feed
+    死亡是靜默的，--stats 的「last N days ago」欄位要定期看。
+  * **股利公告降噪**：seekingalpha 的 "declares $0.44 dividend" 樣板文
+    （未分類大宗、稀釋 market_intel 選卡）→ `ingest.is_noise()` 於入庫前
+    drop＋`store.prune_noise()` 清舊庫存（--reclassify 會先跑 prune）。
+    模式刻意收緊：只匹配「declares $N＋dividend/distribution」措辭，
+    真正的股利政策新聞不誤殺。
+  * **Gemini 402 帳務短路**：402＝帳務問題，重試/換模型無解 →
+    `_mark_payment_down()` 於 usage 檔記 `payment_down`，當日其餘呼叫直接
+    skip（原本每天燒 47 次無效呼叫＋22 行 WARNING）。跨日自動清除＝儲值
+    後隔日自動恢復，零改動。503/429 等不觸發。
+  * **Spiritual MD 詳註對齊**：`_detail_content` 改吃
+    `_systems_rendered`（與 JSON digest 同源、與 PDF 同版），每系統加
+    「論述來源：AI（流日×本命）／編輯樣板」行；不再讀靜態樣板。
+  * 驗證：155 tests＋main.py all 7/7/7＋yahoo 殘留 0＋NYT 進站＋MD 帶當日
+    流日閘門。search.cnbc.com（Global macro feed）查證為活著（低頻非死亡），
+    未動。
 - 2026-09-30（Obsidian writer 補完：MD＋JSON 雙產出，社群管線地基）：
   * **三報告各自產出 JSON digest**（與 MD 同基底名，`output/obsidian_vault/`
     下）：`core.obsidian_writer` 新增 `write_json_note`＋`digest_meta` 共用
