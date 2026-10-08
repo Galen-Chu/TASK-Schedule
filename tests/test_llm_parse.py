@@ -221,3 +221,66 @@ def test_global_fallback_twelve_cards_still_7_pages(tmp_path, monkeypatch):
     assert dom_text.count("BBC") == 12             # 12 live cards on P2
     assert "12 則即時 RSS" in dom_text
     assert "編輯精選" not in dom_text               # corpus filled all 12 slots
+
+
+# ---- 402 payment short-circuit (2026-10-08) --------------------------------
+# Billing-side 402s must disable the rest of the day's calls without retry,
+# while ordinary errors (503 etc.) must not trip the kill switch.
+
+import json as _json
+
+from core import llm as _llm
+
+
+class _FailingModels:
+    def __init__(self, message):
+        self._message = message
+        self.calls = 0
+
+    def generate_content(self, **kw):
+        self.calls += 1
+        raise RuntimeError(self._message)
+
+
+class _FailingClient:
+    def __init__(self, message):
+        self.models = _FailingModels(message)
+
+
+def _arm_llm(monkeypatch, tmp_path, message):
+    usage = tmp_path / "usage.json"
+    monkeypatch.setattr(_llm, "_USAGE_FILE", str(usage))
+    monkeypatch.setattr(_llm, "_AVAILABLE", True)
+    monkeypatch.setattr(_llm, "_gen_configs", lambda mt, t: [object()])
+    client = _FailingClient(message)
+    monkeypatch.setattr(_llm, "_CLIENT", client)
+    return usage, client
+
+
+def test_payment_402_marks_day_down(monkeypatch, tmp_path):
+    usage, client = _arm_llm(
+        monkeypatch, tmp_path,
+        "402 RESOURCE_EXHAUSTED ... prepayment credits are depleted")
+    assert _llm.generate("x") is None
+    assert client.models.calls == 1          # 402: no retry, no second config
+    state = _json.loads(usage.read_text(encoding="utf-8"))
+    assert state.get("payment_down") == state["date"]
+    assert _llm._allow_call(tick=True) is False
+
+
+def test_non_payment_error_keeps_calls_enabled(monkeypatch, tmp_path):
+    usage, client = _arm_llm(monkeypatch, tmp_path, "503 backend hiccup")
+    assert _llm.generate("x") is None
+    assert client.models.calls == 1
+    state = _json.loads(usage.read_text(encoding="utf-8"))
+    assert "payment_down" not in state
+    assert _llm._allow_call(tick=True) is True
+
+
+def test_payment_flag_auto_clears_next_day(monkeypatch, tmp_path):
+    usage = tmp_path / "usage.json"
+    usage.write_text(_json.dumps({"date": "2000-01-01",
+                                  "payment_down": "2000-01-01"}),
+                     encoding="utf-8")
+    monkeypatch.setattr(_llm, "_USAGE_FILE", str(usage))
+    assert _llm._allow_call(tick=False) is True

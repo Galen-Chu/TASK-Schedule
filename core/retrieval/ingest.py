@@ -98,6 +98,21 @@ DOMAIN_KEYWORDS = _DOMAIN_KEYWORDS  # re-export for callers (e.g. queries)
 
 import re as _re
 
+# Dividend/earnings boilerplate from Seeking Alpha market_currents: pure
+# announcement noise ("Kish Bancorp declares $0.44 dividend") — no analysis
+# value, yet it dominated the unclassified bucket (22% of the corpus on
+# 2026-10-08) and diluted market_intel card selection. Dropped at ingest and
+# pruned from the stored corpus via --reclassify. Keep the patterns tight to
+# declaration phrasing so real dividend-policy news still passes.
+_DIVIDEND_DECL_RE = _re.compile(r"declar\w+ \$?\d[\d.]*", _re.IGNORECASE)
+_DIVIDEND_WORD_RE = _re.compile(r"dividend|distribution|payout", _re.IGNORECASE)
+
+
+def is_noise(title):
+    """True for boilerplate dividend/earnings declaration titles."""
+    return bool(_DIVIDEND_DECL_RE.search(title or "")
+                and _DIVIDEND_WORD_RE.search(title or ""))
+
 
 def _kw_hit(kw, low):
     """ASCII keywords match on word boundaries ('ai' must not hit 'said');
@@ -132,6 +147,10 @@ def normalize(raw, source="", domain_hint=""):
 
 
 def ingest_items(store, items, source="", domain_hint=""):
-    """Normalize + add a batch of items. Returns the number newly stored."""
-    norm = [normalize(it, source=source, domain_hint=domain_hint) for it in items]
+    """Normalize + add a batch of items. Returns the number newly stored.
+
+    Dividend-declaration boilerplate is dropped before it enters the store
+    (see :func:`is_noise`)."""
+    norm = [normalize(it, source=source, domain_hint=domain_hint)
+            for it in items if not is_noise(it.get("title", ""))]
     return store.add(norm)

@@ -157,11 +157,13 @@ def cmd_reclassify():
     from core.retrieval.ingest import DOMAIN_KEYWORDS
 
     store = CorpusStore(os.path.join(_REPO_ROOT, "data", "retrieval", "global_corpus.jsonl"))
+    pruned = store.prune_noise()
     before = sum(1 for it in store.all() if it.get("domain_tag"))
     changed = store.reclassify()
     after = sum(1 for it in store.all() if it.get("domain_tag"))
     total = len(store.all())
-    print(f"Re-tagged {changed} items; classified {before} → {after} of {total} "
+    print(f"Pruned {pruned} declaration-noise items; re-tagged {changed}; "
+          f"classified {before} → {after} of {total} "
           f"({(total - after) / total * 100:.0f}% unclassified)")
     print("Keywords live in core/retrieval/ingest.py —"
           f" {sum(len(k) for k in DOMAIN_KEYWORDS.values())} terms across "

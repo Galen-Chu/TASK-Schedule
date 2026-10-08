@@ -118,3 +118,24 @@ def test_write_json_note_readable_cjk(tmp_path):
     write_json_note(str(tmp_path), "zh.json", payload)
     assert "人類圖・紫微" in open(os.path.join(str(tmp_path), "zh.json"),
                                  encoding="utf-8").read()
+
+
+def test_spiritual_detail_note_uses_rendered_systems(tmp_path):
+    """The markdown detail note must follow the PDF-rendered overlay (live
+    spotlights + content_source), not the static SYSTEMS_CONFIG (2026-10-08)."""
+    from Spiritual_Intelligence.obsidian_writer import ObsidianVaultWriter
+    writer = ObsidianVaultWriter(vault_path=str(tmp_path))
+    rendered = [{
+        "id": "SYS_HD", "title": "人類圖", "spotlight": "📍 閘 41 XYZTEST 啟動",
+        "system_data_summary": "5/1 生產者", "what": "即時覺察內容",
+        "content_source": "AI",
+    }]
+    path = writer.write_awareness_detail_note("2026-10-08", system_data=rendered)
+    live = open(path, encoding="utf-8").read()
+    assert "閘 41 XYZTEST 啟動" in live
+    assert "AI（流日×本命）" in live
+
+    static = writer.write_awareness_detail_note("2026-10-07")
+    static_text = open(static, encoding="utf-8").read()
+    assert "閘 41 XYZTEST 啟動" not in static_text
+    assert "編輯樣板" in static_text

@@ -29,7 +29,11 @@ _SECTION_TITLES = {
 }
 
 
-def _detail_content(date_str):
+def _detail_content(date_str, systems=None):
+    """Systems list defaults to the static config for standalone use; the
+    scheduler passes the PDF-rendered overlay (live spotlights + LLM briefs)
+    so the markdown note matches the PDF and the JSON digest."""
+    systems = systems or SYSTEMS_CONFIG
     parts = [
         "---",
         f"created: {date_str}",
@@ -43,18 +47,21 @@ def _detail_content(date_str):
         f"# Spiritual Intelligence 每日覺察詳細報告 ({date_str})",
         "",
     ]
-    for cfg in SYSTEMS_CONFIG:
+    for cfg in systems:
         zh_title, _en = _SECTION_TITLES.get(cfg["id"], (cfg["title"], cfg["title"]))
         parts.append(f"## {zh_title}")
         parts.append(f"> **宇宙點名：** {cfg['spotlight']}")
         parts.append(f"- **關鍵參數：** {cfg['system_data_summary']}")
         parts.append(f"- **覺察觀察 (What)：** {cfg['what']}")
+        parts.append(f"- **論述來源：** "
+                     f"{'AI（流日×本命）' if cfg.get('content_source') == 'AI' else '編輯樣板'}")
         parts.append("")
     return "\n".join(parts)
 
 
-def _summary_text():
-    return "  /  ".join(cfg["spotlight"].replace("📍 ", "") for cfg in SYSTEMS_CONFIG)
+def _summary_text(systems=None):
+    systems = systems or SYSTEMS_CONFIG
+    return "  /  ".join(cfg["spotlight"].replace("📍 ", "") for cfg in systems)
 
 
 def build_digest(date_str, data=None):
@@ -108,9 +115,14 @@ class ObsidianVaultWriter:
         os.makedirs(self.awareness_folder, exist_ok=True)
 
     def write_awareness_detail_note(self, date_str, system_data=None):
-        """Create Awareness/Daily-Transit/YYYY-MM-DD.md. Returns the path."""
+        """Create Awareness/Daily-Transit/YYYY-MM-DD.md. Returns the path.
+
+        ``system_data`` is the PDF-rendered systems overlay when available
+        (``data["_systems_rendered"]``); without it the static config is
+        used (legacy standalone usage)."""
         detail_path = os.path.join(self.awareness_folder, f"{date_str}.md")
-        write_note(self.awareness_folder, f"{date_str}.md", _detail_content(date_str))
+        write_note(self.awareness_folder, f"{date_str}.md",
+                   _detail_content(date_str, system_data))
         logger.info("Awareness detail note created at: %s", detail_path)
         return detail_path
 
@@ -160,7 +172,10 @@ class ObsidianVaultWriter:
         """
         detail_path = self.write_awareness_detail_note(date_str, system_data)
         wikilink = f"[[Awareness/Daily-Transit/{date_str}|{date_str} 覺察詳細報告]]"
-        self.merge_into_daily_note(date_str, summary_text or _summary_text(), wikilink)
+        self.merge_into_daily_note(
+            date_str,
+            summary_text or _summary_text((data or {}).get("_systems_rendered")),
+            wikilink)
         if data is not None:
             self.write_digest_note(date_str, data)
         logger.info("Obsidian write-back completed for date: %s", date_str)

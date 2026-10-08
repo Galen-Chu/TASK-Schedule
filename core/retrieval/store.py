@@ -201,6 +201,24 @@ class CorpusStore:
             log.info("corpus purged source '%s': -%d (kept %d)", domain_fragment, removed, len(kept))
         return removed
 
+    def prune_noise(self):
+        """Drop stored items whose titles are dividend-declaration boilerplate
+        (the noise filter runs at ingest for NEW items; this cleans the
+        backlog). Returns the number of items removed."""
+        from core.retrieval.ingest import is_noise
+
+        kept, removed = [], 0
+        for it in self.all():
+            if is_noise(it.get("title", "")):
+                removed += 1
+            else:
+                kept.append(it)
+        if removed:
+            self.save_all(kept)
+            log.info("corpus pruned declaration noise: -%d (kept %d)",
+                     removed, len(kept))
+        return removed
+
     def reclassify(self):
         """Re-run keyword domain classification over stored items.
 

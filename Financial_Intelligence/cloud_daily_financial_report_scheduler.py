@@ -73,7 +73,9 @@ def _pick_diverse(pools, k=5, per_domain=2):
 # Financial news RSS feeds — ingested into the same retrieval corpus as Global,
 # but tagged with "financial" domain keywords via the classify_domain logic.
 FINANCIAL_FEEDS = [
-    "https://finance.yahoo.com/news/rss.xml",
+    # 2026-10-08：finance.yahoo.com/news/rss.xml 已 404（靜默斷流 13 天才被
+    # --stats 抓到），換 NYT Business（keyless、當日新鮮、廣度財經）。
+    "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
     "https://feeds.content.dowjones.io/public/rss/mw_topstories",
     "https://www.cnbc.com/id/100003114/device/rss/rss.html",  # CNBC Top News
     "https://www.ft.com/rss/home",
@@ -174,6 +176,10 @@ class FinancialReportScheduler(BaseReportScheduler):
         try:
             from core.data.fetchers import fetch_rss_items
             store = CorpusStore(CORPUS_PATH)
+            # Immediate cleanup of the retired Yahoo feed's backlog (same
+            # pattern as the Global scheduler's reddit purge) instead of
+            # waiting 30 days for retention decay.
+            store.purge_source("finance.yahoo.com")
             import concurrent.futures as _cf
             with _cf.ThreadPoolExecutor(max_workers=4) as pool:
                 feeds = list(pool.map(

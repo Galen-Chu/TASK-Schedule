@@ -65,8 +65,15 @@ def _write_state(state):
 
 
 def _allow_call(tick=False):
-    """True while under the daily budget; ``tick`` also increments the count."""
+    """True while under the daily budget; ``tick`` also increments the count.
+
+    Also False for the rest of the day once a 402 Payment Required marks the
+    key as billing-dead (prepayment depleted) — retrying or probing other
+    models cannot fix a billing error (2026-10-08: the depletion stretch was
+    burning 47 futile calls + their log lines per day)."""
     state = _usage_state()
+    if state.get("payment_down") == state["date"]:
+        return False
     ok = state.get("count", 0) < _DAILY_LIMIT
     if ok and tick:
         state["count"] = state.get("count", 0) + 1
@@ -74,6 +81,16 @@ def _allow_call(tick=False):
     elif not ok:
         log.info("Gemini daily budget reached (%d calls); using template.", _DAILY_LIMIT)
     return ok
+
+
+def _mark_payment_down():
+    """Disable all Gemini calls for the rest of today (auto-clears at UTC+8
+    midnight together with the usage counter — so a topped-up key recovers
+    on the next day's run with zero code changes)."""
+    state = _usage_state()
+    state["payment_down"] = state["date"]
+    _write_state(state)
+    log.warning("Gemini 402 Payment Required（預付額度用罄）—當日停用其餘 LLM 呼叫，退回樣板。")
 
 
 def _load_model_cache():
@@ -133,7 +150,10 @@ def _pick_model(client, preferred, user_set):
                          name, preferred)
             _save_model_cache(name)
             return name
-        except Exception:  # noqa: BLE001 — try the next candidate
+        except Exception as exc:  # noqa: BLE001 — try the next candidate
+            if "402" in str(exc):
+                _mark_payment_down()
+                break
             continue
     log.info("no working Gemini flash model found; using %s", preferred)
     return preferred
@@ -227,6 +247,11 @@ def generate(prompt, max_tokens=1600):
                     _warn_empty(resp, max_tokens)
                 return text
             except Exception as exc:  # noqa: BLE001
+                if "402" in str(exc):
+                    # Billing-side outage: no point retrying or trying other
+                    # configs — disable for the rest of the day.
+                    _mark_payment_down()
+                    return None
                 if attempt == 0 and "429" in str(exc):
                     import time as _t
                     log.info("Gemini 429 限流，20 秒後重試一次。")
