@@ -39,32 +39,104 @@ _PAGE_TOTAL = 7
 
 
 def calculate_signal_score(data):
-    """Quantitative signal score (0-100) per the documented model.
+    """Graded quantitative signal score (0-100) — 2026-11-10 redesign.
 
-    Base 50; +15 if the TW market-wide margin balance (lots) is under the
-    ceiling (default 9,000,000 — mid-market calibration, overridable via the
-    ``tw_margin_ceiling`` data key); +10 if VIX > 25; +10 if the 10Y-2Y spread
-    is positive (curve un-inverted); foreign-futures OI band. A missing input
-    (None/absent) contributes nothing — no bonus for values we could not
-    fetch (the old default-0 OI handed +5 to a keyless-unavailable field).
+    History: the original single-band model (base 50; +15 margin, +10
+    VIX>25, +10 spread>0, OI ±) sat pinned at exactly 50 for 38 straight
+    days (2026-09-30..11-05): margin hovered above the ceiling, VIX below
+    25, and the spread bonus (+10) cancelled the OI deduction (-10) every
+    single day. fear_and_greed and dxy were not inputs at all. Redesign:
+
+    * every factor contributes in GRADED bands using the SAME thresholds as
+      the detail-table verdicts (_market_verdicts), so the score can never
+      contradict the banner/tables;
+    * previously unused inputs join: fear_and_greed, dxy, pc_ratio_oi
+      (80/120 bands), advance/decline breadth (1.5/0.67 bands);
+    * a missing input still contributes nothing — no bonus for values we
+      could not fetch (fail-visible doctrine).
     """
     score = 50
+    # 1) VIX — graded over the same 25 / 15 bands as the US verdict
+    vix = data.get("vix")
+    if vix is not None:
+        if vix >= 30:
+            score += 8      # 恐慌極端・中長線逆向買點
+        elif vix >= 25:
+            score += 6
+        elif vix >= 15:
+            score += 3      # 波動可控
+        elif vix >= 12:
+            score += 1
+        # vix < 12: 自滿區，不給分
+    # 2) 恐貪指數（加密市場版）— 逆向思維：恐慌加分、極度貪婪扣分
+    fg = data.get("fear_and_greed")
+    if fg is not None:
+        if fg <= 24:
+            score += 7
+        elif fg <= 44:
+            score += 4
+        elif fg <= 55:
+            score += 2
+        elif fg > 75:
+            score -= 5
+    # 3) 10Y-2Y 利差 — 0 / -0.5 與債券 verdict 同檻
+    spread = data.get("spread_10y2y")
+    if spread is not None:
+        if spread > 0:
+            score += 5
+        elif spread > -0.5:
+            score += 1
+        else:
+            score -= 6
+    # 4) 台股融資餘額 — ceiling / 1.05×ceiling 與台股 verdict 同檻
     ceiling = data.get("tw_margin_ceiling", 9_000_000)
     twm = data.get("tw_margin_balance")
-    if twm is not None and twm < ceiling:
-        score += 15
-    vix = data.get("vix")
-    if vix is not None and vix > 25:
-        score += 10
-    spread = data.get("spread_10y2y")
-    if spread is not None and spread > 0:
-        score += 10
+    if twm is not None:
+        if twm < ceiling:
+            score += 10
+        elif twm < ceiling * 1.05:
+            score += 3
+        else:
+            score -= 8
+    # 5) 外資台指期淨 OI（媒體口徑 TX）— 分級取代舊二段
     oi = data.get("futures_net_oi")
     if oi is not None:
-        if oi > -10000:
+        if oi > -10_000:
             score += 5
-        elif oi < -30000:
-            score -= 10
+        elif oi >= -30_000:
+            score += 2
+        elif oi > -60_000:
+            score -= 3
+        else:
+            score -= 8
+    # 6) DXY — 101 / 104.5 與外匯 verdict 同檻
+    dxy = data.get("dxy")
+    if dxy is not None:
+        if dxy <= 101:
+            score += 4
+        elif dxy < 104.5:
+            score += 1
+        else:
+            score -= 4
+    # 7) 台指選 P/C OI 比 — <80 偏多 / >120 避險升溫（表列判讀同檻）
+    pc = data.get("pc_ratio_oi")
+    if pc is not None:
+        if pc < 80:
+            score += 4
+        elif pc <= 120:
+            score += 1
+        else:
+            score -= 4
+    # 8) 上市漲跌家數廣度 — 比 >1.5 偏多 / <0.67 偏弱（表列判讀同檻）
+    adv, dec = data.get("tw_advance"), data.get("tw_decline")
+    if adv is not None and dec is not None and dec > 0:
+        ratio = adv / dec
+        if ratio > 1.5:
+            score += 4
+        elif ratio >= 1.0:
+            score += 2
+        elif ratio < 0.67:
+            score -= 4
     return max(0, min(100, score))
 
 

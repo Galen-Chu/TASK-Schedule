@@ -19,6 +19,7 @@ from core.dispatch.drive_uploader import upload_to_drive
 from core.retrieval import CorpusStore, ingest_items, retrieve
 from core.retrieval.retrieve import domain_trends, trending_keywords
 from core.retrieval.ingest import DOMAIN_KEYWORDS
+from Global_Intelligence.obsidian_writer import build_rules_digest
 
 # Default public, keyless RSS feeds — breadth across the five domains
 # (international + Taiwan). All verified reachable 2026-08-20. Override via
@@ -139,6 +140,12 @@ class GlobalReportScheduler(BaseReportScheduler):
                 "domains": domain_trends(store),
                 "keywords": trending_keywords(store, top_k=20),
             }
+        # 規則版 G/W/T：LLM 額度/key 缺席時的誠實 fallback（llm_digest 保持
+        # null 作為機器可讀的「LLM 缺席」訊號，規則版內容放 digest_fallback）。
+        if not data.get("llm_digest"):
+            fb = build_rules_digest(items, data.get("trends"))
+            if fb:
+                data["digest_fallback"] = fb
         return data
 
     def render_pdf(self, data):

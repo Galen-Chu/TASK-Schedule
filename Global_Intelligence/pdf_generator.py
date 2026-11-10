@@ -325,19 +325,23 @@ def build_global_pdf(filename, data=None, date_str=None):
         "AI 智庫摘要 ＋ 領域熱度 ＋ 發燒關鍵字 — 即時 RSS 語料庫（本週 vs 上週）",
         date_str, T.GOLD, s, eyebrow_text=EYEBROW))
 
-    # AI digest (if LLM key available)
+    # AI digest (if LLM key available), else the deterministic rules digest
     digest = (data or {}).get("llm_digest")
-    if digest:
+    fb = (data or {}).get("digest_fallback")
+    if digest or fb:
+        src = digest or fb
+        header = ("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>" if digest
+                  else "<b>情報摘要（規則版 — LLM 額度恢復前，由管線數據生成）</b>")
         digest_st = ParagraphStyle("gdigest", fontName=FONT_CJK, fontSize=8.0,
                                    leading=10.4, textColor=T.TEXT_BODY)
-        story.append(Paragraph(en("<b>🤖 AI 智庫摘要（Gemini 即時萃取）</b>"), s["h1"]))
+        story.append(Paragraph(en(header), s["h1"]))
         digest_rows = [
             [Paragraph(en("<b>GIVEN（前提態勢）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("given", ""), bold=True), digest_st)],
+             Paragraph(en(src.get("given", ""), bold=True), digest_st)],
             [Paragraph(en("<b>WHEN（關鍵事件）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("when", "")), digest_st)],
+             Paragraph(en(src.get("when", "")), digest_st)],
             [Paragraph(en("<b>THEN（台灣啟示）</b>", color="#FFFFFF"), s["th"]),
-             Paragraph(en(digest.get("then", "")), digest_st)],
+             Paragraph(en(src.get("then", "")), digest_st)],
         ]
         t_ai = Table(digest_rows, colWidths=[110, T.PRINTABLE_WIDTH - 110])
         t_ai.setStyle(TableStyle([

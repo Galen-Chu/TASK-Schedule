@@ -105,6 +105,42 @@ tags:
 """
 
 
+def build_rules_digest(rss_items, trends=None):
+    """Deterministic GIVEN/WHEN/THEN digest — 規則版 fallback while the LLM
+    layer is unavailable (quota/key). Composed ONLY of facts the pipeline
+    already computed (weekly domain-heat deltas, today's top live headline,
+    trending keywords) — never fabricated analysis. Returns
+    ``{given, when, then, source: "rules"}`` or None when there is nothing
+    to say. The JSON digest keeps ``llm_digest`` null (the machine-readable
+    'LLM absent' signal) and carries this under ``digest_fallback``.
+    """
+    out = {"given": "", "when": "", "then": "", "source": "rules"}
+    dom = (trends or {}).get("domains") or {}
+    movers = sorted(
+        (kv for kv in dom.items() if kv[1].get("change_pct") is not None),
+        key=lambda kv: kv[1]["change_pct"], reverse=True)
+    parts = [f"{_domain_name(tag)}週比 {m['change_pct']:+.0f}%"
+             for tag, m in movers[:2]]
+    if parts:
+        out["given"] = "聲量態勢：" + "、".join(parts)
+    for it in rss_items or []:
+        t = _strip_html(it.get("title") or "").strip()
+        if not t:
+            continue
+        host = _urlparse(it.get("link") or "").netloc.replace("www.", "")
+        src = host.split(".")[0].upper() if host else "RSS"
+        out["when"] = f"今日焦點：〔{src}〕{t}"
+        break
+    kws = (trends or {}).get("keywords") or []
+    words = "、".join(str(k[0]) for k in kws[:5] if k and k[0])
+    if words:
+        out["then"] = f"本週熱詞：{words}"
+    for k in ("given", "when", "then"):
+        if len(out[k]) > 62:
+            out[k] = out[k][:60] + "…"
+    return out if (out["given"] or out["when"]) else None
+
+
 def _item_json(it):
     """Project one corpus/RSS item to the digest contract (sanitized, trimmed)."""
     it = it or {}
@@ -130,6 +166,9 @@ def build_digest(date_str, data=None):
     return {
         "meta": digest_meta("global", date_str, d.get("_source")),
         "llm_digest": d.get("llm_digest"),
+        # rules-version fallback content while the LLM layer is absent —
+        # llm_digest stays null so consumers can tell the two apart.
+        "digest_fallback": d.get("digest_fallback"),
         "live_rss": [_item_json(it) for it in (d.get("rss_items") or [])[:6]],
         "domains": domains,
         "trends": d.get("trends") or {},
