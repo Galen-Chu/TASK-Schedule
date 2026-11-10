@@ -5,8 +5,23 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
 （ReportLab 排版、RSS 檢索語料庫、Gemini 選用增強、統一設計 token）。
 詳細規格見 README.md 與各報告資料夾的 `*_Spec.md`。
 
-## 當前狀態（2026-10-08 更新）
+## 當前狀態（2026-11-10 更新）
 
+- 2026-11-10（月刊回饋兩項：訊號分數鑑別度＋Global 規則版摘要）：
+  * **訊號分數改分級制**（月刊：32 天恆 50 全🟡）。根因＝舊模型單段二元：
+    融資 9.0~9.6M 整月不觸發 +15、VIX<25 不觸發 +10、**利差>0 的 +10 與
+    外資 OI<-3萬的 -10 天天互相抵銷**；F&G/DXY/P&C/廣度根本不是輸入。
+    11-06 VIX 破 25 才跳 60（不是完全死的，是無鑑別度）。新版
+    `calculate_signal_score`：八因子分級（VIX/恐貪/利差/融資/OI/DXY/P/C/
+    廣度），門檻與 `_market_verdicts` 表列完全同檻（橫幅不矛盾不變式），
+    缺值不給分。回測 41 天：舊 2 種分數 → 新 12 種（43-61）。**Spec
+    第 2 節同步重寫**（舊文件描述的還是從未上線過的維持率模型）。
+  * **Global 規則版 G/W/T 摘要**（月刊：llm_digest 0/32——根因仍是
+    Gemini 額度未儲值，11-09 run 仍 402×2＋短路生效）。`build_rules_digest`
+    只用管線既有事實組三段（GIVEN=域聲量週比、WHEN=當日頭條、THEN=熱詞），
+    P1 卡在 LLM 缺席時渲染「規則版」表格而非空白；**JSON 契約不變**：
+    `llm_digest` 維持 null 當機器訊號、規則版放新增的 `digest_fallback`
+    鍵（additive、不 bump schema）。額度恢復後自動回到 AI 版。
 - 2026-10-08（排查修復四件：死 feed／語料降噪／402 短路／Spiritual MD 對齊）：
   * **finance.yahoo.com/news/rss.xml 已 404**（靜默斷流 13 天才被 --stats
     抓到）→ 換 **NYT Business**（keyless、當日新鮮）；舊源 108 筆以
