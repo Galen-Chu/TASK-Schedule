@@ -131,8 +131,13 @@ def build_rules_digest(rss_items, trends=None):
         src = host.split(".")[0].upper() if host else "RSS"
         out["when"] = f"今日焦點：〔{src}〕{t}"
         break
+    # trending_keywords() yields {"keyword", "this_week", "last_week", "change"}
+    # dicts (CI 2026-11-10: an assumed [word, count] pair shape raised
+    # KeyError: 0 in the smoke build — the local fixture had masked it).
     kws = (trends or {}).get("keywords") or []
-    words = "、".join(str(k[0]) for k in kws[:5] if k and k[0])
+    words = "、".join(
+        str(k.get("keyword")) for k in kws[:5]
+        if isinstance(k, dict) and k.get("keyword"))
     if words:
         out["then"] = f"本週熱詞：{words}"
     for k in ("given", "when", "then"):

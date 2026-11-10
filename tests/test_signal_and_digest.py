@@ -53,11 +53,15 @@ def test_missing_new_inputs_contribute_nothing():
 
 
 # ---- Global rules digest ---------------------------------------------------
-
+# Shapes mirror the real producers: domain_trends() -> {tag: {this_week,
+# last_week, change_pct}}, trending_keywords() -> [{keyword, this_week,
+# last_week, change}] (the original fixture used [word, count] pairs and
+# masked a KeyError in the CI smoke build).
 _TRENDS = {
     "domains": {"it_ai": {"this_week": 30, "last_week": 20, "change_pct": 50.0},
                 "macro": {"this_week": 10, "last_week": 20, "change_pct": -50.0}},
-    "keywords": [["ai chips", 5], ["tsmc", 3]],
+    "keywords": [{"keyword": "ai chips", "this_week": 5, "last_week": 1, "change": 4},
+                 {"keyword": "tsmc", "this_week": 3, "last_week": 1, "change": 2}],
 }
 _ITEMS = [{"title": "<b>TSMC</b> lifts capex guidance", "link":
            "https://www.bloomberg.com/x"}]
