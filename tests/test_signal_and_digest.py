@@ -59,7 +59,10 @@ def test_missing_new_inputs_contribute_nothing():
 # masked a KeyError in the CI smoke build).
 _TRENDS = {
     "domains": {"it_ai": {"this_week": 30, "last_week": 20, "change_pct": 50.0},
-                "macro": {"this_week": 10, "last_week": 20, "change_pct": -50.0}},
+                "macro": {"this_week": 10, "last_week": 20, "change_pct": -50.0},
+                # domain_trends() puts unclassified items under "(未分類)" —
+                # never a reader-facing GIVEN (first production run leaked it)
+                "(未分類)": {"this_week": 13, "last_week": 10, "change_pct": 30.0}},
     "keywords": [{"keyword": "ai chips", "this_week": 5, "last_week": 1, "change": 4},
                  {"keyword": "tsmc", "this_week": 3, "last_week": 1, "change": 2}],
 }

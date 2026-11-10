@@ -117,7 +117,9 @@ def build_rules_digest(rss_items, trends=None):
     out = {"given": "", "when": "", "then": "", "source": "rules"}
     dom = (trends or {}).get("domains") or {}
     movers = sorted(
-        (kv for kv in dom.items() if kv[1].get("change_pct") is not None),
+        (kv for kv in dom.items()
+         if kv[1].get("change_pct") is not None
+         and kv[0] and kv[0] != "(未分類)"),   # domain_trends() 的未分類桶
         key=lambda kv: kv[1]["change_pct"], reverse=True)
     parts = [f"{_domain_name(tag)}週比 {m['change_pct']:+.0f}%"
              for tag, m in movers[:2]]
