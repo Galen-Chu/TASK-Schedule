@@ -22,6 +22,12 @@ GitHub Actions 每日 07:30 台北（23:30 UTC）產出，共用 `core/` 核心
     P1 卡在 LLM 缺席時渲染「規則版」表格而非空白；**JSON 契約不變**：
     `llm_digest` 維持 null 當機器訊號、規則版放新增的 `digest_fallback`
     鍵（additive、不 bump schema）。額度恢復後自動回到 AI 版。
+  * **首日實績**（run 42742494006）：Financial **score 66 🟢**——歸檔
+    41 天首次非 🟡（VIX 恐慌＋極度恐貪的逆向買訊組合）；規則版摘要
+    三段齊全。驗收過程修兩個瑕疵：熱詞 dict 形狀（CI 紅燈一次，
+    fixture 假形狀掩蓋真實 producer）、「(未分類)」偽域漏進 GIVEN 行
+    （`domain_trends` 未分類桶）。流程教訓：scheduler 路徑的新程式碼，
+    快速防線要加跑對應報告單一 smoke test（fixture 盲區互補）。
 - 2026-10-08（排查修復四件：死 feed／語料降噪／402 短路／Spiritual MD 對齊）：
   * **finance.yahoo.com/news/rss.xml 已 404**（靜默斷流 13 天才被 --stats
     抓到）→ 換 **NYT Business**（keyless、當日新鮮）；舊源 108 筆以
